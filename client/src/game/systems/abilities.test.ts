@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { ABILITIES, getAbilityById, getUnitAbilities, canUseAbility, getValidTargets } from './abilities'
-import { createMockUnit, createMockGameState, createMockUnitWithStatus, createMockUnitWithAbilities } from '../test/helpers'
-import { UnitType, StatusType, TargetType } from 'shared'
+import { createMockUnit, createMockGameState } from '../test/helpers'
+import { UnitType, StatusType } from 'shared'
 
 describe('Ability System', () => {
   let mockGameState: any

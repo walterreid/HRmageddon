@@ -1,11 +1,16 @@
 import { useGameStore } from '../stores/gameStore'
 
 export function MainMenu() {
-  const { initializeDraft, setGameMode } = useGameStore()
+  const { initializeDraft, setGameMode, initializeGame } = useGameStore()
 
   const handleStartGame = (mode: 'ai' | 'multiplayer') => {
     setGameMode(mode)
     initializeDraft()
+  }
+
+  const handleQuickStart = () => {
+    setGameMode('ai')
+    initializeGame()
   }
 
   return (
@@ -24,6 +29,15 @@ export function MainMenu() {
           <h2 className="text-2xl font-semibold text-slate-200">Select Game Mode</h2>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            {/* Quick Start (for testing) */}
+            <button
+              onClick={handleQuickStart}
+              className="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              <div className="text-xl font-bold">Quick Start</div>
+              <div className="text-sm opacity-90">Skip Draft & Test Game</div>
+            </button>
+
             {/* Player vs AI */}
             <button
               onClick={() => handleStartGame('ai')}
@@ -59,6 +73,7 @@ export function MainMenu() {
             <li>• <strong>Objective:</strong> Capture cubicles and eliminate enemy units</li>
             <li>• <strong>Controls:</strong> Click units to select, click tiles to move/attack</li>
             <li>• <strong>End Turn:</strong> Click "End Turn" when you're done</li>
+            <li>• <strong>Abilities:</strong> Select units to see their special abilities</li>
           </ul>
         </div>
       </div>

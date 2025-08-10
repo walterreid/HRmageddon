@@ -9,7 +9,8 @@ export class GameScene extends Phaser.Scene {
   private unitSprites: Map<string, Phaser.GameObjects.Container> = new Map()
   private unsubscribe?: () => void
   
-  // Ability targeting properties
+  // Action menu integration
+  private actionMode: 'none' | 'move' | 'attack' | 'ability' = 'none'
   private validTargets: (Unit | Coordinate)[] = []
   private targetingMode: boolean = false
   private abilityTargetGraphics!: Phaser.GameObjects.Graphics
@@ -19,35 +20,31 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    const store = useGameStore.getState()
-    // Don't call initializeGame here - the game should already be initialized
-    // from the draft system or other initialization flow
-
+    console.log('GameScene created')
+    
+    // Set up graphics for tiles and highlights
     this.tileGraphics = this.add.graphics()
     this.highlightGraphics = this.add.graphics()
     this.abilityTargetGraphics = this.add.graphics()
-
-    this.drawBoard(store.board)
-    this.drawUnits(store.units)
-    this.updateHighlights(store.highlightedTiles, store.selectedUnit)
-
+    
+    // Subscribe to game store changes
     this.unsubscribe = useGameStore.subscribe((state) => {
       this.drawBoard(state.board)
       this.drawUnits(state.units)
       this.updateHighlights(state.highlightedTiles, state.selectedUnit)
       this.updateAbilityTargeting(state.selectedUnit, state.selectedAbility)
     })
-
-    // Enhanced input handling for Safari compatibility
+    
+    // Set up input handling
     this.input.on('pointerdown', this.handleClick, this)
     
-    // Configure input for better Safari support
-    this.input.setDefaultCursor('pointer')
-    
-    console.log('GameScene created with enhanced input handling') // Debug log
+    // Initial render
+    const store = useGameStore.getState()
+    this.drawBoard(store.board)
+    this.drawUnits(store.units)
   }
 
-  private getTileSize(): number {
+  public getTileSize(): number {
     // Calculate tile size based on canvas dimensions
     // Use 80% of available space for the board, divided by grid dimensions
     return Math.min(
@@ -56,12 +53,12 @@ export class GameScene extends Phaser.Scene {
     )
   }
 
-  private getBoardOffsetX(): number {
+  public getBoardOffsetX(): number {
     const tileSize = this.getTileSize()
     return ((this.game.config.width as number) - (8 * tileSize)) / 2
   }
 
-  private getBoardOffsetY(): number {
+  public getBoardOffsetY(): number {
     const tileSize = this.getTileSize()
     return ((this.game.config.height as number) - (10 * tileSize)) / 2
   }
@@ -194,12 +191,42 @@ export class GameScene extends Phaser.Scene {
       const boardOffsetY = this.getBoardOffsetY()
       const px = boardOffsetX + x * tileSize
       const py = boardOffsetY + y * tileSize
-      let color = 0x22c55e
-      if (type === 'attack') color = 0xef4444
-      if (type === 'ability') color = 0xf59e0b
-      if (type === 'capture') color = 0x06b6d4
-      this.highlightGraphics.fillStyle(color, 0.3)
+      
+      let color = 0x22c55e // Default green for movement
+      let alpha = 0.3
+      
+      switch (type) {
+        case 'movement':
+          color = 0x22c55e // Green for movement
+          alpha = 0.4
+          break
+        case 'attack':
+          color = 0xef4444 // Red for attack
+          alpha = 0.5
+          break
+        case 'ability':
+          color = 0x3b82f6 // Blue for ability targeting
+          alpha = 0.4
+          break
+        case 'capture':
+          color = 0x06b6d4 // Cyan for capture
+          alpha = 0.4
+          break
+        case 'healing':
+          color = 0xec4899 // Pink for healing/area effects
+          alpha = 0.5
+          break
+        default:
+          color = 0x22c55e // Default green
+          alpha = 0.3
+      }
+      
+      this.highlightGraphics.fillStyle(color, alpha)
       this.highlightGraphics.fillRect(px, py, tileSize - 2, tileSize - 2)
+      
+      // Add a subtle border for better visibility
+      this.highlightGraphics.lineStyle(1, color, alpha + 0.2)
+      this.highlightGraphics.strokeRect(px, py, tileSize - 2, tileSize - 2)
     })
 
     if (selectedUnit) {
@@ -260,7 +287,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleClick(pointer: Phaser.Input.Pointer) {
-    console.log('Click detected at:', pointer.x, pointer.y) // Debug log
     
     const store = useGameStore.getState()
     
@@ -284,13 +310,15 @@ export class GameScene extends Phaser.Scene {
       if (clickedTarget && store.selectedUnit) {
         // Use the ability on the target
         store.useAbility(store.selectedUnit.id, store.selectedAbility, clickedTarget)
-        // Clear targeting mode
+        // Clear targeting mode and action mode
         store.selectAbility('')
+        this.actionMode = 'none'
         return
       }
       
       // If clicked outside valid targets, cancel targeting
       store.selectAbility('')
+      this.actionMode = 'none'
       return
     }
     
@@ -298,13 +326,56 @@ export class GameScene extends Phaser.Scene {
     for (const [unitId, container] of this.unitSprites) {
       const bounds = container.getBounds()
       if (bounds.contains(pointer.x, pointer.y)) {
-        console.log('Click hit unit container:', unitId) // Debug log
         const unit = store.units.find(u => u.id === unitId)
         if (unit) {
+          // Select the unit (this will show the action menu for player units)
           store.selectUnit(unit)
+          
+          // If it's a player unit and we're in action mode, handle the action
+          if (unit.playerId === 'player1' && this.actionMode !== 'none') {
+            this.handleActionModeClick(unit, pointer)
+          }
           return
         }
       }
+    }
+    
+    // If we're in action mode, handle tile clicks for movement/attack
+    if (this.actionMode !== 'none' && store.selectedUnit) {
+      const previousActionMode = this.actionMode
+      this.handleActionModeClick(store.selectedUnit, pointer)
+      
+      // If the action wasn't completed, check if we clicked outside valid tiles
+      if (this.actionMode === previousActionMode) {
+        const tileSize = this.getTileSize()
+        const boardOffsetX = this.getBoardOffsetX()
+        const boardOffsetY = this.getBoardOffsetY()
+        const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
+        const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
+        
+        // Check if clicked outside the board or on an invalid tile
+        const board = store.board
+        if (tileX < 0 || tileX >= board[0].length || tileY < 0 || tileY >= board.length) {
+          // Clicked outside board - cancel action mode
+          this.setActionMode('none')
+          return
+        }
+        
+        // Check if clicked on a tile that's not a valid move/attack target
+        let isValidTarget = false
+        if (this.actionMode === 'move') {
+          isValidTarget = store.possibleMoves.some(move => move.x === tileX && move.y === tileY)
+        } else if (this.actionMode === 'attack') {
+          isValidTarget = store.possibleTargets.some(target => target.x === tileX && target.y === tileY)
+        }
+        
+        if (!isValidTarget) {
+          // Clicked on invalid tile - cancel action mode
+          this.setActionMode('none')
+          return
+        }
+      }
+      return
     }
     
     // Fall back to tile selection
@@ -315,9 +386,63 @@ export class GameScene extends Phaser.Scene {
     const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
     const board = store.board
     if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {
-      console.log('Selecting tile:', tileX, tileY) // Debug log
       store.selectTile({ x: tileX, y: tileY })
     }
+  }
+
+  private handleActionModeClick(unit: Unit, pointer: Phaser.Input.Pointer) {
+    const store = useGameStore.getState()
+    const tileSize = this.getTileSize()
+    const boardOffsetX = this.getBoardOffsetX()
+    const boardOffsetY = this.getBoardOffsetY()
+    const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
+    const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
+    
+    switch (this.actionMode) {
+      case 'move':
+        // Check if the clicked tile is a valid move
+        const isValidMove = store.possibleMoves.some(move => move.x === tileX && move.y === tileY)
+        if (isValidMove) {
+          store.moveUnit(unit.id, { x: tileX, y: tileY })
+          this.actionMode = 'none'
+        }
+        break
+        
+      case 'attack':
+        // Check if the clicked tile has an enemy unit
+        const targetUnit = store.units.find(u => u.position.x === tileX && u.position.y === tileY && u.playerId !== unit.playerId)
+        if (targetUnit) {
+          store.attackTarget(unit.id, targetUnit.id)
+          this.actionMode = 'none'
+        }
+        break
+        
+      case 'ability':
+        // Handle ability targeting (already handled above)
+        break
+    }
+  }
+
+  // Public method to set action mode from the ActionMenu
+  setActionMode(mode: 'none' | 'move' | 'attack' | 'ability') {
+    this.actionMode = mode
+    
+    if (mode === 'none') {
+      // Clear highlights when exiting action mode
+      this.highlightGraphics.clear()
+    } else {
+      // Update highlights based on the new action mode
+      const store = useGameStore.getState()
+      if (store.selectedUnit) {
+        // Re-apply the highlights for the selected unit
+        this.updateHighlights(store.highlightedTiles, store.selectedUnit)
+      }
+    }
+  }
+
+  // Public getter for action mode
+  getActionMode(): 'none' | 'move' | 'attack' | 'ability' {
+    return this.actionMode
   }
 
   destroy() {

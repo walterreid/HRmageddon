@@ -1,4 +1,4 @@
-import { type Unit, type GameState, type Player, type Tile, UnitType, StatusType, TileType } from 'shared'
+import { type Unit, type GameState, type Player, type Tile, UnitType, StatusType, TileType, Team, GamePhase } from 'shared'
 
 export function createMockUnit(overrides: Partial<Unit> = {}): Unit {
   return {
@@ -12,11 +12,13 @@ export function createMockUnit(overrides: Partial<Unit> = {}): Unit {
     attackRange: 1,
     attackDamage: 3,
     actionsRemaining: 2,
+    maxActions: 2,
     hasMoved: false,
     hasAttacked: false,
     abilities: ['fetch_coffee', 'overtime'],
     abilityCooldowns: {},
-    statusEffects: [],
+    status: [],
+    cost: 100,
     ...overrides
   }
 }
@@ -25,41 +27,43 @@ export function createMockPlayer(overrides: Partial<Player> = {}): Player {
   return {
     id: 'player1',
     name: 'Test Player',
-    color: '#ff0000',
-    score: 0,
+    team: Team.BLUE,
+    budget: 1000,
+    income: 100,
+    controlledCubicles: 0,
     ...overrides
   }
 }
 
 export function createMockTile(overrides: Partial<Tile> = {}): Tile {
   return {
+    x: 0,
+    y: 0,
     type: TileType.CUBICLE,
-    owner: null,
-    occupied: null,
     ...overrides
   }
 }
 
 export function createMockGameState(overrides: Partial<GameState> = {}): GameState {
   return {
+    id: 'test-game',
     board: [
-      [createMockTile(), createMockTile(), createMockTile()],
-      [createMockTile(), createMockTile(), createMockTile()],
-      [createMockTile(), createMockTile(), createMockTile()]
+      [createMockTile({ x: 0, y: 0 }), createMockTile({ x: 1, y: 0 }), createMockTile({ x: 2, y: 0 })],
+      [createMockTile({ x: 0, y: 1 }), createMockTile({ x: 1, y: 1 }), createMockTile({ x: 2, y: 1 })],
+      [createMockTile({ x: 0, y: 2 }), createMockTile({ x: 1, y: 2 }), createMockTile({ x: 2, y: 2 })]
     ],
     units: [createMockUnit()],
     players: [createMockPlayer()],
     currentPlayerId: 'player1',
     turnNumber: 1,
-    gamePhase: 'playing',
-    winner: null,
+    phase: GamePhase.PLAYING,
     ...overrides
   }
 }
 
 export function createMockUnitWithStatus(statusType: StatusType, duration: number = 2): Unit {
   return createMockUnit({
-    statusEffects: [{ type: statusType, duration, source: 'test' }]
+    status: [{ type: statusType, duration, source: 'test' }]
   })
 }
 

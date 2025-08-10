@@ -32,6 +32,9 @@ type GameStore = SharedGameState & {
   
   // Track units that landed on cubicles for end-of-turn capture
   pendingCubicleCaptures: Map<string, { unitId: string; coord: Coordinate; playerId: string }>
+  
+  // New: Track if selected unit is just being viewed (not controlled)
+  viewingUnit: boolean
 
   setGameMode: (mode: GameMode) => void
   setCurrentPlayerId: (playerId: string) => void
@@ -92,6 +95,9 @@ export const useGameStore = create<GameStore>((set, get) => {
   // Track units that landed on cubicles for end-of-turn capture
   pendingCubicleCaptures: new Map(),
   
+  // New: Track if selected unit is just being viewed (not controlled)
+  viewingUnit: false,
+
   draftState: {
     playerBudget: 200,
     maxHeadcount: 6,
@@ -359,128 +365,91 @@ export const useGameStore = create<GameStore>((set, get) => {
   },
 
   selectUnit: (unit) => {
-    console.log('selectUnit called with:', {
-      unit: unit ? {
-        id: unit.id,
-        playerId: unit.playerId,
-        type: unit.type,
-        position: unit.position,
-        actionsRemaining: unit.actionsRemaining,
-        maxActions: unit.maxActions
-      } : null,
-      currentPlayerId: get().currentPlayerId
-    })
-    
     if (!unit) {
-      console.log('No unit provided, clearing selection')
       set({
         selectedUnit: undefined,
         possibleMoves: [],
         possibleTargets: [],
         highlightedTiles: new Map(),
+        viewingUnit: false,
       })
       return
     }
 
     const state = get()
     
-    // IMPORTANT: Only allow selecting units belonging to current player
-    // AND only allow player1 to select (never let human control AI units)
-    if (unit.playerId !== state.currentPlayerId || state.currentPlayerId !== 'player1') {
-      console.log('Cannot select unit:', {
-        unitPlayerId: unit.playerId,
-        currentPlayerId: state.currentPlayerId,
-        reason: unit.playerId !== state.currentPlayerId ? 'wrong player' : 'AI control blocked'
-      })
-      return
-    }
+    // Check if this is a player unit that can be controlled
+    const canControl = unit.playerId === state.currentPlayerId && 
+                      state.currentPlayerId === 'player1' && 
+                      unit.actionsRemaining > 0
     
-    if (unit.actionsRemaining === 0) {
-      console.log('Cannot select unit - no actions remaining:', {
-        unitId: unit.id,
-        actionsRemaining: unit.actionsRemaining
+    if (canControl) {
+      // Player unit with actions remaining - can be controlled
+      const moves = state.calculatePossibleMoves(unit)
+      const targets = state.calculatePossibleTargets(unit)
+
+      const highlights = new Map<string, string>()
+      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
+      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
+
+      set({
+        selectedUnit: unit,
+        possibleMoves: moves,
+        possibleTargets: targets,
+        highlightedTiles: highlights,
+        viewingUnit: false,
       })
-      return
+    } else {
+      // Enemy unit or unit without actions - just view stats
+      set({
+        selectedUnit: unit,
+        possibleMoves: [],
+        possibleTargets: [],
+        highlightedTiles: new Map(),
+        viewingUnit: true,
+      })
     }
-
-    console.log('Unit selection successful, calculating moves and targets')
-    const moves = state.calculatePossibleMoves(unit)
-    const targets = state.calculatePossibleTargets(unit)
-
-    console.log('Calculated moves and targets:', {
-      moveCount: moves.length,
-      targetCount: targets.length,
-      movePositions: moves,
-      targetPositions: targets
-    })
-
-    const highlights = new Map<string, string>()
-    moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
-    targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
-
-    set({
-      selectedUnit: unit,
-      possibleMoves: moves,
-      possibleTargets: targets,
-      highlightedTiles: highlights,
-    })
-    
-    console.log('Unit selection complete:', {
-      selectedUnitId: unit.id,
-      highlights: highlights.size
-    })
   },
 
   selectTile: (coord) => {
     const state = get()
-    const { selectedUnit, possibleMoves, possibleTargets } = state
-
-    console.log('selectTile called with:', {
-      coord,
-      selectedUnit: selectedUnit ? { id: selectedUnit.id, playerId: selectedUnit.playerId, position: selectedUnit.position, actionsRemaining: selectedUnit.actionsRemaining } : null,
-      possibleMoves,
-      possibleTargets
-    })
+    const { selectedUnit, possibleMoves, possibleTargets, viewingUnit } = state
 
     if (!selectedUnit) {
       const unit = state.getUnitAt(coord)
       if (unit) {
-        console.log('No unit selected, selecting unit at coord:', unit.id)
         state.selectUnit(unit)
       }
       return
     }
 
+    // If just viewing a unit, don't allow actions
+    if (viewingUnit) {
+      return
+    }
+
+    // Check if this is a valid move
     if (possibleMoves.some((m) => m.x === coord.x && m.y === coord.y)) {
-      console.log('Moving unit to coord:', coord)
       state.moveUnit(selectedUnit.id, coord)
       state.checkVictoryConditions()
       return
     }
 
-    const target = state.getUnitAt(coord)
-    if (target && possibleTargets.some((t) => t.x === coord.x && t.y === coord.y)) {
-      console.log('Attacking target at coord:', coord)
-      state.attackTarget(selectedUnit.id, target.id)
+    // Check if this is a valid attack target
+    const targetUnit = state.getUnitAt(coord)
+    if (targetUnit && possibleTargets.some((t) => t.x === coord.x && t.y === coord.y)) {
+      state.attackTarget(selectedUnit.id, targetUnit.id)
       state.checkVictoryConditions()
       return
     }
 
+    // Check if this is a valid cubicle capture
     const tile = state.getTileAt(coord)
-    console.log('Checking tile for capture:', {
-      coord,
-      tileType: tile?.type,
-      tileOwner: tile?.owner,
-      isCubicle: tile?.type === TileType.CUBICLE,
-      isAdjacent: isAdjacent(selectedUnit.position, coord),
-      unitPosition: selectedUnit.position,
-      unitPlayer: selectedUnit.playerId
-    })
-    
-    // Cubicle capture is now handled when units land on them, not when adjacent
-    // The actual capture happens at the end of turn
+    if (tile?.type === TileType.CUBICLE && tile.owner !== selectedUnit.playerId) {
+      state.captureCubicle(selectedUnit.id, coord)
+      return
+    }
 
-    console.log('No valid action found for tile selection, deselecting unit')
     state.selectUnit(undefined)
   },
 
@@ -515,14 +484,25 @@ export const useGameStore = create<GameStore>((set, get) => {
         })
       }
 
+      // Get the updated unit to recalculate moves and targets
+      const updatedUnit = updatedUnits.find(u => u.id === unitId)!
+      
+      // Recalculate possible moves and targets for the updated unit
+      const moves = state.calculatePossibleMoves(updatedUnit)
+      const targets = state.calculatePossibleTargets(updatedUnit)
+      
+      const highlights = new Map<string, string>()
+      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
+      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
+
       return {
         ...state,
         units: updatedUnits,
         pendingCubicleCaptures: updatedPendingCaptures,
-        selectedUnit: undefined,
-        possibleMoves: [],
-        possibleTargets: [],
-        highlightedTiles: new Map(),
+        selectedUnit: updatedUnit,
+        possibleMoves: moves,
+        possibleTargets: targets,
+        highlightedTiles: highlights,
       }
     })
   },
@@ -548,13 +528,24 @@ export const useGameStore = create<GameStore>((set, get) => {
         })
         .filter(Boolean) as Unit[]
 
+      // Get the updated attacker to recalculate moves and targets
+      const updatedAttacker = updatedUnits.find(u => u.id === attackerId)!
+      
+      // Recalculate possible moves and targets for the updated attacker
+      const moves = state.calculatePossibleMoves(updatedAttacker)
+      const targets = state.calculatePossibleTargets(updatedAttacker)
+      
+      const highlights = new Map<string, string>()
+      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
+      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
+
       return {
         ...state,
         units: updatedUnits,
-        selectedUnit: undefined,
-        possibleMoves: [],
-        possibleTargets: [],
-        highlightedTiles: new Map(),
+        selectedUnit: updatedAttacker,
+        possibleMoves: moves,
+        possibleTargets: targets,
+        highlightedTiles: highlights,
       }
     })
   },
@@ -830,11 +821,30 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (unit.hasAttacked || unit.actionsRemaining === 0) return []
     const { units } = get()
     const targets: Coordinate[] = []
+    
     for (const enemy of units) {
       if (enemy.playerId === unit.playerId) continue
       const distance = Math.abs(enemy.position.x - unit.position.x) + Math.abs(enemy.position.y - unit.position.y)
-      if (distance <= unit.attackRange) targets.push(enemy.position)
+      if (distance <= unit.attackRange) {
+        targets.push(enemy.position)
+        console.log('Valid attack target found:', {
+          targetId: enemy.id,
+          targetType: enemy.type,
+          distance,
+          attackRange: unit.attackRange,
+          targetPosition: enemy.position
+        })
+      }
     }
+    
+    console.log('Calculated possible targets for unit:', {
+      unitId: unit.id,
+      unitType: unit.type,
+      attackRange: unit.attackRange,
+      targetCount: targets.length,
+      targets
+    })
+    
     return targets
   },
 
@@ -846,8 +856,8 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   checkVictoryConditions: () => {
     const state = get()
-    const p1Units = state.units.filter((u) => u.playerId === 'player1')
-    const p2Units = state.units.filter((u) => u.playerId === 'player2')
+    const p1Units = state.units.filter((u) => u.playerId === 'player1' && u.hp > 0)
+    const p2Units = state.units.filter((u) => u.playerId === 'player2' && u.hp > 0)
     
     console.log('Checking victory conditions:', {
       p1Units: p1Units.length,
@@ -895,10 +905,26 @@ export const useGameStore = create<GameStore>((set, get) => {
     const newHighlights = new Map<string, string>()
     if (abilityId) {
       // Highlight valid targets for the selected ability
-      // This will be implemented in the next phase
+      const ability = ABILITIES[abilityId]
+      if (ability) {
+        const validTargets = getValidTargets(state.selectedUnit, ability, state.board)
+        validTargets.forEach(target => {
+          if ('x' in target) {
+            // Tile target
+            newHighlights.set(`${target.x},${target.y}`, 'ability')
+          } else {
+            // Unit target
+            newHighlights.set(`${target.position.x},${target.position.y}`, 'ability')
+          }
+        })
+      }
     }
     
-    set({ highlightedTiles: newHighlights })
+    set({ 
+      selectedAbility: abilityId,
+      highlightedTiles: newHighlights,
+      targetingMode: !!abilityId
+    })
   },
 
   useAbility: (unitId: string, abilityId: string, target?: Unit | Coordinate) => {
@@ -982,10 +1008,27 @@ export const useGameStore = create<GameStore>((set, get) => {
           ? { ...u, actionsRemaining: u.actionsRemaining - ability.cost }
           : u
       )
-      set({ units: updatedUnits })
       
-      // Clear highlights
-      set({ highlightedTiles: new Map() })
+      // Get the updated unit to recalculate moves and targets
+      const updatedUnit = updatedUnits.find(u => u.id === unitId)!
+      
+      // Recalculate possible moves and targets for the updated unit
+      const moves = state.calculatePossibleMoves(updatedUnit)
+      const targets = state.calculatePossibleTargets(updatedUnit)
+      
+      const highlights = new Map<string, string>()
+      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
+      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
+
+      set({ 
+        units: updatedUnits,
+        selectedUnit: updatedUnit,
+        possibleMoves: moves,
+        possibleTargets: targets,
+        highlightedTiles: highlights,
+        selectedAbility: undefined,
+        targetingMode: false
+      })
     }
   },
 
@@ -1097,14 +1140,19 @@ function createInitialUnits(): Unit[] {
   ]
 }
 
-function isAdjacent(a: Coordinate, b: Coordinate): boolean {
-  const result = Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1
-  console.log('isAdjacent check:', { a, b, result, distance: Math.abs(a.x - b.x) + Math.abs(a.y - b.y) })
-  return result
-}
+// function isAdjacent(a: Coordinate, b: Coordinate): boolean {
+//   const result = Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1
+//   console.log('isAdjacent check:', { a, b, result, distance: Math.abs(a.x - b.x) + Math.abs(a.y - b.y) })
+//   return result
+// }
 
-function calculateDamage(attacker: Unit, target: Unit): number {
-  return Math.max(1, attacker.attackDamage - Math.floor(target.hp / 10))
+function calculateDamage(attacker: Unit, _target: Unit): number {
+  // Base damage is the attacker's attack damage
+  const baseDamage = attacker.attackDamage
+  
+  // Simple damage calculation - can be enhanced later
+  // For now, just return the base damage, ensuring it's at least 1
+  return Math.max(1, baseDamage)
 }
 
 // Test helper function to create a new game store instance
@@ -1127,6 +1175,7 @@ export function createGameStore() {
     get selectedAbility() { return useGameStore.getState().selectedAbility },
     get targetingMode() { return useGameStore.getState().targetingMode },
     get draftState() { return useGameStore.getState().draftState },
+    get viewingUnit() { return useGameStore.getState().viewingUnit },
     
     // Settable properties for testing
     set currentPlayerId(value: string) { 

@@ -339,7 +339,7 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 
 ---
 
-**Current Status:** 🚧 Phase 3 Development - Debugging Tile Capture Mechanics
+**Current Status:** 🚧 Phase 3 Development - Debugging Action Menu Integration Issues
 
 **Last Updated:** January 2025
 
@@ -356,15 +356,120 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 - **NEW: Team Drafting**: Build your team before battle with budget constraints
 - **NEW: AI Team Building**: AI creates balanced teams using strategic unit selection
 - **NEW: Enhanced AI**: Improved decision making and tactical behavior
+- **Action Menu**: UI for selecting unit actions (Move, Attack, Abilities) with proper positioning
 
 ### 🔄 Currently Debugging
-- **Tile Capture Issue**: Blue units unable to capture cubicle tiles
-- **Unit Selection**: Investigating unit selection and action point logic
-- **State Updates**: Verifying capture logic and board state updates
+- **Action Menu Integration**: Menu appears and positions correctly, but doesn't close after action selection
+- **Phaser-React Communication**: Investigating timing issues between GameScene initialization and React component access
+- **Action Mode Persistence**: Need to ensure selected actions persist and display movement/attack tiles correctly
 
 ### 📋 Next Steps
-- Fix tile capture mechanics
+- Fix GameScene availability timing issue in React-Phaser integration
+- Ensure action menu closes properly after action selection
+- Verify movement/attack tiles display correctly after menu closes
 - Add remaining unit types (IT Specialist, Accountant, Legal Counsel, Executive)
 - Implement advanced abilities and cooldowns
 - Add multiple maps and scenarios
 - Polish UI and add animations
+
+## 🧪 Testing
+
+### Running Tests
+
+The project uses **Vitest** for unit testing and **Playwright** for end-to-end testing.
+
+#### Unit Tests
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode (recommended for development)
+npm run test:watch
+
+# Run specific test files
+npm test -- src/stores/gameStore.test.ts
+npm test -- src/game/systems/ai.test.ts
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+#### E2E Tests
+```bash
+# Install Playwright browsers (first time only)
+npx playwright install
+
+# Run E2E tests
+npm run test:e2e
+
+# Run E2E tests in headed mode
+npm run test:e2e:headed
+```
+
+### Important Test Files
+
+#### Core Game Logic Tests
+- **`client/src/stores/gameStore.test.ts`** - Main game state management tests
+  - Game initialization and setup
+  - Unit movement and combat
+  - Turn management and victory conditions
+  - Player actions and gameplay mechanics
+  - Edge cases and error handling
+
+#### AI System Tests
+- **`client/src/game/systems/ai.test.ts`** - AI decision making and behavior tests
+  - AI movement and positioning
+  - Target selection and attack prioritization
+  - Ability usage and cooldown management
+  - Strategic decision making
+
+#### Ability System Tests
+- **`client/src/game/systems/abilities.test.ts`** - Special abilities and effects tests
+  - Ability definitions and properties
+  - Unit ability mappings
+  - Ability usage validation
+  - Target selection and range limits
+  - Status effects and damage application
+
+#### Test Helpers
+- **`client/src/game/test/helpers.ts`** - Mock data and test utilities
+  - `createMockUnit()` - Create test units with custom properties
+  - `createMockGameState()` - Create test game states
+  - `createMockUnitWithAbilities()` - Create units with specific abilities
+  - `createMockUnitWithStatus()` - Create units with status effects
+
+### Test Configuration
+
+The test setup is configured in:
+- **`client/vitest.config.ts`** - Vitest configuration with React testing environment
+- **`client/src/test/setup.ts`** - Test environment setup and global mocks
+
+### Debugging Tests
+
+If tests are failing or timing out:
+
+1. **Check test timeouts**: Tests are configured with 30-second timeouts
+2. **Verify mock data**: Ensure test helpers create valid game states
+3. **Check console output**: Tests log detailed information about game state
+4. **Run individual tests**: Use `npm test -- --run <test-file>` to isolate issues
+
+### Test Coverage
+
+The test suite covers:
+- ✅ **Game State Management** - Complete coverage of gameStore functionality
+- ✅ **AI Decision Making** - AI movement, targeting, and strategy
+- ✅ **Ability System** - Special abilities, targeting, and effects
+- ✅ **Player Actions** - Unit selection, movement, and combat
+- ✅ **Edge Cases** - Error handling and boundary conditions
+
+### Browser Testing
+
+To test the actual game functionality:
+
+1. **Start the development server**: `npm run dev` from the root directory
+2. **Open the game**: Navigate to http://localhost:5177
+3. **Test player interactions**:
+   - Select units and verify ability panel appears
+   - Check that abilities show correct costs and descriptions
+   - Verify targeting works for different ability types
+   - Test unit movement and combat mechanics

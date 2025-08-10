@@ -37,6 +37,54 @@ export function GameView() {
 
     gameRef.current = game
 
+    // Multiple ways to detect when GameScene is ready
+    const attachGameScene = (scene: any, method: string) => {
+      if (scene && scene.scene && scene.scene.key === 'GameScene') {
+        console.log(`GameScene ready via ${method}, attaching to window.gameScene`)
+        ;(window as any).gameScene = scene
+        return true
+      }
+      return false
+    }
+
+    // Method 1: Listen for scene start
+    game.events.once('scene-start', (scene: Phaser.Scene) => {
+      attachGameScene(scene, 'scene-start event')
+    })
+
+    // Method 2: Listen for scene wake
+    game.events.once('scene-wake', (scene: Phaser.Scene) => {
+      attachGameScene(scene, 'scene-wake event')
+    })
+
+    // Method 3: Try immediate access
+    const immediateScene = game.scene.getScene('GameScene') as any
+    if (immediateScene) {
+      attachGameScene(immediateScene, 'immediate access')
+    }
+
+    // Method 4: Fallback timer - check every 100ms for up to 5 seconds
+    let attempts = 0
+    const maxAttempts = 50
+    const checkScene = () => {
+      attempts++
+      const scene = game.scene.getScene('GameScene') as any
+      if (scene && !(window as any).gameScene) {
+        if (attachGameScene(scene, `fallback timer (attempt ${attempts})`)) {
+          return // Success!
+        }
+      }
+      
+      if (attempts < maxAttempts) {
+        setTimeout(checkScene, 100)
+      } else {
+        console.warn('GameScene not available after 5 seconds - action menu may not work')
+      }
+    }
+    
+    // Start the fallback check
+    setTimeout(checkScene, 100)
+
     // Handle window resize for responsive canvas
     const handleResize = () => {
       if (game && game.scale) {

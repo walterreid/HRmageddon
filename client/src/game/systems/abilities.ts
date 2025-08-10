@@ -271,8 +271,9 @@ export function canUseAbility(unit: Unit, abilityId: string): boolean {
   const ability = ABILITIES[abilityId]
   if (!ability) return false
   
-  // Check if unit has the ability
-  if (!unit.abilities.includes(abilityId)) return false
+  // Check if unit type has access to this ability
+  const unitAbilities = UNIT_ABILITIES[unit.type]
+  if (!unitAbilities.includes(abilityId)) return false
   
   // Check cooldown
   const currentCooldown = unit.abilityCooldowns[abilityId] || 0
