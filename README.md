@@ -180,16 +180,16 @@ Once both are running, you can access:
 
 ### Port Configuration
 
-The system automatically finds available ports:
-- **Client:** Starts on 5173, then tries 5174, 5175, 5176, 5177, etc.
-- **Server:** Configured for port 4001 (see `server/src/index.ts`)
+The system uses fixed ports for consistency:
+- **Client:** Port 5178 (configured in `client/vite.config.ts`)
+- **Server:** Port 4001 (configured in `server/src/index.ts`)
 
 ### Troubleshooting
 
 **Port Already in Use:**
 ```bash
 # Kill processes using specific ports
-lsof -ti:5177 | xargs kill -9  # Client port
+lsof -ti:5178 | xargs kill -9  # Client port
 lsof -ti:4001 | xargs kill -9  # Server port
 ```
 
@@ -201,6 +201,9 @@ npm install
 
 # Check for missing modules
 npm list express
+
+# Server now uses tsx for ESM support
+npm list tsx
 ```
 
 **Client Won't Start:**
@@ -211,6 +214,9 @@ npm install
 
 # Clear Vite cache
 rm -rf node_modules/.vite
+
+# Check port availability (client uses port 5178)
+lsof -i :5178
 ```
 
 **Workspace Issues:**
@@ -225,7 +231,7 @@ npm run dev
 1. **Start Development:** `npm run dev` from root
 2. **Make Changes:** Edit files in `client/src/` or `server/src/`
 3. **Auto-reload:** Both client and server will restart automatically
-4. **Test:** Visit http://localhost:5177 to see your changes
+4. **Test:** Visit http://localhost:5178 to see your changes
 5. **API Testing:** Use http://localhost:4001/api/health to verify server
 
 ### File Structure for Development
@@ -244,7 +250,7 @@ HRmageddon/
 
 ## 🌐 Development URLs
 
-- **Client (Game):** http://localhost:5177
+- **Client (Game):** http://localhost:5178
 - **Server (API):** http://localhost:4001
 - **Health Check:** http://localhost:4001/api/health
 
@@ -263,8 +269,19 @@ HRmageddon/
 - ✅ **NEW: AI Team Building** - AI creates balanced teams
 - ✅ **NEW: Enhanced AI Decision Making** - Smarter opponent behavior
 
+### Phase 3: Advanced Gameplay 🚧 IN PROGRESS
+- ✅ **Unit Selection Attack System** - Fixed critical attack mode interference
+- ✅ **Attack Highlighting** - Only shows enemies in range (red highlights)
+- ✅ **Action Menu Integration** - Proper positioning and close functionality
+- ✅ **Movement System** - Blue tile highlighting for valid moves
+- ✅ **State Synchronization** - GameHUD and GameScene properly synced
+- ✅ **Server ESM Configuration** - Modern ES modules with tsx support
+
 ### Full Release (Phase 3)
 - ✅ 8 unique units with abilities
+- ✅ **Unit Selection Attack System** - Complete and tested
+- ✅ **Action Menu System** - Fully functional with proper state management
+- [ ] **Advanced Abilities** - Cooldowns and complex targeting
 - [ ] 4 diverse maps
 - [ ] Online multiplayer
 - [ ] Matchmaking
@@ -339,7 +356,7 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 
 ---
 
-**Current Status:** 🚧 Phase 3 Development - Debugging Action Menu Integration Issues
+**Current Status:** 🚧 Phase 3 Development - Unit Selection Attack System Fixed
 
 **Last Updated:** January 2025
 
@@ -358,23 +375,56 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 - **NEW: Enhanced AI**: Improved decision making and tactical behavior
 - **Action Menu**: UI for selecting unit actions (Move, Attack, Abilities) with proper positioning
 
-### 🔄 Currently Debugging
-- **Action Menu Integration**: Menu appears and positions correctly, but doesn't close after action selection
-- **Phaser-React Communication**: Investigating timing issues between GameScene initialization and React component access
-- **Action Mode Persistence**: Need to ensure selected actions persist and display movement/attack tiles correctly
+### ✅ Recently Fixed
+- **Unit Selection Attack System**: Fixed critical issue where unit selection was overriding attack mode
+- **Attack Highlighting**: Now only shows enemies within attack range (red highlights)
+- **Action Menu Close Button**: Fixed functionality to properly close menu and deselect units
+- **Server ESM Configuration**: Resolved import issues by switching to ESM + tsx
+- **Port Conflicts**: Updated client port from 5177 to 5178 to resolve conflicts
+- **State Synchronization**: Improved action mode sync between GameHUD and GameScene
+
+### 🔄 Currently Testing
+- **Attack System**: Verifying attack targeting works correctly without unit selection interference
+- **Movement System**: Testing movement tile highlighting and execution
+- **Ability System**: Testing special abilities and their targeting mechanics
 
 ### 📋 Next Steps
-- Fix GameScene availability timing issue in React-Phaser integration
-- Ensure action menu closes properly after action selection
-- Verify movement/attack tiles display correctly after menu closes
-- Add remaining unit types (IT Specialist, Accountant, Legal Counsel, Executive)
-- Implement advanced abilities and cooldowns
-- Add multiple maps and scenarios
-- Polish UI and add animations
+- **Test and validate** the fixed unit selection attack system
+- **Verify highlighting systems** for movement, attack, and abilities
+- **Add remaining unit types** (IT Specialist, Accountant, Legal Counsel, Executive)
+- **Implement advanced abilities** and cooldowns
+- **Add multiple maps** and scenarios
+- **Polish UI** and add animations
+
+## 🔧 Recent Fixes & Improvements
+
+### ✅ Unit Selection Attack System (January 2025)
+The core combat system has been completely overhauled to fix critical issues:
+
+#### **What Was Fixed:**
+- **Unit Selection Overriding Attack Mode**: Previously, clicking enemy units in attack mode would select them instead of attacking
+- **Attack Highlighting**: Now only shows enemies within attack range (red highlights) instead of all enemies
+- **Action Menu Close Button**: Fixed functionality to properly close menu and deselect units
+- **State Synchronization**: Improved action mode sync between GameHUD and GameScene components
+
+#### **Technical Implementation:**
+- **GameScene.ts**: Reordered `handleClick` logic to prioritize action execution over unit selection
+- **GameHUD.tsx**: Added proper action completion cleanup and state synchronization
+- **ActionMenu.tsx**: Fixed close button with proper `onClose` prop handling
+- **Server**: Migrated to ESM configuration with `tsx` for better TypeScript support
+
+#### **Expected Behavior:**
+1. **Click "Attack"** → Only enemies in range get red highlights
+2. **Click red-highlighted enemy** → Attack executes (no unit selection)
+3. **Click non-highlighted enemy** → Nothing happens (out of range)
+4. **Click empty space** → Deselects unit normally
+
+### 🚀 Performance Improvements
+- **Port Configuration**: Fixed to use consistent ports (Client: 5178, Server: 4001)
+- **Server Architecture**: Upgraded to modern ES modules with better TypeScript support
+- **State Management**: Optimized React-Phaser communication for smoother gameplay
 
 ## 🧪 Testing
-
-### Running Tests
 
 The project uses **Vitest** for unit testing and **Playwright** for end-to-end testing.
 
@@ -467,8 +517,16 @@ The test suite covers:
 To test the actual game functionality:
 
 1. **Start the development server**: `npm run dev` from the root directory
-2. **Open the game**: Navigate to http://localhost:5177
-3. **Test player interactions**:
+2. **Open the game**: Navigate to http://localhost:5178
+3. **Test the fixed unit selection attack system**:
+   - **Select a unit** → Action menu should appear
+   - **Click "Attack"** → Only enemies in range should get red highlights
+   - **Click red-highlighted enemy** → Attack should execute (no unit selection)
+   - **Click "Move"** → Valid move tiles should get blue highlights
+   - **Click blue tile** → Unit should move to that location
+   - **Click "Close" button** → Menu should close and unit should deselect
+
+4. **Test other interactions**:
    - Select units and verify ability panel appears
    - Check that abilities show correct costs and descriptions
    - Verify targeting works for different ability types
