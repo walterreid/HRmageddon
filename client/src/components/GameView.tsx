@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
-import { GameScene } from '../game/scenes/GameScene'
+import { GameScene } from '../game/scenes/GameScene.ts'
 import { PauseMenu } from './PauseMenu'
 
 export function GameView() {

@@ -12,33 +12,32 @@ export function GameHUD() {
     currentPlayerId,
     turnNumber,
     possibleMoves,
-    possibleTargets
+    possibleTargets,
+    moveUnit,
+    attackTarget,
+    useAbility,
+    getAbilityTargets,
+    canUseAbility: storeCanUseAbility
   } = useGameStore()
 
   const [actionMenuPosition, setActionMenuPosition] = useState({ x: 0, y: 0 })
+  const [actionMode, setActionMode] = useState<'none' | 'move' | 'attack' | 'ability'>('none')
+  const [selectedAbility, setSelectedAbility] = useState<string | null>(null)
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
   
   const isPlayerUnit = selectedUnit && selectedUnit.playerId === 'player1'
   const canControl = selectedUnit && selectedUnit.playerId === 'player1' && selectedUnit.actionsRemaining > 0
   const isPlayerTurn = currentPlayerId === 'player1'
 
   // Show action menu when a player unit is selected and can be controlled
+  // Hide it when we're in an action mode
   const showActionMenu = useMemo(() => {
     if (!selectedUnit || viewingUnit) return false
     
-    // Show action menu for player units that can be controlled
-    // Only hide it when we're sure an action mode is active
-    const gameScene = (window as any).gameScene
-    if (gameScene && gameScene.getActionMode && typeof gameScene.getActionMode === 'function') {
-      try {
-        const actionMode = gameScene.getActionMode()
-        if (actionMode && actionMode !== 'none') {
-          console.log('Action menu hidden: action mode is', actionMode)
-          return false
-        }
-      } catch (error) {
-        console.log('Error getting action mode:', error)
-        // If we can't get the action mode, assume it's 'none' and show the menu
-      }
+    // Hide action menu when in action mode
+    if (actionMode !== 'none') {
+      console.log('Action menu hidden: action mode is', actionMode)
+      return false
     }
     
     const shouldShow = isPlayerUnit && canControl
@@ -48,12 +47,10 @@ export function GameHUD() {
       isPlayerUnit, 
       canControl, 
       shouldShow,
-      gameScene: !!gameScene,
-      hasGetActionMode: !!(gameScene && gameScene.getActionMode),
-      actionMode: gameScene?.getActionMode?.()
+      actionMode
     })
     return shouldShow
-  }, [selectedUnit, viewingUnit, isPlayerUnit, canControl])
+  }, [selectedUnit, viewingUnit, isPlayerUnit, canControl, actionMode])
   
   const player1 = players.find((p) => p.id === 'player1')
   const player2 = players.find((p) => p.id === 'player2')
@@ -119,51 +116,136 @@ export function GameHUD() {
       return;
     }
 
-    const gameScene = (window as any).gameScene
-    if (!gameScene) {
-      console.log('GameScene not available, returning')
-      return;
+    console.log('Setting action mode to:', action)
+    setActionMode(action as 'move' | 'attack' | 'ability')
+
+    // Handle ability selection
+    if (action !== 'move' && action !== 'attack') {
+      setSelectedAbility(action)
+      console.log('Selected ability:', action)
+    } else {
+      setSelectedAbility(null)
     }
 
-    console.log('Setting action mode to:', action)
-    switch (action) {
-      case 'move':
-        gameScene.setActionMode('move');
-        console.log('Move action mode set')
-        // The action menu will be hidden by the showActionMenu condition
-        // The unit remains selected to show movement tiles
-        break;
-      case 'attack':
-        gameScene.setActionMode('attack');
-        console.log('Attack action mode set')
-        // The action menu will be hidden by the showActionMenu condition
-        // The unit remains selected to show attack targets
-        break;
-      case 'ability':
-        gameScene.setActionMode('ability');
-        console.log('Ability action mode set')
-        // The action menu will be hidden by the showActionMenu condition
-        // The unit remains selected to show ability targets
-        break;
-      case 'view':
-        console.log('View action selected')
-        // For view action, we might want to keep the unit selected but not show action menu
-        break;
-      default:
-        console.log('Unknown action:', action)
-        break;
+    const gameScene = (window as any).gameScene
+    if (gameScene && gameScene.setActionMode) {
+      gameScene.setActionMode(action);
+      console.log(`${action} action mode set`)
+    } else {
+      console.log('GameScene not available, but action mode set locally')
     }
   }
 
+  // Handle tile clicks for actions
+  const handleTileClick = (coord: { x: number, y: number }) => {
+    if (!selectedUnit || !canControl) return
+
+    console.log('Tile clicked:', coord, 'Action mode:', actionMode)
+
+    switch (actionMode) {
+      case 'move':
+        // Check if this is a valid move
+        const isValidMove = possibleMoves.some(move => move.x === coord.x && move.y === coord.y)
+        if (isValidMove) {
+          console.log('Executing move to:', coord)
+          moveUnit(selectedUnit.id, coord)
+          setActionMode('none')
+          setActionFeedback({ type: 'success', message: 'Unit moved successfully!' })
+          setTimeout(() => setActionFeedback(null), 2000)
+        } else {
+          setActionFeedback({ type: 'error', message: 'Invalid move location' })
+          setTimeout(() => setActionFeedback(null), 2000)
+        }
+        break
+
+      case 'attack':
+        // Check if there's an enemy unit at this location
+        const targetUnit = useGameStore.getState().units.find(u => 
+          u.position.x === coord.x && 
+          u.position.y === coord.y && 
+          u.playerId !== selectedUnit.playerId
+        )
+        if (targetUnit) {
+          console.log('Executing attack on:', targetUnit.id)
+          attackTarget(selectedUnit.id, targetUnit.id)
+          setActionMode('none')
+          setActionFeedback({ type: 'success', message: 'Attack executed!' })
+          setTimeout(() => setActionFeedback(null), 2000)
+        } else {
+          setActionFeedback({ type: 'error', message: 'No enemy unit at this location' })
+          setTimeout(() => setActionFeedback(null), 2000)
+        }
+        break
+
+      case 'ability':
+        if (selectedAbility) {
+          // Get valid targets for this ability
+          const validTargets = getAbilityTargets(selectedUnit.id, selectedAbility)
+          const clickedTarget = validTargets.find(target => {
+            if ('x' in target) {
+              return target.x === coord.x && target.y === coord.y
+            } else {
+              return target.position.x === coord.x && target.position.y === coord.y
+            }
+          })
+
+          if (clickedTarget) {
+            console.log('Executing ability:', selectedAbility, 'on target:', clickedTarget)
+            useAbility(selectedUnit.id, selectedAbility, clickedTarget)
+            setActionMode('none')
+            setSelectedAbility(null)
+            setActionFeedback({ type: 'success', message: 'Ability used successfully!' })
+            setTimeout(() => setActionFeedback(null), 2000)
+          } else {
+            setActionFeedback({ type: 'error', message: 'Invalid target for this ability' })
+            setTimeout(() => setActionFeedback(null), 2000)
+          }
+        }
+        break
+    }
+  }
+
+  // Reset action mode when unit is deselected or changed
+  useEffect(() => {
+    if (!selectedUnit) {
+      setActionMode('none')
+      setSelectedAbility(null)
+    }
+  }, [selectedUnit])
+
+  // Listen for tile clicks from the game scene
+  useEffect(() => {
+    const handleGameTileClick = (event: CustomEvent) => {
+      const { coord } = event.detail
+      handleTileClick(coord)
+    }
+
+    window.addEventListener('gameTileClick', handleGameTileClick as EventListener)
+    return () => {
+      window.removeEventListener('gameTileClick', handleGameTileClick as EventListener)
+    }
+  }, [selectedUnit, actionMode, selectedAbility, canControl])
+
   return (
     <>
+      {/* Action Feedback Toast */}
+      {actionFeedback && (
+        <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
+          actionFeedback.type === 'success' 
+            ? 'bg-green-600 text-white' 
+            : 'bg-red-600 text-white'
+        }`}>
+          {actionFeedback.message}
+        </div>
+      )}
+
       {/* Game Status - Top Left */}
       <div className="fixed top-4 left-4 w-80 bg-slate-800/90 backdrop-blur-sm border border-slate-600 rounded-lg p-4 text-slate-100 space-y-4">
         <h2 className="text-lg font-bold text-center">Game Status</h2>
         <div className="text-center">
           <div className="text-2xl font-bold mb-2">Turn {turnNumber}</div>
-          <div className={`px-4 py-2 rounded-lg text-white font-semibold ${isPlayerTurn ? 'bg-blue-600' : 'bg-red-600'}`}>
-            {isPlayerTurn ? 'Your Turn (Blue)' : 'AI Turn (Red)'}
+          <div className={`px-4 py-2 rounded-lg text-white font-semibold ${isPlayerTurn ? 'bg-yellow-600' : 'bg-slate-700'}`}>
+            {isPlayerTurn ? 'Your Turn (Gold)' : 'AI Turn (Navy)'}
           </div>
         </div>
 
@@ -171,9 +253,9 @@ export function GameHUD() {
         <div className="space-y-3">
           <h3 className="text-md font-semibold text-center">Resources</h3>
           
-          {/* Player 1 (Blue) */}
-          <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-3">
-            <div className="text-blue-300 font-semibold text-sm">Blue Team (You)</div>
+          {/* Player 1 (Gold) */}
+          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-3">
+            <div className="text-yellow-300 font-semibold text-sm">Gold Team (You)</div>
             <div className="text-xs space-y-1 mt-2">
               <div>Budget: ${player1?.budget || 0}</div>
               <div>Income: +${player1?.income || 0}/turn</div>
@@ -181,9 +263,9 @@ export function GameHUD() {
             </div>
           </div>
 
-          {/* Player 2 (Red) */}
-          <div className="bg-red-900/20 border border-red-700 rounded-lg p-3">
-            <div className="text-red-300 font-semibold text-sm">Red Team (AI)</div>
+          {/* Player 2 (Navy) */}
+          <div className="bg-slate-900/20 border border-slate-700 rounded-lg p-3">
+            <div className="text-slate-300 font-semibold text-sm">Navy Team (AI)</div>
             <div className="text-xs space-y-1 mt-2">
               <div>Budget: ${player2?.budget || 0}</div>
               <div>Income: +${player2?.income || 0}/turn</div>
@@ -214,12 +296,12 @@ export function GameHUD() {
           {/* Unit Info Header */}
           <div className="border-b border-slate-600 pb-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-blue-400 capitalize">
+              <h3 className="text-lg font-bold text-yellow-400 capitalize">
                 {selectedUnit.type.replace('_', ' ')}
               </h3>
               <div className="flex items-center space-x-2">
                 {/* Player indicator */}
-                <div className={`w-3 h-3 rounded-full ${isPlayerUnit ? 'bg-blue-500' : 'bg-red-500'}`} />
+                <div className={`w-3 h-3 rounded-full ${isPlayerUnit ? 'bg-yellow-500' : 'bg-slate-600'}`} />
                 <span className="text-xs text-slate-400">
                   {isPlayerUnit ? 'Player' : 'Enemy'}
                 </span>
@@ -271,7 +353,7 @@ export function GameHUD() {
           {/* Available Actions (only for player units) */}
           {canControl && (
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-blue-300">Available Actions</h4>
+              <h4 className="text-sm font-semibold text-yellow-300">Available Actions</h4>
               <div className="text-xs space-y-1">
                 <div className="text-slate-300">
                   Moves: {possibleMoves.length} available
@@ -283,10 +365,38 @@ export function GameHUD() {
             </div>
           )}
 
+          {/* Current Action Mode Display */}
+          {actionMode !== 'none' && (
+            <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-3">
+              <div className="text-yellow-300 font-semibold text-sm">
+                Current Mode: {actionMode.toUpperCase()}
+                {selectedAbility && ` - ${selectedAbility.replace('_', ' ')}`}
+              </div>
+              <div className="text-xs text-yellow-200 mt-1">
+                {actionMode === 'move' && 'Click a highlighted tile to move'}
+                {actionMode === 'attack' && 'Click an enemy to attack'}
+                {actionMode === 'ability' && selectedAbility && `Select a target for ${selectedAbility.replace('_', ' ')}`}
+              </div>
+              <button
+                onClick={() => {
+                  setActionMode('none')
+                  setSelectedAbility(null)
+                  const gameScene = (window as any).gameScene
+                  if (gameScene && gameScene.setActionMode) {
+                    gameScene.setActionMode('none')
+                  }
+                }}
+                className="mt-2 px-3 py-1 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded transition-colors"
+              >
+                Cancel Action
+              </button>
+            </div>
+          )}
+
           {/* Help Text */}
           <div className="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-600">
             <div>• Click any unit to view their stats</div>
-            <div>• Click player units (blue) to control them</div>
+            <div>• Click player units (gold) to control them</div>
             <div>• Click highlighted tiles to move/attack</div>
             <div>• Select abilities to use them on targets</div>
             <div>• Capture cubicles to increase income</div>
@@ -309,5 +419,3 @@ export function GameHUD() {
     </>
   )
 }
-
-

@@ -25,6 +25,12 @@ export enum HighlightType {
   ATTACK = 'attack',
   ABILITY = 'ability',
   CAPTURE = 'capture',
+  // New enhanced highlighting types
+  ATTACK_RANGE = 'attack_range',
+  ABILITY_AOE = 'ability_aoe',
+  TARGET_ENEMY = 'target_enemy',
+  TARGET_ALLY = 'target_ally',
+  INVALID = 'invalid',
 }
 
 // Enhanced Unit System
@@ -46,6 +52,9 @@ export interface Unit {
   hasAttacked: boolean
   abilities: string[]
   abilityCooldowns: Record<string, number>
+  // New movement tracking properties
+  movementUsed: number // How much movement has been used this turn
+  remainingMovement: number // How much movement is left this turn
 }
 
 export enum UnitType {
@@ -168,6 +177,8 @@ export const UNIT_STATS: Record<
     cost: 2,
     abilities: ['fetch_coffee', 'overtime'],
     abilityCooldowns: {},
+    movementUsed: 0,
+    remainingMovement: 3,
   },
   [UnitType.SECRETARY]: {
     type: UnitType.SECRETARY,
@@ -180,6 +191,8 @@ export const UNIT_STATS: Record<
     cost: 3,
     abilities: ['file_it'],
     abilityCooldowns: {},
+    movementUsed: 0,
+    remainingMovement: 3,
   },
   [UnitType.SALES_REP]: {
     type: UnitType.SALES_REP,
@@ -192,6 +205,8 @@ export const UNIT_STATS: Record<
     cost: 3,
     abilities: ['harass'],
     abilityCooldowns: {},
+    movementUsed: 0,
+    remainingMovement: 4,
   },
   [UnitType.HR_MANAGER]: {
     type: UnitType.HR_MANAGER,
@@ -204,6 +219,8 @@ export const UNIT_STATS: Record<
     cost: 5,
     abilities: ['pink_slip', 'mediation'],
     abilityCooldowns: {},
+    movementUsed: 0,
+    remainingMovement: 3,
   },
   [UnitType.IT_SPECIALIST]: {
     type: UnitType.IT_SPECIALIST,
@@ -216,6 +233,8 @@ export const UNIT_STATS: Record<
     cost: 4,
     abilities: ['hack_system', 'tech_support'],
     abilityCooldowns: {},
+    movementUsed: 0,
+    remainingMovement: 3,
   },
   [UnitType.ACCOUNTANT]: {
     type: UnitType.ACCOUNTANT,
@@ -228,6 +247,8 @@ export const UNIT_STATS: Record<
     cost: 4,
     abilities: ['audit', 'creative_accounting'],
     abilityCooldowns: {},
+    movementUsed: 0,
+    remainingMovement: 3,
   },
   [UnitType.LEGAL_COUNSEL]: {
     type: UnitType.LEGAL_COUNSEL,
@@ -240,6 +261,8 @@ export const UNIT_STATS: Record<
     cost: 5,
     abilities: ['legal_threat', 'contract_negotiation'],
     abilityCooldowns: {},
+    movementUsed: 0,
+    remainingMovement: 3,
   },
   [UnitType.EXECUTIVE]: {
     type: UnitType.EXECUTIVE,
@@ -252,6 +275,8 @@ export const UNIT_STATS: Record<
     cost: 6,
     abilities: ['executive_order', 'corporate_restructuring'],
     abilityCooldowns: {},
+    movementUsed: 0,
+    remainingMovement: 3,
   },
 }
 
@@ -267,7 +292,7 @@ export const UNIT_COSTS: Record<UnitType, number> = {
   [UnitType.EXECUTIVE]: 60,
 }
 
-// Ability System Interfaces
+// Enhanced Ability System Interfaces
 export interface Ability {
   id: string
   name: string
@@ -276,9 +301,25 @@ export interface Ability {
   cooldown: number
   range: number
   targetType: TargetType
+  // New enhanced targeting properties
+  targetingType: AbilityTargetingType
+  aoeRadius?: number
+  coneAngle?: number // for cone abilities in degrees
+  requiresDirection?: boolean
   effect: (caster: Unit, target?: Unit | Coordinate) => AbilityResult
   visualEffect?: string
   soundEffect?: string
+}
+
+// New ability targeting types
+export enum AbilityTargetingType {
+  SINGLE_TARGET = 'single_target',
+  AOE_CIRCLE = 'aoe_circle', 
+  AOE_CONE = 'aoe_cone',
+  DIRECTIONAL = 'directional',
+  SELF_BUFF = 'self_buff',
+  ALL_ALLIES = 'all_allies',
+  ALL_ENEMIES = 'all_enemies',
 }
 
 export const TargetType = {

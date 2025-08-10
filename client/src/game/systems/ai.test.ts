@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { AIController } from './ai'
-import { createMockUnit, createMockGameState } from '../test/helpers'
+import { createMockUnit, createMockGameState } from '../test/helpers.ts'
 import { TileType } from 'shared'
 
 describe('AI Controller', () => {

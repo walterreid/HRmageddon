@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { useGameStore } from '../../stores/gameStore'
 import { TileType, type Unit, type Tile, type Coordinate } from 'shared'
-import { getAbilityById, getValidTargets } from '../systems/abilities'
+import { getAbilityById, getValidTargets } from '../systems/abilities.ts'
 
 export class GameScene extends Phaser.Scene {
   private tileGraphics!: Phaser.GameObjects.Graphics
@@ -136,7 +136,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       const container = this.add.container(targetX, targetY)
-      const circleColor = unit.playerId === 'player1' ? 0x2563eb : 0xdc2626
+      const circleColor = unit.playerId === 'player1' ? 0xFFD700 : 0x191970 // Gold vs Navy
       const circle = this.add.circle(0, 0, 20, circleColor)
       const label = this.add.text(0, 0, unit.type.charAt(0).toUpperCase(), { color: '#fff', fontSize: '14px' })
       label.setOrigin(0.5)
@@ -184,51 +184,34 @@ export class GameScene extends Phaser.Scene {
 
   private updateHighlights(highlighted: Map<string, string>, selectedUnit?: Unit) {
     this.highlightGraphics.clear()
+    
+    // Create a map to track multiple highlight types per tile
+    const highlightMap = new Map<string, string[]>()
+    
+    // Group highlights by coordinate
     highlighted.forEach((type, key) => {
-      const [x, y] = key.split(',').map(Number)
+      if (!highlightMap.has(key)) {
+        highlightMap.set(key, [])
+      }
+      highlightMap.get(key)!.push(type)
+    })
+    
+    // Draw each highlight type with appropriate rendering
+    highlightMap.forEach((types, coordKey) => {
+      const [x, y] = coordKey.split(',').map(Number)
       const tileSize = this.getTileSize()
       const boardOffsetX = this.getBoardOffsetX()
       const boardOffsetY = this.getBoardOffsetY()
       const px = boardOffsetX + x * tileSize
       const py = boardOffsetY + y * tileSize
       
-      let color = 0x22c55e // Default green for movement
-      let alpha = 0.3
-      
-      switch (type) {
-        case 'movement':
-          color = 0x22c55e // Green for movement
-          alpha = 0.4
-          break
-        case 'attack':
-          color = 0xef4444 // Red for attack
-          alpha = 0.5
-          break
-        case 'ability':
-          color = 0x3b82f6 // Blue for ability targeting
-          alpha = 0.4
-          break
-        case 'capture':
-          color = 0x06b6d4 // Cyan for capture
-          alpha = 0.4
-          break
-        case 'healing':
-          color = 0xec4899 // Pink for healing/area effects
-          alpha = 0.5
-          break
-        default:
-          color = 0x22c55e // Default green
-          alpha = 0.3
-      }
-      
-      this.highlightGraphics.fillStyle(color, alpha)
-      this.highlightGraphics.fillRect(px, py, tileSize - 2, tileSize - 2)
-      
-      // Add a subtle border for better visibility
-      this.highlightGraphics.lineStyle(1, color, alpha + 0.2)
-      this.highlightGraphics.strokeRect(px, py, tileSize - 2, tileSize - 2)
+      // Draw each highlight type for this tile
+      types.forEach(type => {
+        this.drawHighlight(px, py, tileSize, type)
+      })
     })
 
+    // Draw selected unit highlight
     if (selectedUnit) {
       const tileSize = this.getTileSize()
       const boardOffsetX = this.getBoardOffsetX()
@@ -237,6 +220,85 @@ export class GameScene extends Phaser.Scene {
       const py = boardOffsetY + selectedUnit.position.y * tileSize
       this.highlightGraphics.lineStyle(3, 0xf59e0b, 1)
       this.highlightGraphics.strokeRect(px - 1, py - 1, tileSize, tileSize)
+    }
+  }
+
+  private drawHighlight(x: number, y: number, tileSize: number, type: string) {
+    let color = 0x22c55e // Default green
+    let alpha = 0.3
+    let isOutline = false
+    let isFilled = true
+    
+    switch (type) {
+      case 'movement':
+        color = 0x06b6d4 // Cyan outline for movement
+        alpha = 0.8
+        isOutline = true
+        isFilled = false
+        break
+      case 'attack':
+        color = 0xef4444 // Red outline for attack
+        alpha = 0.8
+        isOutline = true
+        isFilled = false
+        break
+      case 'attack_range':
+        color = 0xdc2626 // Darker red for attack range
+        alpha = 0.3
+        isOutline = true
+        isFilled = false
+        break
+      case 'ability':
+        color = 0x8b5cf6 // Purple for ability targeting
+        alpha = 0.6
+        isOutline = true
+        isFilled = false
+        break
+      case 'ability_aoe':
+        color = 0xec4899 // Pink for AOE abilities
+        alpha = 0.4
+        isOutline = false
+        isFilled = true
+        break
+      case 'target_enemy':
+        color = 0xdc2626 // Red filled for enemy targets
+        alpha = 0.6
+        isOutline = false
+        isFilled = true
+        break
+      case 'target_ally':
+        color = 0x16a34a // Green filled for ally targets
+        alpha = 0.6
+        isOutline = false
+        isFilled = true
+        break
+      case 'capture':
+        color = 0x06b6d4 // Cyan for capture
+        alpha = 0.4
+        isOutline = false
+        isFilled = true
+        break
+      case 'invalid':
+        color = 0x6b7280 // Gray for invalid targets
+        alpha = 0.5
+        isOutline = false
+        isFilled = true
+        break
+      default:
+        color = 0x22c55e // Default green
+        alpha = 0.3
+        isOutline = false
+        isFilled = true
+    }
+    
+    if (isFilled) {
+      this.highlightGraphics.fillStyle(color, alpha)
+      this.highlightGraphics.fillRect(x, y, tileSize - 2, tileSize - 2)
+    }
+    
+    if (isOutline) {
+      this.highlightGraphics.lineStyle(2, color, alpha)
+      this.highlightGraphics.strokeRect(x, y, tileSize - 2, tileSize - 2)
     }
   }
 
@@ -256,7 +318,23 @@ export class GameScene extends Phaser.Scene {
     this.validTargets = getValidTargets(selectedUnit, ability, store.board)
     this.targetingMode = true
 
-    // Highlight valid targets
+    // Handle different targeting types
+    switch (ability.targetingType) {
+      case 'aoe_cone':
+        this.showConePreview(selectedUnit, ability)
+        break
+      case 'aoe_circle':
+        this.showCirclePreview(selectedUnit, ability)
+        break
+      case 'single_target':
+      default:
+        this.showStandardTargeting()
+        break
+    }
+  }
+
+  private showStandardTargeting() {
+    // Highlight valid targets with standard targeting
     this.validTargets.forEach(target => {
       if ('x' in target) {
         // Target is a coordinate
@@ -268,6 +346,7 @@ export class GameScene extends Phaser.Scene {
         
         this.abilityTargetGraphics.lineStyle(2, 0xf59e0b, 0.8)
         this.abilityTargetGraphics.strokeRect(px, py, tileSize, tileSize)
+        this.abilityTargetGraphics.fillRect(px, py, tileSize, tileSize)
         this.abilityTargetGraphics.fillStyle(0xf59e0b, 0.2)
         this.abilityTargetGraphics.fillRect(px, py, tileSize, tileSize)
       } else {
@@ -284,6 +363,54 @@ export class GameScene extends Phaser.Scene {
         this.abilityTargetGraphics.fillCircle(px + tileSize/2, py + tileSize/2, tileSize/2)
       }
     })
+  }
+
+  private showConePreview(caster: Unit, ability: any) {
+    // For cone abilities, show a preview of the cone area
+    const tileSize = this.getTileSize()
+    const boardOffsetX = this.getBoardOffsetX()
+    const boardOffsetY = this.getBoardOffsetY()
+    const casterX = boardOffsetX + caster.position.x * tileSize + tileSize / 2
+    const casterY = boardOffsetY + caster.position.y * tileSize + tileSize / 2
+    
+    // Draw cone preview (simplified for now - can be enhanced with mouse tracking)
+    const coneRadius = (ability.aoeRadius || 3) * tileSize
+    const coneAngle = (ability.coneAngle || 90) * Math.PI / 180 // Convert to radians
+    
+    // Draw cone outline
+    this.abilityTargetGraphics.lineStyle(3, 0xec4899, 0.8)
+    this.abilityTargetGraphics.beginPath()
+    this.abilityTargetGraphics.moveTo(casterX, casterY)
+    
+    // Draw cone arc (facing right for now)
+    const startAngle = -coneAngle / 2
+    const endAngle = coneAngle / 2
+    this.abilityTargetGraphics.arc(casterX, casterY, coneRadius, startAngle, endAngle)
+    this.abilityTargetGraphics.lineTo(casterX, casterY)
+    this.abilityTargetGraphics.strokePath()
+    
+    // Fill cone area
+    this.abilityTargetGraphics.fillStyle(0xec4899, 0.2)
+    this.abilityTargetGraphics.fill()
+  }
+
+  private showCirclePreview(caster: Unit, ability: any) {
+    // For circle AOE abilities, show the area of effect
+    const tileSize = this.getTileSize()
+    const boardOffsetX = this.getBoardOffsetX()
+    const boardOffsetY = this.getBoardOffsetY()
+    const casterX = boardOffsetX + caster.position.x * tileSize + tileSize / 2
+    const casterY = boardOffsetY + caster.position.y * tileSize + tileSize / 2
+    
+    const aoeRadius = (ability.aoeRadius || 2) * tileSize
+    
+    // Draw circle outline
+    this.abilityTargetGraphics.lineStyle(3, 0xec4899, 0.8)
+    this.abilityTargetGraphics.strokeCircle(casterX, casterY, aoeRadius)
+    
+    // Fill circle area
+    this.abilityTargetGraphics.fillStyle(0xec4899, 0.2)
+    this.abilityTargetGraphics.fill()
   }
 
   private handleClick(pointer: Phaser.Input.Pointer) {
@@ -378,14 +505,22 @@ export class GameScene extends Phaser.Scene {
       return
     }
     
-    // Fall back to tile selection
+    // Fall back to tile selection - emit event for GameHUD to handle
     const tileSize = this.getTileSize()
     const boardOffsetX = this.getBoardOffsetX()
     const boardOffsetY = this.getBoardOffsetY()
     const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
     const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
     const board = store.board
+    
     if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {
+      // Emit tile click event for GameHUD to handle
+      const event = new CustomEvent('gameTileClick', {
+        detail: { coord: { x: tileX, y: tileY } }
+      })
+      window.dispatchEvent(event)
+      
+      // Also handle tile selection in store for backward compatibility
       store.selectTile({ x: tileX, y: tileY })
     }
   }
@@ -397,6 +532,12 @@ export class GameScene extends Phaser.Scene {
     const boardOffsetY = this.getBoardOffsetY()
     const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
     const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
+    
+    // Emit tile click event for GameHUD to handle
+    const event = new CustomEvent('gameTileClick', {
+      detail: { coord: { x: tileX, y: tileY } }
+    })
+    window.dispatchEvent(event)
     
     switch (this.actionMode) {
       case 'move':

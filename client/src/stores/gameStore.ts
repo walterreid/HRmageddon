@@ -12,9 +12,9 @@ import {
   UNIT_COSTS,
   type DraftState,
 } from 'shared'
-import { AIController } from '../game/systems/ai'
-import { generateAIDraft } from '../game/systems/aiDraft'
-import { ABILITIES, canUseAbility, getValidTargets } from '../game/systems/abilities'
+import { AIController } from '../game/systems/ai.ts'
+import { generateAIDraft } from '../game/systems/aiDraft.ts'
+import { ABILITIES, canUseAbility, getValidTargets } from '../game/systems/abilities.ts'
 
 type GameMode = 'menu' | 'ai' | 'multiplayer'
 
@@ -66,6 +66,12 @@ type GameStore = SharedGameState & {
   useAbility: (unitId: string, abilityId: string, target?: Unit | Coordinate) => void
   getAbilityTargets: (unitId: string, abilityId: string) => (Unit | Coordinate)[]
   canUseAbility: (unitId: string, abilityId: string) => boolean
+  
+  // New helper functions for smart action availability
+  canUnitMove: (unit: Unit) => boolean
+  canUnitAttack: (unit: Unit) => boolean
+  getEnemiesInRange: (unit: Unit) => Unit[]
+  getRemainingMovement: (unit: Unit) => number
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -268,6 +274,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         cost: stats.cost,
         abilities: stats.abilities,
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: stats.moveRange,
       }
     })
     
@@ -291,6 +299,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         cost: stats.cost,
         abilities: stats.abilities,
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: stats.moveRange,
       }
     })
     
@@ -458,9 +468,20 @@ export const useGameStore = create<GameStore>((set, get) => {
       const unit = state.units.find((u) => u.id === unitId)
       if (!unit || !state.isValidMove(unit, to)) return state
 
+      // Calculate movement distance used
+      const movementUsed = Math.abs(to.x - unit.position.x) + Math.abs(to.y - unit.position.y)
+      const remainingMovement = Math.max(0, unit.moveRange - movementUsed)
+
       const updatedUnits = state.units.map((u) =>
         u.id === unitId
-          ? { ...u, position: to, actionsRemaining: u.actionsRemaining - 1, hasMoved: true }
+          ? { 
+              ...u, 
+              position: to, 
+              actionsRemaining: u.actionsRemaining - 1, 
+              hasMoved: true,
+              movementUsed: movementUsed,
+              remainingMovement: remainingMovement
+            }
           : u
       )
 
@@ -678,7 +699,14 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       const updatedUnits = state.units.map((u) =>
         u.playerId === nextPlayer.id
-          ? { ...u, actionsRemaining: u.maxActions, hasMoved: false, hasAttacked: false }
+          ? { 
+              ...u, 
+              actionsRemaining: u.maxActions, 
+              hasMoved: false, 
+              hasAttacked: false,
+              movementUsed: 0,
+              remainingMovement: u.moveRange
+            }
           : u
       )
 
@@ -1046,6 +1074,33 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (!unit) return false
     
     return canUseAbility(unit, abilityId)
+  },
+
+  // New helper functions for smart action availability
+  canUnitMove: (unit: Unit) => {
+    return unit.actionsRemaining > 0 && !unit.hasMoved;
+  },
+
+  canUnitAttack: (unit: Unit) => {
+    return unit.actionsRemaining > 0 && !unit.hasAttacked;
+  },
+
+  getEnemiesInRange: (unit: Unit) => {
+    const state = get();
+    const enemies: Unit[] = [];
+    for (const enemy of state.units) {
+      if (enemy.playerId !== unit.playerId) {
+        const distance = Math.abs(enemy.position.x - unit.position.x) + Math.abs(enemy.position.y - unit.position.y);
+        if (distance <= unit.attackRange) {
+          enemies.push(enemy);
+        }
+      }
+    }
+    return enemies;
+  },
+
+  getRemainingMovement: (unit: Unit) => {
+    return unit.actionsRemaining;
   },
 }})
 

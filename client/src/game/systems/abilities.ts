@@ -46,6 +46,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 2,
     range: 3,
     targetType: TargetType.ENEMY,
+    targetingType: 'single_target',
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
@@ -64,6 +65,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 1,
     range: 2,
     targetType: TargetType.ENEMY,
+    targetingType: 'single_target',
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
@@ -71,6 +73,27 @@ export const ABILITIES: Record<string, Ability> = {
     },
     visualEffect: 'harass_aura',
     soundEffect: 'phone_ring',
+  },
+
+  // Add new AOE cone ability for Secretary
+  paperclip_storm: {
+    id: 'paperclip_storm',
+    name: 'Paperclip Storm',
+    description: 'Deal damage to all enemies in a cone',
+    cost: 2,
+    cooldown: 3,
+    range: 3,
+    targetType: TargetType.ENEMY,
+    targetingType: 'aoe_cone',
+    aoeRadius: 3,
+    coneAngle: 90,
+    requiresDirection: true,
+    effect: (caster, target) => {
+      // This would need to be enhanced to handle AOE targeting
+      return { success: true, damageDealt: 1, message: 'Paperclip storm unleashed!' }
+    },
+    visualEffect: 'paperclip_rain',
+    soundEffect: 'metal_clink',
   },
 
   // HR Manager abilities
