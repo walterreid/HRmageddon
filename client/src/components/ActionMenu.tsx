@@ -6,10 +6,11 @@ interface ActionMenuProps {
   unit: Unit
   position: { x: number; y: number }
   onActionSelect: (action: 'move' | 'attack' | string) => void
+  onClose: () => void
 }
 
-export function ActionMenu({ unit, position, onActionSelect }: ActionMenuProps) {
-  const { selectUnit, canUnitMove, canUnitAttack, getEnemiesInRange } = useGameStore()
+export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMenuProps) {
+  const { canUnitMove, canUnitAttack, getEnemiesInRange } = useGameStore()
   const abilities = getUnitAbilities(unit.type)
 
   // Smart action availability logic
@@ -29,21 +30,21 @@ export function ActionMenu({ unit, position, onActionSelect }: ActionMenuProps) 
       }, 150)
     }
     
+    // Call the action handler first
     onActionSelect(action)
-    console.log('ActionMenu: onActionSelect called')
-    // The parent component will handle closing the menu by setting action mode
+    
+    // DO NOT deselect the unit - just let the action mode handle it
+    // The GameHUD will hide the action menu when actionMode !== 'none'
   }
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      // Close the menu by deselecting the unit
-      selectUnit(undefined)
+      // Let the user click elsewhere to deselect - don't force deselect here
     }
   }
 
   const handleClose = () => {
-    // Deselect the unit to close the menu
-    selectUnit(undefined)
+    onClose()
   }
 
   const getActionDescription = (action: 'move' | 'attack' | string) => {
@@ -119,6 +120,11 @@ export function ActionMenu({ unit, position, onActionSelect }: ActionMenuProps) 
               Movement used: {unit.movementUsed || 0}/{unit.moveRange}
             </div>
           )}
+          
+          {/* Action Mode Warning */}
+          <div className="text-xs text-amber-400 mt-2 font-semibold">
+            🎯 Action mode active - complete your action before selecting other units
+          </div>
         </div>
 
         {/* Actions List */}

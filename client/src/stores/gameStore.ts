@@ -33,8 +33,7 @@ type GameStore = SharedGameState & {
   // Track units that landed on cubicles for end-of-turn capture
   pendingCubicleCaptures: Map<string, { unitId: string; coord: Coordinate; playerId: string }>
   
-  // New: Track if selected unit is just being viewed (not controlled)
-  viewingUnit: boolean
+
 
   setGameMode: (mode: GameMode) => void
   setCurrentPlayerId: (playerId: string) => void
@@ -72,6 +71,10 @@ type GameStore = SharedGameState & {
   canUnitAttack: (unit: Unit) => boolean
   getEnemiesInRange: (unit: Unit) => Unit[]
   getRemainingMovement: (unit: Unit) => number
+  canSelectUnit: (unit: Unit, currentlySelected?: Unit) => boolean
+  shouldExecuteActionInsteadOfSelect: (unit: Unit, currentlySelected?: Unit) => boolean
+  shouldExecuteMoveInsteadOfSelect: (unit: Unit, currentlySelected?: Unit) => boolean
+  isValidAttackTarget: (attacker: Unit, target: Unit) => boolean
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -100,9 +103,6 @@ export const useGameStore = create<GameStore>((set, get) => {
   
   // Track units that landed on cubicles for end-of-turn capture
   pendingCubicleCaptures: new Map(),
-  
-  // New: Track if selected unit is just being viewed (not controlled)
-  viewingUnit: false,
 
   draftState: {
     playerBudget: 200,
@@ -381,12 +381,44 @@ export const useGameStore = create<GameStore>((set, get) => {
         possibleMoves: [],
         possibleTargets: [],
         highlightedTiles: new Map(),
-        viewingUnit: false,
       })
       return
     }
 
     const state = get()
+    
+    // Check if we're trying to select a different unit while one is already selected
+    if (state.selectedUnit && state.selectedUnit.id !== unit.id) {
+      // Check if the currently selected unit is in action mode
+      const currentUnit = state.selectedUnit
+      const isCurrentUnitInActionMode = currentUnit.actionsRemaining > 0 && 
+                                      currentUnit.playerId === state.currentPlayerId
+      
+      if (isCurrentUnitInActionMode) {
+        // Check if the new unit is a valid target for the current action
+        const isEnemy = unit.playerId !== currentUnit.playerId
+        const inAttackRange = state.calculatePossibleTargets(currentUnit)
+          .some(target => target.x === unit.position.x && target.y === unit.position.y)
+        
+        if (isEnemy && inAttackRange) {
+          // This is a valid attack target - execute the attack instead of switching units
+          state.attackTarget(currentUnit.id, unit.id)
+          state.checkVictoryConditions()
+          return
+        } else {
+          // Not a valid target and current unit is in action mode - don't allow switching
+          console.log('Cannot switch units while current unit is in action mode')
+          
+          // Emit event to notify UI that unit selection is blocked
+          if (typeof window !== 'undefined') {
+            const event = new CustomEvent('unitSelectionBlocked')
+            window.dispatchEvent(event)
+          }
+          
+          return
+        }
+      }
+    }
     
     // Check if this is a player unit that can be controlled
     const canControl = unit.playerId === state.currentPlayerId && 
@@ -407,7 +439,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         possibleMoves: moves,
         possibleTargets: targets,
         highlightedTiles: highlights,
-        viewingUnit: false,
       })
     } else {
       // Enemy unit or unit without actions - just view stats
@@ -416,15 +447,15 @@ export const useGameStore = create<GameStore>((set, get) => {
         possibleMoves: [],
         possibleTargets: [],
         highlightedTiles: new Map(),
-        viewingUnit: true,
       })
     }
   },
 
   selectTile: (coord) => {
     const state = get()
-    const { selectedUnit, possibleMoves, possibleTargets, viewingUnit } = state
+    const { selectedUnit, possibleMoves, possibleTargets } = state
 
+    // If no unit is selected, check if we clicked on a unit to select it
     if (!selectedUnit) {
       const unit = state.getUnitAt(coord)
       if (unit) {
@@ -433,33 +464,69 @@ export const useGameStore = create<GameStore>((set, get) => {
       return
     }
 
-    // If just viewing a unit, don't allow actions
-    if (viewingUnit) {
+    // Check if this unit can be controlled (has actions remaining)
+    const canControl = selectedUnit.playerId === state.currentPlayerId && 
+                      state.currentPlayerId === 'player1' && 
+                      selectedUnit.actionsRemaining > 0
+    
+    if (!canControl) {
+      // If unit can't be controlled, allow selecting a different unit
+      const newUnit = state.getUnitAt(coord)
+      if (newUnit) {
+        state.selectUnit(newUnit)
+      }
       return
     }
 
-    // Check if this is a valid move
+    // PRIORITY: Check if this is a valid move for the currently selected unit
     if (possibleMoves.some((m) => m.x === coord.x && m.y === coord.y)) {
       state.moveUnit(selectedUnit.id, coord)
       state.checkVictoryConditions()
       return
     }
 
-    // Check if this is a valid attack target
+    // PRIORITY: Check if this is a valid attack target for the currently selected unit
     const targetUnit = state.getUnitAt(coord)
     if (targetUnit && possibleTargets.some((t) => t.x === coord.x && t.y === coord.y)) {
-      state.attackTarget(selectedUnit.id, targetUnit.id)
-      state.checkVictoryConditions()
-      return
+      // Ensure we're not trying to attack our own unit
+      if (targetUnit.playerId !== selectedUnit.playerId) {
+        state.attackTarget(selectedUnit.id, targetUnit.id)
+        state.checkVictoryConditions()
+        return
+      }
     }
 
-    // Check if this is a valid cubicle capture
+    // PRIORITY: Check if this is a valid cubicle capture for the currently selected unit
     const tile = state.getTileAt(coord)
     if (tile?.type === TileType.CUBICLE && tile.owner !== selectedUnit.playerId) {
       state.captureCubicle(selectedUnit.id, coord)
       return
     }
 
+    // If we clicked on a different unit while one is already selected and in action mode,
+    // prioritize the current action over unit selection
+    const clickedUnit = state.getUnitAt(coord)
+    if (clickedUnit && clickedUnit.id !== selectedUnit.id) {
+      // Check if the clicked unit is an enemy that could be a valid attack target
+      if (clickedUnit.playerId !== selectedUnit.playerId && 
+          possibleTargets.some((t) => t.x === coord.x && t.y === coord.y)) {
+        // This is a valid attack target - execute the attack
+        state.attackTarget(selectedUnit.id, clickedUnit.id)
+        state.checkVictoryConditions()
+        return
+      }
+      
+      // If we're not in a specific action mode and clicked on a different unit,
+      // allow switching selection (but only if the new unit can be controlled)
+      if (clickedUnit.playerId === state.currentPlayerId && 
+          clickedUnit.actionsRemaining > 0) {
+        state.selectUnit(clickedUnit)
+        return
+      }
+    }
+
+    // If none of the above conditions were met, deselect the current unit
+    // This allows the player to click elsewhere to cancel actions
     state.selectUnit(undefined)
   },
 
@@ -1102,6 +1169,95 @@ export const useGameStore = create<GameStore>((set, get) => {
   getRemainingMovement: (unit: Unit) => {
     return unit.actionsRemaining;
   },
+
+  // Helper function to check if a unit can be selected while another is active
+  canSelectUnit: (unit: Unit, currentlySelected?: Unit) => {
+    if (!unit) return false
+    
+    // If no unit is currently selected, any player unit can be selected
+    if (!currentlySelected) {
+      return unit.playerId === 'player1' && unit.actionsRemaining > 0
+    }
+    
+    // If we're trying to select the same unit, allow it (for deselection)
+    if (unit.id === currentlySelected.id) {
+      return true
+    }
+    
+    // If the currently selected unit is in action mode, don't allow switching
+    // unless the new unit is a valid target for the current action
+    if (currentlySelected.actionsRemaining > 0 && 
+        currentlySelected.playerId === 'player1') {
+      // Check if the new unit is a valid attack target
+      const isEnemy = unit.playerId !== currentlySelected.playerId
+      const inAttackRange = get().calculatePossibleTargets(currentlySelected)
+        .some(target => target.x === unit.position.x && target.y === unit.position.y)
+      
+      if (isEnemy && inAttackRange) {
+        // This is a valid attack target - allow selection to execute attack
+        return true
+      }
+      
+      // Don't allow switching units while in action mode
+      return false
+    }
+    
+    // If no action mode, allow selecting any player unit with actions
+    return unit.playerId === 'player1' && unit.actionsRemaining > 0
+  },
+
+  // Helper function to check if clicking on a unit should execute an action instead of switching
+  shouldExecuteActionInsteadOfSelect: (unit: Unit, currentlySelected?: Unit) => {
+    if (!unit || !currentlySelected) return false
+    
+    // Check if the currently selected unit is in action mode
+    const isCurrentUnitInActionMode = currentlySelected.actionsRemaining > 0 && 
+                                    currentlySelected.playerId === 'player1'
+    
+    if (!isCurrentUnitInActionMode) return false
+    
+    // Check if the clicked unit is a valid target for the current action
+    const isEnemy = unit.playerId !== currentlySelected.playerId
+    const inAttackRange = get().calculatePossibleTargets(currentlySelected)
+      .some(target => target.x === unit.position.x && target.y === unit.position.y)
+    
+    return isEnemy && inAttackRange
+  },
+
+  // Helper function to check if clicking on a unit should execute a move instead of switching
+  shouldExecuteMoveInsteadOfSelect: (unit: Unit, currentlySelected?: Unit) => {
+    if (!unit || !currentlySelected) return false
+    
+    // Check if the currently selected unit is in move mode
+    const isCurrentUnitInMoveMode = currentlySelected.actionsRemaining > 0 && 
+                                   currentlySelected.playerId === 'player1' &&
+                                   !currentlySelected.hasMoved
+    
+    if (!isCurrentUnitInMoveMode) return false
+    
+    // Check if the clicked unit's position is a valid move target
+    const inMoveRange = get().calculatePossibleMoves(currentlySelected)
+      .some(move => move.x === unit.position.x && move.y === unit.position.y)
+    
+    return inMoveRange
+  },
+
+  // Helper function to check if a unit is a valid attack target
+  isValidAttackTarget: (attacker: Unit, target: Unit) => {
+    if (!attacker || !target) return false
+    
+    // Check if target is an enemy
+    if (attacker.playerId === target.playerId) return false
+    
+    // Check if attacker can attack
+    if (attacker.hasAttacked || attacker.actionsRemaining === 0) return false
+    
+    // Check if target is in attack range
+    const distance = Math.abs(target.position.x - attacker.position.x) + 
+                    Math.abs(target.position.y - attacker.position.y)
+    
+    return distance <= attacker.attackRange
+  },
 }})
 
 function createBoard(): Tile[][] {
@@ -1230,7 +1386,7 @@ export function createGameStore() {
     get selectedAbility() { return useGameStore.getState().selectedAbility },
     get targetingMode() { return useGameStore.getState().targetingMode },
     get draftState() { return useGameStore.getState().draftState },
-    get viewingUnit() { return useGameStore.getState().viewingUnit },
+
     
     // Settable properties for testing
     set currentPlayerId(value: string) { 

@@ -449,25 +449,7 @@ export class GameScene extends Phaser.Scene {
       return
     }
     
-    // Check if we clicked on a unit first by checking all unit containers
-    for (const [unitId, container] of this.unitSprites) {
-      const bounds = container.getBounds()
-      if (bounds.contains(pointer.x, pointer.y)) {
-        const unit = store.units.find(u => u.id === unitId)
-        if (unit) {
-          // Select the unit (this will show the action menu for player units)
-          store.selectUnit(unit)
-          
-          // If it's a player unit and we're in action mode, handle the action
-          if (unit.playerId === 'player1' && this.actionMode !== 'none') {
-            this.handleActionModeClick(unit, pointer)
-          }
-          return
-        }
-      }
-    }
-    
-    // If we're in action mode, handle tile clicks for movement/attack
+    // If we're in action mode, handle tile clicks for movement/attack FIRST
     if (this.actionMode !== 'none' && store.selectedUnit) {
       const previousActionMode = this.actionMode
       this.handleActionModeClick(store.selectedUnit, pointer)
@@ -505,23 +487,90 @@ export class GameScene extends Phaser.Scene {
       return
     }
     
-    // Fall back to tile selection - emit event for GameHUD to handle
-    const tileSize = this.getTileSize()
-    const boardOffsetX = this.getBoardOffsetX()
-    const boardOffsetY = this.getBoardOffsetY()
-    const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
-    const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
-    const board = store.board
+    // Check if we clicked on a unit
+    for (const [unitId, container] of this.unitSprites) {
+      const bounds = container.getBounds()
+      if (bounds.contains(pointer.x, pointer.y)) {
+        const unit = store.units.find(u => u.id === unitId)
+        if (unit) {
+          // PRIORITY: If we're in action mode and this is a valid target, execute the action
+          if (this.actionMode !== 'none' && store.selectedUnit) {
+            if (this.actionMode === 'attack') {
+              // Check if this unit is a valid attack target
+              const isValidTarget = store.possibleTargets.some(target => 
+                target.x === unit.position.x && target.y === unit.position.y
+              )
+              if (isValidTarget && unit.playerId !== store.selectedUnit.playerId) {
+                // Execute attack on this enemy unit
+                store.attackTarget(store.selectedUnit.id, unit.id)
+                this.actionMode = 'none'
+                return
+              }
+            } else if (this.actionMode === 'move') {
+              // Check if this unit's position is a valid move target
+              const isValidMove = store.possibleMoves.some(move => 
+                move.x === unit.position.x && move.y === unit.position.y
+              )
+              if (isValidMove) {
+                // Execute move to this position
+                store.moveUnit(store.selectedUnit.id, unit.position)
+                this.actionMode = 'none'
+                return
+              }
+            }
+          }
+          
+          // If not in action mode or not a valid target, proceed with normal unit selection
+          // Check if we should execute an action instead of selecting the unit
+          if (store.shouldExecuteActionInsteadOfSelect && 
+              store.shouldExecuteActionInsteadOfSelect(unit, store.selectedUnit)) {
+            // Execute the action instead of switching units
+            if (store.selectedUnit && store.isValidAttackTarget) {
+              // Double-check that this is a valid attack target
+              if (store.isValidAttackTarget(store.selectedUnit, unit)) {
+                store.attackTarget(store.selectedUnit.id, unit.id)
+                return
+              }
+            }
+          }
+
+          // Check if we should execute a move instead of selecting the unit
+          if (store.shouldExecuteMoveInsteadOfSelect && 
+              store.shouldExecuteMoveInsteadOfSelect(unit, store.selectedUnit)) {
+            // Execute the move instead of switching units
+            if (store.selectedUnit) {
+              store.moveUnit(store.selectedUnit.id, unit.position)
+              return
+            }
+          }
+          
+          // Select the unit (this will show the action menu for player units)
+          store.selectUnit(unit)
+          return
+        }
+      }
+    }
     
-    if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {
-      // Emit tile click event for GameHUD to handle
-      const event = new CustomEvent('gameTileClick', {
-        detail: { coord: { x: tileX, y: tileY } }
-      })
-      window.dispatchEvent(event)
+    // Fall back to tile selection - emit event for GameHUD to handle
+    // This should only happen when not in action mode to avoid conflicts
+    if (this.actionMode === 'none') {
+      const tileSize = this.getTileSize()
+      const boardOffsetX = this.getBoardOffsetX()
+      const boardOffsetY = this.getBoardOffsetY()
+      const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
+      const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
+      const board = store.board
       
-      // Also handle tile selection in store for backward compatibility
-      store.selectTile({ x: tileX, y: tileY })
+      if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {
+        // Emit tile click event for GameHUD to handle
+        const event = new CustomEvent('gameTileClick', {
+          detail: { coord: { x: tileX, y: tileY } }
+        })
+        window.dispatchEvent(event)
+        
+        // Also handle tile selection in store for backward compatibility
+        store.selectTile({ x: tileX, y: tileY })
+      }
     }
   }
 
@@ -546,6 +595,8 @@ export class GameScene extends Phaser.Scene {
         if (isValidMove) {
           store.moveUnit(unit.id, { x: tileX, y: tileY })
           this.actionMode = 'none'
+          // Clear highlights after successful move
+          this.highlightGraphics.clear()
         }
         break
         
@@ -555,6 +606,8 @@ export class GameScene extends Phaser.Scene {
         if (targetUnit) {
           store.attackTarget(unit.id, targetUnit.id)
           this.actionMode = 'none'
+          // Clear highlights after successful attack
+          this.highlightGraphics.clear()
         }
         break
         
@@ -565,25 +618,127 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Public method to set action mode from the ActionMenu
-  setActionMode(mode: 'none' | 'move' | 'attack' | 'ability') {
+  setActionMode(mode: 'none' | 'move' | 'attack' | 'ability', abilityId?: string) {
     this.actionMode = mode
     
     if (mode === 'none') {
       // Clear highlights when exiting action mode
       this.highlightGraphics.clear()
-    } else {
-      // Update highlights based on the new action mode
+      // Restore normal unit highlights
       const store = useGameStore.getState()
       if (store.selectedUnit) {
-        // Re-apply the highlights for the selected unit
         this.updateHighlights(store.highlightedTiles, store.selectedUnit)
       }
+    } else if (mode === 'move') {
+      // Clear existing highlights and show move highlights
+      this.highlightGraphics.clear()
+      const store = useGameStore.getState()
+      if (store.selectedUnit) {
+        // Show move highlights
+        store.possibleMoves.forEach(move => {
+          const tileSize = this.getTileSize()
+          const boardOffsetX = this.getBoardOffsetX()
+          const boardOffsetY = this.getBoardOffsetY()
+          const px = boardOffsetX + move.x * tileSize
+          const py = boardOffsetY + move.y * tileSize
+          
+          // Draw blue highlight for move targets
+          this.highlightGraphics.fillStyle(0x3b82f6, 0.6)
+          this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
+          this.highlightGraphics.lineStyle(2, 0x1d4ed8, 1)
+          this.highlightGraphics.strokeRect(px, py, tileSize, tileSize)
+        })
+      }
+    } else if (mode === 'attack') {
+      // Show attack highlights on enemies in range
+      this.showAttackHighlights()
+    } else if (mode === 'ability' && abilityId) {
+      // Show ability highlights on valid targets
+      this.showAbilityHighlights(abilityId)
     }
   }
 
   // Public getter for action mode
   getActionMode(): 'none' | 'move' | 'attack' | 'ability' {
     return this.actionMode
+  }
+
+  // Public method to clear action mode
+  clearActionMode() {
+    this.actionMode = 'none'
+    this.highlightGraphics.clear()
+    // Restore normal unit highlights
+    const store = useGameStore.getState()
+    if (store.selectedUnit) {
+      this.updateHighlights(store.highlightedTiles, store.selectedUnit)
+    }
+  }
+
+  // Show attack highlights on enemies in attack range
+  private showAttackHighlights() {
+    const store = useGameStore.getState()
+    if (!store.selectedUnit) return
+
+    // Clear existing highlights
+    this.highlightGraphics.clear()
+    
+    // Get only enemies in attack range (use possibleTargets from store)
+    const possibleTargets = store.possibleTargets
+    const enemies = store.units.filter(u => 
+      u.playerId !== store.selectedUnit!.playerId &&
+      possibleTargets.some(target => target.x === u.position.x && target.y === u.position.y)
+    )
+    
+    // Highlight each enemy position with red
+    enemies.forEach(enemy => {
+      const tileSize = this.getTileSize()
+      const boardOffsetX = this.getBoardOffsetX()
+      const boardOffsetY = this.getBoardOffsetY()
+      const px = boardOffsetX + enemy.position.x * tileSize
+      const py = boardOffsetY + enemy.position.y * tileSize
+      
+      // Draw red highlight for enemy targets
+      this.highlightGraphics.fillStyle(0xef4444, 0.6)
+      this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
+      this.highlightGraphics.lineStyle(2, 0xdc2626, 1)
+      this.highlightGraphics.strokeRect(px, py, tileSize, tileSize)
+    })
+  }
+
+  // Show ability highlights on valid targets
+  private showAbilityHighlights(abilityId: string) {
+    const store = useGameStore.getState()
+    if (!store.selectedUnit) return
+
+    // Clear existing highlights
+    this.highlightGraphics.clear()
+    
+    // Get valid targets for this ability
+    const validTargets = getValidTargets(store.selectedUnit, { id: abilityId } as any, store.board)
+    
+    // Highlight each valid target with purple
+    validTargets.forEach(target => {
+      const tileSize = this.getTileSize()
+      const boardOffsetX = this.getBoardOffsetX()
+      const boardOffsetY = this.getBoardOffsetY()
+      
+      let px: number, py: number
+      if ('x' in target) {
+        // Coordinate target
+        px = boardOffsetX + target.x * tileSize
+        py = boardOffsetY + target.y * tileSize
+      } else {
+        // Unit target
+        px = boardOffsetX + target.position.x * tileSize
+        py = boardOffsetY + target.position.y * tileSize
+      }
+      
+      // Draw purple highlight for ability targets
+      this.highlightGraphics.fillStyle(0x8b5cf6, 0.6)
+      this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
+      this.highlightGraphics.lineStyle(2, 0x7c3aed, 1)
+      this.highlightGraphics.strokeRect(px, py, tileSize, tileSize)
+    })
   }
 
   destroy() {

@@ -6,9 +6,7 @@ export function GameHUD() {
   const {
     players,
     selectedUnit,
-    viewingUnit,
     endTurn,
-    selectUnit,
     currentPlayerId,
     turnNumber,
     possibleMoves,
@@ -16,14 +14,14 @@ export function GameHUD() {
     moveUnit,
     attackTarget,
     useAbility,
-    getAbilityTargets,
-    canUseAbility: storeCanUseAbility
+    getAbilityTargets
   } = useGameStore()
 
   const [actionMenuPosition, setActionMenuPosition] = useState({ x: 0, y: 0 })
   const [actionMode, setActionMode] = useState<'none' | 'move' | 'attack' | 'ability'>('none')
   const [selectedAbility, setSelectedAbility] = useState<string | null>(null)
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+  const [unitSelectionBlocked, setUnitSelectionBlocked] = useState(false)
   
   const isPlayerUnit = selectedUnit && selectedUnit.playerId === 'player1'
   const canControl = selectedUnit && selectedUnit.playerId === 'player1' && selectedUnit.actionsRemaining > 0
@@ -32,7 +30,7 @@ export function GameHUD() {
   // Show action menu when a player unit is selected and can be controlled
   // Hide it when we're in an action mode
   const showActionMenu = useMemo(() => {
-    if (!selectedUnit || viewingUnit) return false
+    if (!selectedUnit) return false
     
     // Hide action menu when in action mode
     if (actionMode !== 'none') {
@@ -43,14 +41,13 @@ export function GameHUD() {
     const shouldShow = isPlayerUnit && canControl
     console.log('Action menu check:', { 
       selectedUnit: !!selectedUnit, 
-      viewingUnit, 
       isPlayerUnit, 
       canControl, 
       shouldShow,
       actionMode
     })
     return shouldShow
-  }, [selectedUnit, viewingUnit, isPlayerUnit, canControl, actionMode])
+  }, [selectedUnit, isPlayerUnit, canControl, actionMode])
   
   const player1 = players.find((p) => p.id === 'player1')
   const player2 = players.find((p) => p.id === 'player2')
@@ -129,8 +126,14 @@ export function GameHUD() {
 
     const gameScene = (window as any).gameScene
     if (gameScene && gameScene.setActionMode) {
-      gameScene.setActionMode(action);
-      console.log(`${action} action mode set`)
+      if (action === 'ability') {
+        // For abilities, pass the action as the ability ID
+        gameScene.setActionMode(action, action);
+        console.log(`${action} action mode set with ability:`, action)
+      } else {
+        gameScene.setActionMode(action);
+        console.log(`${action} action mode set`)
+      }
     } else {
       console.log('GameScene not available, but action mode set locally')
     }
@@ -150,6 +153,14 @@ export function GameHUD() {
           console.log('Executing move to:', coord)
           moveUnit(selectedUnit.id, coord)
           setActionMode('none')
+          setSelectedAbility(null)
+          
+          // Clear action mode in game scene
+          const gameScene = (window as any).gameScene
+          if (gameScene && gameScene.clearActionMode) {
+            gameScene.clearActionMode()
+          }
+          
           setActionFeedback({ type: 'success', message: 'Unit moved successfully!' })
           setTimeout(() => setActionFeedback(null), 2000)
         } else {
@@ -159,16 +170,26 @@ export function GameHUD() {
         break
 
       case 'attack':
-        // Check if there's an enemy unit at this location
+        // Check if this tile has a valid attack target
+        const isValidTarget = possibleTargets.some(target => target.x === coord.x && target.y === coord.y)
         const targetUnit = useGameStore.getState().units.find(u => 
           u.position.x === coord.x && 
           u.position.y === coord.y && 
           u.playerId !== selectedUnit.playerId
         )
-        if (targetUnit) {
+        
+        if (isValidTarget && targetUnit) {
           console.log('Executing attack on:', targetUnit.id)
           attackTarget(selectedUnit.id, targetUnit.id)
           setActionMode('none')
+          setSelectedAbility(null)
+          
+          // Clear action mode in game scene
+          const gameScene = (window as any).gameScene
+          if (gameScene && gameScene.clearActionMode) {
+            gameScene.clearActionMode()
+          }
+          
           setActionFeedback({ type: 'success', message: 'Attack executed!' })
           setTimeout(() => setActionFeedback(null), 2000)
         } else {
@@ -194,12 +215,19 @@ export function GameHUD() {
             useAbility(selectedUnit.id, selectedAbility, clickedTarget)
             setActionMode('none')
             setSelectedAbility(null)
+            
+            // Clear action mode in game scene
+            const gameScene = (window as any).gameScene
+            if (gameScene && gameScene.clearActionMode) {
+              gameScene.clearActionMode()
+            }
+            
             setActionFeedback({ type: 'success', message: 'Ability used successfully!' })
             setTimeout(() => setActionFeedback(null), 2000)
           } else {
             setActionFeedback({ type: 'error', message: 'Invalid target for this ability' })
             setTimeout(() => setActionFeedback(null), 2000)
-          }
+        }
         }
         break
     }
@@ -210,6 +238,29 @@ export function GameHUD() {
     if (!selectedUnit) {
       setActionMode('none')
       setSelectedAbility(null)
+      
+      // Clear action mode in game scene
+      const gameScene = (window as any).gameScene
+      if (gameScene && gameScene.clearActionMode) {
+        gameScene.clearActionMode()
+      }
+    } else {
+      // If a new unit is selected, check if we should maintain action mode
+      // Only maintain if it's the same unit (for deselection/reselection)
+      const currentUnitId = selectedUnit.id
+      const previousUnitId = useGameStore.getState().selectedUnit?.id
+      
+      if (currentUnitId !== previousUnitId) {
+        // New unit selected - reset action mode
+        setActionMode('none')
+        setSelectedAbility(null)
+        
+        // Clear action mode in game scene
+        const gameScene = (window as any).gameScene
+        if (gameScene && gameScene.clearActionMode) {
+          gameScene.clearActionMode()
+        }
+      }
     }
   }, [selectedUnit])
 
@@ -225,6 +276,50 @@ export function GameHUD() {
       window.removeEventListener('gameTileClick', handleGameTileClick as EventListener)
     }
   }, [selectedUnit, actionMode, selectedAbility, canControl])
+
+  // Listen for unit selection blocked events
+  useEffect(() => {
+    const handleUnitSelectionBlocked = () => {
+      setUnitSelectionBlocked(true)
+      setActionFeedback({ 
+        type: 'error', 
+        message: 'Complete or cancel current action before selecting other units' 
+      })
+      setTimeout(() => {
+        setUnitSelectionBlocked(false)
+        setActionFeedback(null)
+      }, 3000)
+    }
+
+    window.addEventListener('unitSelectionBlocked', handleUnitSelectionBlocked as EventListener)
+    return () => {
+      window.removeEventListener('unitSelectionBlocked', handleUnitSelectionBlocked as EventListener)
+    }
+  }, [])
+
+  // Sync action mode with GameScene when it becomes available
+  useEffect(() => {
+    const checkGameScene = () => {
+      const gameScene = (window as any).gameScene
+      if (gameScene && gameScene.getActionMode) {
+        const sceneActionMode = gameScene.getActionMode()
+        if (sceneActionMode !== actionMode) {
+          setActionMode(sceneActionMode)
+          if (sceneActionMode === 'none') {
+            setSelectedAbility(null)
+          }
+        }
+      }
+    }
+
+    // Check immediately
+    checkGameScene()
+    
+    // Check periodically until GameScene is available
+    const interval = setInterval(checkGameScene, 100)
+    
+    return () => clearInterval(interval)
+  }, [actionMode])
 
   return (
     <>
@@ -308,20 +403,14 @@ export function GameHUD() {
               </div>
             </div>
             
-            {/* Viewing/Control indicator */}
-            {viewingUnit && (
-              <div className="text-xs text-yellow-400 mt-1">
-                📖 Viewing Only
-              </div>
-            )}
-            {!viewingUnit && canControl && (
+            {/* Control indicator */}
+            {canControl ? (
               <div className="text-xs text-green-400 mt-1">
                 🎮 Controlling - {selectedUnit.actionsRemaining} action{selectedUnit.actionsRemaining !== 1 ? 's' : ''} remaining
               </div>
-            )}
-            {!viewingUnit && !canControl && (
+            ) : (
               <div className="text-xs text-gray-400 mt-1">
-                ⏸️ No Actions
+                📖 Viewing Only
               </div>
             )}
           </div>
@@ -362,6 +451,36 @@ export function GameHUD() {
                   Targets: {possibleTargets.length} available
                 </div>
               </div>
+              
+              {/* Move Mode Instructions */}
+              {actionMode === 'move' && possibleMoves.length > 0 && (
+                <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-2 mt-2">
+                  <div className="text-blue-300 text-xs font-semibold">
+                    🚶 Move Mode Active
+                  </div>
+                  <div className="text-blue-200 text-xs mt-1">
+                    Click on highlighted tiles to move
+                  </div>
+                  <div className="text-blue-200 text-xs">
+                    {possibleMoves.length} move{possibleMoves.length !== 1 ? 's' : ''} available
+                  </div>
+                </div>
+              )}
+
+              {/* Attack Mode Instructions */}
+              {actionMode === 'attack' && possibleTargets.length > 0 && (
+                <div className="bg-red-900/20 border border-red-700 rounded-lg p-2 mt-2">
+                  <div className="text-red-300 text-xs font-semibold">
+                    🎯 Attack Mode Active
+                  </div>
+                  <div className="text-red-200 text-xs mt-1">
+                    Click on enemy units to attack them
+                  </div>
+                  <div className="text-red-200 text-xs">
+                    {possibleTargets.length} target{possibleTargets.length !== 1 ? 's' : ''} available
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -382,14 +501,26 @@ export function GameHUD() {
                   setActionMode('none')
                   setSelectedAbility(null)
                   const gameScene = (window as any).gameScene
-                  if (gameScene && gameScene.setActionMode) {
-                    gameScene.setActionMode('none')
+                  if (gameScene && gameScene.clearActionMode) {
+                    gameScene.clearActionMode()
                   }
                 }}
                 className="mt-2 px-3 py-1 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded transition-colors"
               >
                 Cancel Action
               </button>
+            </div>
+          )}
+
+          {/* Unit Selection Blocked Warning */}
+          {unitSelectionBlocked && (
+            <div className="bg-red-900/20 border border-red-700 rounded-lg p-3">
+              <div className="text-red-300 font-semibold text-sm">
+                ⚠️ Unit Selection Blocked
+              </div>
+              <div className="text-xs text-red-200 mt-1">
+                Complete or cancel your current action before selecting other units
+              </div>
             </div>
           )}
 
@@ -401,6 +532,11 @@ export function GameHUD() {
             <div>• Select abilities to use them on targets</div>
             <div>• Capture cubicles to increase income</div>
             <div>• End turn when you're done</div>
+            {actionMode !== 'none' && (
+              <div className="text-amber-400 font-semibold">
+                ⚠️ Action mode active - complete or cancel current action first
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -413,6 +549,10 @@ export function GameHUD() {
             unit={selectedUnit}
             position={actionMenuPosition}
             onActionSelect={handleActionSelect}
+            onClose={() => {
+              // Deselect the unit when closing the action menu
+              useGameStore.getState().selectUnit(undefined)
+            }}
           />
         </>
       )}
