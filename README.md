@@ -19,18 +19,39 @@ A modern web remake of the 2009 Adult Swim Flash tactics game where rival depart
 ## 🏗️ Technology Stack
 
 ### Frontend
-- **Framework:** React 18 with TypeScript
+- **Framework:** React 19 with TypeScript
 - **Game Engine:** Phaser 3 (for game rendering and animations)
 - **State Management:** Zustand (lightweight, perfect for game state)
 - **Styling:** Tailwind CSS (UI elements)
-- **Build Tool:** Vite
+- **Build Tool:** Vite 7
 
 ### Backend
-- **Runtime:** Node.js with Express
+- **Runtime:** Node.js with Express 5
 - **Real-time:** Socket.io (for multiplayer)
 - **Database:** PostgreSQL (player stats, match history)
 - **ORM:** Prisma
 - **Hosting:** Render.com (auto-scaling, WebSocket support)
+
+## 📁 Project Structure
+
+```
+HRmageddon/
+├── client/                 # React frontend + Phaser game
+│   ├── src/
+│   │   ├── components/     # React UI components
+│   │   ├── game/          # Phaser game scenes and logic
+│   │   ├── stores/        # Zustand state management
+│   │   └── types/         # TypeScript type definitions
+│   └── package.json
+├── server/                 # Express backend + Socket.io
+│   ├── src/
+│   │   └── index.ts       # Main server file
+│   └── package.json
+├── shared/                 # Common types and utilities
+│   └── src/
+│       └── index.ts       # Shared interfaces and enums
+└── package.json            # Workspace root configuration
+```
 
 ### Development Tools
 - **Version Control:** Git/GitHub
@@ -120,30 +141,37 @@ A modern web remake of the 2009 Adult Swim Flash tactics game where rival depart
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/hrmageddon-web.git
-cd hrmageddon-web
+git clone https://github.com/walterreid/HRmageddon.git
+cd HRmageddon
 
-# Install dependencies
+# Install dependencies (workspace setup)
 npm install
 
-# Start development server
+# Start development environment (both client and server)
 npm run dev
 
-# In another terminal, start the backend (Phase 3+)
-cd server
-npm install
-npm run dev
+# Or start individually:
+# Client only: npm --workspace client run dev
+# Server only: npm --workspace server run dev
 ```
+
+## 🌐 Development URLs
+
+- **Client (Game):** http://localhost:5177
+- **Server (API):** http://localhost:4001
+- **Health Check:** http://localhost:4001/api/health
 
 ## 🎯 Development Milestones
 
 ### MVP Features (Phase 1)
 - ✅ Grid-based movement
 - ✅ Turn-based combat
-- ✅ 4 basic units
-- ✅ Cubicle capture
-- ✅ Simple AI
-- ✅ Win conditions
+- ✅ 4 basic units (Intern, Secretary, Sales Rep, HR Manager)
+- ✅ Cubicle capture mechanics
+- ✅ Resource management (budget, income, controlled cubicles)
+- ✅ Status effects system
+- ✅ Turn management with action points
+- ✅ Basic game loop and win conditions
 
 ### Full Release (Phase 3)
 - ✅ 8 unique units with abilities
@@ -165,12 +193,12 @@ npm run dev
 ### Environment Variables
 ```env
 # Frontend (.env)
-VITE_API_URL=http://localhost:3001
-VITE_SOCKET_URL=ws://localhost:3001
+VITE_API_URL=http://localhost:4001
+VITE_SOCKET_URL=ws://localhost:4001
 
 # Backend (.env)
 DATABASE_URL=postgresql://user:pass@localhost:5432/hrmageddon
-PORT=3001
+PORT=4001
 JWT_SECRET=your-secret-key
 ```
 
@@ -214,6 +242,29 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 
 ---
 
-**Current Status:** 🚧 Phase 1 Development
+**Current Status:** 🚧 Phase 1 Development - Core Game Engine Complete
 
 **Last Updated:** January 2025
+
+## 🎯 What's Currently Working
+
+### ✅ Implemented Features
+- **Game Board**: 8x10 grid with different tile types (cubicles, obstacles, conference rooms, HQs)
+- **Units**: 4 unit types with unique stats and abilities
+- **Turn System**: Player turns with action points and movement/attack phases
+- **Combat**: Attack mechanics with damage calculation and status effects
+- **Resource Management**: Budget, income per turn, and cubicle control
+- **Game Loop**: Complete turn-based gameplay with win conditions
+- **Modern UI**: React + Tailwind CSS with Phaser 3 game rendering
+
+### 🔄 In Progress
+- AI opponent implementation
+- Additional unit types and abilities
+- Sound effects and animations
+- Game balance tuning
+
+### 📋 Next Steps
+- Complete AI opponent
+- Add remaining unit types (IT Specialist, Accountant, Legal Counsel, Executive)
+- Implement advanced abilities and cooldowns
+- Add multiple maps and scenarios

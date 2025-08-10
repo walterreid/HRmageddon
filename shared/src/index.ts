@@ -1,0 +1,218 @@
+export type Coordinate = { x: number; y: number }
+
+// Tile System
+export interface Tile {
+  x: number
+  y: number
+  type: TileType
+  occupied?: Unit
+  owner?: PlayerId
+  highlighted?: HighlightType
+}
+
+export enum TileType {
+  NORMAL = 'normal',
+  CUBICLE = 'cubicle',
+  OBSTACLE = 'obstacle',
+  CONFERENCE_ROOM = 'conference',
+  HALLWAY = 'hallway',
+  HQ_BLUE = 'hq_blue',
+  HQ_RED = 'hq_red',
+}
+
+export enum HighlightType {
+  MOVEMENT = 'movement',
+  ATTACK = 'attack',
+  ABILITY = 'ability',
+  CAPTURE = 'capture',
+}
+
+// Enhanced Unit System
+export interface Unit {
+  id: string
+  playerId: PlayerId
+  type: UnitType
+  position: Coordinate
+  hp: number
+  maxHp: number
+  moveRange: number
+  attackRange: number
+  attackDamage: number
+  actionsRemaining: number
+  maxActions: number
+  status: StatusEffect[]
+  cost: number
+  hasMoved: boolean
+  hasAttacked: boolean
+}
+
+export enum UnitType {
+  INTERN = 'intern',
+  SECRETARY = 'secretary',
+  SALES_REP = 'sales_rep',
+  HR_MANAGER = 'hr_manager',
+  IT_SPECIALIST = 'it_specialist',
+  ACCOUNTANT = 'accountant',
+  LEGAL_COUNSEL = 'legal',
+  EXECUTIVE = 'executive',
+}
+
+export interface StatusEffect {
+  type: StatusType
+  duration: number
+  source?: string
+}
+
+export enum StatusType {
+  WRITTEN_UP = 'written_up',
+  HARASSED = 'harassed',
+  FILED = 'filed',
+  ON_DEADLINE = 'on_deadline',
+  OUT_TO_LUNCH = 'out_to_lunch',
+  EXHAUSTED = 'exhausted',
+}
+
+// Game State
+export interface GameState {
+  id: string
+  board: Tile[][]
+  units: Unit[]
+  players: Player[]
+  currentPlayerId: PlayerId
+  turnNumber: number
+  phase: GamePhase
+  selectedUnit?: Unit
+  winner?: PlayerId
+}
+
+export interface Player {
+  id: PlayerId
+  name: string
+  team: Team
+  budget: number
+  income: number
+  controlledCubicles: number
+}
+
+export enum Team {
+  BLUE = 'blue',
+  RED = 'red',
+}
+
+export type PlayerId = string
+
+export enum GamePhase {
+  SETUP = 'setup',
+  PLAYING = 'playing',
+  GAME_OVER = 'game_over',
+}
+
+// Actions
+export interface GameAction {
+  type: ActionType
+  playerId: PlayerId
+  unitId?: string
+  target?: Coordinate
+  abilityId?: string
+}
+
+export enum ActionType {
+  MOVE_UNIT = 'move_unit',
+  ATTACK_UNIT = 'attack_unit',
+  USE_ABILITY = 'use_ability',
+  CAPTURE_CUBICLE = 'capture_cubicle',
+  HIRE_UNIT = 'hire_unit',
+  END_TURN = 'end_turn',
+}
+
+// Unit Configuration
+export const UNIT_STATS: Record<
+  UnitType,
+  Omit<
+    Unit,
+    'id' | 'playerId' | 'position' | 'status' | 'hasMoved' | 'hasAttacked' | 'actionsRemaining'
+  >
+> = {
+  [UnitType.INTERN]: {
+    type: UnitType.INTERN,
+    hp: 2,
+    maxHp: 2,
+    moveRange: 3,
+    attackRange: 1,
+    attackDamage: 1,
+    maxActions: 2,
+    cost: 2,
+  },
+  [UnitType.SECRETARY]: {
+    type: UnitType.SECRETARY,
+    hp: 2,
+    maxHp: 2,
+    moveRange: 3,
+    attackRange: 3,
+    attackDamage: 1,
+    maxActions: 2,
+    cost: 3,
+  },
+  [UnitType.SALES_REP]: {
+    type: UnitType.SALES_REP,
+    hp: 3,
+    maxHp: 3,
+    moveRange: 4,
+    attackRange: 2,
+    attackDamage: 2,
+    maxActions: 2,
+    cost: 3,
+  },
+  [UnitType.HR_MANAGER]: {
+    type: UnitType.HR_MANAGER,
+    hp: 3,
+    maxHp: 3,
+    moveRange: 3,
+    attackRange: 1,
+    attackDamage: 2,
+    maxActions: 2,
+    cost: 5,
+  },
+  [UnitType.IT_SPECIALIST]: {
+    type: UnitType.IT_SPECIALIST,
+    hp: 3,
+    maxHp: 3,
+    moveRange: 3,
+    attackRange: 2,
+    attackDamage: 2,
+    maxActions: 2,
+    cost: 4,
+  },
+  [UnitType.ACCOUNTANT]: {
+    type: UnitType.ACCOUNTANT,
+    hp: 3,
+    maxHp: 3,
+    moveRange: 3,
+    attackRange: 2,
+    attackDamage: 2,
+    maxActions: 2,
+    cost: 4,
+  },
+  [UnitType.LEGAL_COUNSEL]: {
+    type: UnitType.LEGAL_COUNSEL,
+    hp: 3,
+    maxHp: 3,
+    moveRange: 3,
+    attackRange: 2,
+    attackDamage: 2,
+    maxActions: 2,
+    cost: 5,
+  },
+  [UnitType.EXECUTIVE]: {
+    type: UnitType.EXECUTIVE,
+    hp: 4,
+    maxHp: 4,
+    moveRange: 3,
+    attackRange: 2,
+    attackDamage: 3,
+    maxActions: 2,
+    cost: 6,
+  },
+}
+
+
