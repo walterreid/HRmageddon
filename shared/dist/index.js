@@ -34,6 +34,14 @@ export var StatusType;
     StatusType["ON_DEADLINE"] = "on_deadline";
     StatusType["OUT_TO_LUNCH"] = "out_to_lunch";
     StatusType["EXHAUSTED"] = "exhausted";
+    StatusType["INSPIRED"] = "inspired";
+    StatusType["FOCUSED"] = "focused";
+    StatusType["CONFUSED"] = "confused";
+    StatusType["STUNNED"] = "stunned";
+    StatusType["SHIELDED"] = "shielded";
+    StatusType["BURNING"] = "burning";
+    StatusType["FROZEN"] = "frozen";
+    StatusType["POISONED"] = "poisoned";
 })(StatusType || (StatusType = {}));
 export var Team;
 (function (Team) {
@@ -67,6 +75,8 @@ export const UNIT_STATS = {
         attackDamage: 1,
         maxActions: 2,
         cost: 2,
+        abilities: ['fetch_coffee', 'overtime'],
+        abilityCooldowns: {},
     },
     [UnitType.SECRETARY]: {
         type: UnitType.SECRETARY,
@@ -77,6 +87,8 @@ export const UNIT_STATS = {
         attackDamage: 1,
         maxActions: 2,
         cost: 3,
+        abilities: ['file_it'],
+        abilityCooldowns: {},
     },
     [UnitType.SALES_REP]: {
         type: UnitType.SALES_REP,
@@ -87,6 +99,8 @@ export const UNIT_STATS = {
         attackDamage: 2,
         maxActions: 2,
         cost: 3,
+        abilities: ['harass'],
+        abilityCooldowns: {},
     },
     [UnitType.HR_MANAGER]: {
         type: UnitType.HR_MANAGER,
@@ -97,6 +111,8 @@ export const UNIT_STATS = {
         attackDamage: 2,
         maxActions: 2,
         cost: 5,
+        abilities: ['pink_slip', 'mediation'],
+        abilityCooldowns: {},
     },
     [UnitType.IT_SPECIALIST]: {
         type: UnitType.IT_SPECIALIST,
@@ -107,6 +123,8 @@ export const UNIT_STATS = {
         attackDamage: 2,
         maxActions: 2,
         cost: 4,
+        abilities: ['hack_system', 'tech_support'],
+        abilityCooldowns: {},
     },
     [UnitType.ACCOUNTANT]: {
         type: UnitType.ACCOUNTANT,
@@ -117,6 +135,8 @@ export const UNIT_STATS = {
         attackDamage: 2,
         maxActions: 2,
         cost: 4,
+        abilities: ['audit', 'creative_accounting'],
+        abilityCooldowns: {},
     },
     [UnitType.LEGAL_COUNSEL]: {
         type: UnitType.LEGAL_COUNSEL,
@@ -127,6 +147,8 @@ export const UNIT_STATS = {
         attackDamage: 2,
         maxActions: 2,
         cost: 5,
+        abilities: ['legal_threat', 'contract_negotiation'],
+        abilityCooldowns: {},
     },
     [UnitType.EXECUTIVE]: {
         type: UnitType.EXECUTIVE,
@@ -137,6 +159,8 @@ export const UNIT_STATS = {
         attackDamage: 3,
         maxActions: 2,
         cost: 6,
+        abilities: ['executive_order', 'corporate_restructuring'],
+        abilityCooldowns: {},
     },
 };
 // Unit costs for draft system (in thousands of dollars)
@@ -149,4 +173,14 @@ export const UNIT_COSTS = {
     [UnitType.ACCOUNTANT]: 40,
     [UnitType.LEGAL_COUNSEL]: 50,
     [UnitType.EXECUTIVE]: 60,
+};
+export const TargetType = {
+    SELF: 'self',
+    ALLY: 'ally',
+    ENEMY: 'enemy',
+    TILE: 'tile',
+    NONE: 'none',
+    ALL_ALLIES: 'all_allies',
+    ALL_ENEMIES: 'all_enemies',
+    ADJACENT: 'adjacent',
 };

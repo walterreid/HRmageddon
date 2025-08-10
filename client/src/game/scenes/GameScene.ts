@@ -1,12 +1,18 @@
 import Phaser from 'phaser'
 import { useGameStore } from '../../stores/gameStore'
-import { TileType, type Unit, type Tile } from 'shared'
+import { TileType, type Unit, type Tile, type Coordinate } from 'shared'
+import { getAbilityById, getValidTargets } from '../systems/abilities'
 
 export class GameScene extends Phaser.Scene {
   private tileGraphics!: Phaser.GameObjects.Graphics
   private highlightGraphics!: Phaser.GameObjects.Graphics
   private unitSprites: Map<string, Phaser.GameObjects.Container> = new Map()
   private unsubscribe?: () => void
+  
+  // Ability targeting properties
+  private validTargets: (Unit | Coordinate)[] = []
+  private targetingMode: boolean = false
+  private abilityTargetGraphics!: Phaser.GameObjects.Graphics
 
   constructor() {
     super({ key: 'GameScene' })
@@ -19,6 +25,7 @@ export class GameScene extends Phaser.Scene {
 
     this.tileGraphics = this.add.graphics()
     this.highlightGraphics = this.add.graphics()
+    this.abilityTargetGraphics = this.add.graphics()
 
     this.drawBoard(store.board)
     this.drawUnits(store.units)
@@ -28,6 +35,7 @@ export class GameScene extends Phaser.Scene {
       this.drawBoard(state.board)
       this.drawUnits(state.units)
       this.updateHighlights(state.highlightedTiles, state.selectedUnit)
+      this.updateAbilityTargeting(state.selectedUnit, state.selectedAbility)
     })
 
     // Enhanced input handling for Safari compatibility
@@ -205,17 +213,95 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private updateAbilityTargeting(selectedUnit?: Unit, selectedAbility?: string) {
+    this.abilityTargetGraphics.clear()
+    
+    if (!selectedUnit || !selectedAbility) {
+      this.targetingMode = false
+      this.validTargets = []
+      return
+    }
+
+    const ability = getAbilityById(selectedAbility)
+    if (!ability) return
+
+    const store = useGameStore.getState()
+    this.validTargets = getValidTargets(selectedUnit, ability, store.board)
+    this.targetingMode = true
+
+    // Highlight valid targets
+    this.validTargets.forEach(target => {
+      if ('x' in target) {
+        // Target is a coordinate
+        const tileSize = this.getTileSize()
+        const boardOffsetX = this.getBoardOffsetX()
+        const boardOffsetY = this.getBoardOffsetY()
+        const px = boardOffsetX + target.x * tileSize
+        const py = boardOffsetY + target.y * tileSize
+        
+        this.abilityTargetGraphics.lineStyle(2, 0xf59e0b, 0.8)
+        this.abilityTargetGraphics.strokeRect(px, py, tileSize, tileSize)
+        this.abilityTargetGraphics.fillStyle(0xf59e0b, 0.2)
+        this.abilityTargetGraphics.fillRect(px, py, tileSize, tileSize)
+      } else {
+        // Target is a unit
+        const tileSize = this.getTileSize()
+        const boardOffsetX = this.getBoardOffsetX()
+        const boardOffsetY = this.getBoardOffsetY()
+        const px = boardOffsetX + target.position.x * tileSize
+        const py = boardOffsetY + target.position.y * tileSize
+        
+        this.abilityTargetGraphics.lineStyle(2, 0xf59e0b, 0.8)
+        this.abilityTargetGraphics.strokeCircle(px + tileSize/2, py + tileSize/2, tileSize/2 + 2)
+        this.abilityTargetGraphics.fillStyle(0xf59e0b, 0.2)
+        this.abilityTargetGraphics.fillCircle(px + tileSize/2, py + tileSize/2, tileSize/2)
+      }
+    })
+  }
+
   private handleClick(pointer: Phaser.Input.Pointer) {
     console.log('Click detected at:', pointer.x, pointer.y) // Debug log
+    
+    const store = useGameStore.getState()
+    
+    // If we're in ability targeting mode, handle ability target selection
+    if (this.targetingMode && store.selectedAbility) {
+      const tileSize = this.getTileSize()
+      const boardOffsetX = this.getBoardOffsetX()
+      const boardOffsetY = this.getBoardOffsetY()
+      const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
+      const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
+      
+      // Check if clicked on a valid target
+      const clickedTarget = this.validTargets.find(target => {
+        if ('x' in target) {
+          return target.x === tileX && target.y === tileY
+        } else {
+          return target.position.x === tileX && target.position.y === tileY
+        }
+      })
+      
+      if (clickedTarget && store.selectedUnit) {
+        // Use the ability on the target
+        store.useAbility(store.selectedUnit.id, store.selectedAbility, clickedTarget)
+        // Clear targeting mode
+        store.selectAbility('')
+        return
+      }
+      
+      // If clicked outside valid targets, cancel targeting
+      store.selectAbility('')
+      return
+    }
     
     // Check if we clicked on a unit first by checking all unit containers
     for (const [unitId, container] of this.unitSprites) {
       const bounds = container.getBounds()
       if (bounds.contains(pointer.x, pointer.y)) {
         console.log('Click hit unit container:', unitId) // Debug log
-        const unit = useGameStore.getState().units.find(u => u.id === unitId)
+        const unit = store.units.find(u => u.id === unitId)
         if (unit) {
-          useGameStore.getState().selectUnit(unit)
+          store.selectUnit(unit)
           return
         }
       }
@@ -227,16 +313,185 @@ export class GameScene extends Phaser.Scene {
     const boardOffsetY = this.getBoardOffsetY()
     const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
     const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
-    const state = useGameStore.getState()
-    const board = state.board
+    const board = store.board
     if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {
       console.log('Selecting tile:', tileX, tileY) // Debug log
-      state.selectTile({ x: tileX, y: tileY })
+      store.selectTile({ x: tileX, y: tileY })
     }
   }
 
   destroy() {
     if (this.unsubscribe) this.unsubscribe()
+  }
+
+  // Ability visual effects
+  playAbilityEffect(abilityId: string, target: Unit | Coordinate) {
+    const ability = getAbilityById(abilityId)
+    if (!ability) return
+
+    switch (ability.visualEffect) {
+      case 'coffee_steam':
+        this.createCoffeeParticles(target)
+        break
+      case 'pink_slip_flash':
+        this.createPinkSlipEffect(target)
+        break
+      case 'paper_flying':
+        this.createPaperEffect(target)
+        break
+      case 'harass_aura':
+        this.createHarassEffect(target)
+        break
+      case 'overtime_glow':
+        this.createOvertimeEffect(target)
+        break
+      default:
+        this.createGenericEffect(target)
+    }
+  }
+
+  private createCoffeeParticles(target: Unit | Coordinate) {
+    const position = this.getTargetPosition(target)
+    if (!position) return
+
+    // Create simple coffee steam effect with graphics
+    for (let i = 0; i < 8; i++) {
+      const steam = this.add.graphics()
+      steam.fillStyle(0x8B4513, 0.6)
+      steam.fillCircle(0, 0, 3)
+      
+      steam.setPosition(position.x, position.y)
+      
+      this.tweens.add({
+        targets: steam,
+        x: position.x + (Math.random() - 0.5) * 60,
+        y: position.y - Math.random() * 80,
+        alpha: 0,
+        scaleX: 2,
+        scaleY: 2,
+        duration: 1500,
+        onComplete: () => steam.destroy()
+      })
+    }
+  }
+
+  private createPinkSlipEffect(target: Unit | Coordinate) {
+    const position = this.getTargetPosition(target)
+    if (!position) return
+
+    // Create a flash effect
+    const flash = this.add.graphics()
+    flash.fillStyle(0xff0000, 0.8)
+    flash.fillRect(position.x - 20, position.y - 20, 40, 40)
+    
+    // Fade out
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 500,
+      onComplete: () => flash.destroy()
+    })
+  }
+
+  private createPaperEffect(target: Unit | Coordinate) {
+    const position = this.getTargetPosition(target)
+    if (!position) return
+
+    // Create flying paper effect
+    for (let i = 0; i < 5; i++) {
+      const paper = this.add.graphics()
+      paper.fillStyle(0xffffff, 0.9)
+      paper.fillRect(0, 0, 8, 10)
+      
+      paper.setPosition(position.x, position.y)
+      
+      this.tweens.add({
+        targets: paper,
+        x: position.x + (Math.random() - 0.5) * 100,
+        y: position.y + (Math.random() - 0.5) * 100,
+        rotation: Math.PI * 2,
+        alpha: 0,
+        duration: 1000,
+        onComplete: () => paper.destroy()
+      })
+    }
+  }
+
+  private createHarassEffect(target: Unit | Coordinate) {
+    const position = this.getTargetPosition(target)
+    if (!position) return
+
+    // Create harassing aura effect
+    const aura = this.add.graphics()
+    aura.lineStyle(3, 0xff0000, 0.6)
+    aura.strokeCircle(position.x, position.y, 30)
+    
+    this.tweens.add({
+      targets: aura,
+      scaleX: 1.5,
+      scaleY: 1.5,
+      alpha: 0,
+      duration: 800,
+      onComplete: () => aura.destroy()
+    })
+  }
+
+  private createOvertimeEffect(target: Unit | Coordinate) {
+    const position = this.getTargetPosition(target)
+    if (!position) return
+
+    // Create overtime glow effect
+    const glow = this.add.graphics()
+    glow.fillStyle(0xffff00, 0.4)
+    glow.fillCircle(position.x, position.y, 25)
+    
+    this.tweens.add({
+      targets: glow,
+      scaleX: 2,
+      scaleY: 2,
+      alpha: 0,
+      duration: 1200,
+      onComplete: () => glow.destroy()
+    })
+  }
+
+  private createGenericEffect(target: Unit | Coordinate) {
+    const position = this.getTargetPosition(target)
+    if (!position) return
+
+    // Generic sparkle effect
+    const sparkle = this.add.graphics()
+    sparkle.fillStyle(0x00ffff, 0.7)
+    sparkle.fillCircle(position.x, position.y, 15)
+    
+    this.tweens.add({
+      targets: sparkle,
+      scaleX: 1.5,
+      scaleY: 1.5,
+      alpha: 0,
+      duration: 600,
+      onComplete: () => sparkle.destroy()
+    })
+  }
+
+  private getTargetPosition(target: Unit | Coordinate): { x: number, y: number } | null {
+    const tileSize = this.getTileSize()
+    const boardOffsetX = this.getBoardOffsetX()
+    const boardOffsetY = this.getBoardOffsetY()
+    
+    if ('x' in target) {
+      // Target is a coordinate
+      return {
+        x: boardOffsetX + target.x * tileSize + tileSize / 2,
+        y: boardOffsetY + target.y * tileSize + tileSize / 2
+      }
+    } else {
+      // Target is a unit
+      return {
+        x: boardOffsetX + target.position.x * tileSize + tileSize / 2,
+        y: boardOffsetY + target.position.y * tileSize + tileSize / 2
+      }
+    }
   }
 }
 

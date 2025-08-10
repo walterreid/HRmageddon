@@ -41,6 +41,8 @@ export interface Unit {
     cost: number;
     hasMoved: boolean;
     hasAttacked: boolean;
+    abilities: string[];
+    abilityCooldowns: Record<string, number>;
 }
 export declare enum UnitType {
     INTERN = "intern",
@@ -63,7 +65,15 @@ export declare enum StatusType {
     FILED = "filed",
     ON_DEADLINE = "on_deadline",
     OUT_TO_LUNCH = "out_to_lunch",
-    EXHAUSTED = "exhausted"
+    EXHAUSTED = "exhausted",
+    INSPIRED = "inspired",
+    FOCUSED = "focused",
+    CONFUSED = "confused",
+    STUNNED = "stunned",
+    SHIELDED = "shielded",
+    BURNING = "burning",
+    FROZEN = "frozen",
+    POISONED = "poisoned"
 }
 export interface GameState {
     id: string;
@@ -122,4 +132,37 @@ export declare enum ActionType {
 }
 export declare const UNIT_STATS: Record<UnitType, Omit<Unit, 'id' | 'playerId' | 'position' | 'status' | 'hasMoved' | 'hasAttacked' | 'actionsRemaining'>>;
 export declare const UNIT_COSTS: Record<UnitType, number>;
+export interface Ability {
+    id: string;
+    name: string;
+    description: string;
+    cost: number;
+    cooldown: number;
+    range: number;
+    targetType: TargetType;
+    effect: (caster: Unit, target?: Unit | Coordinate) => AbilityResult;
+    visualEffect?: string;
+    soundEffect?: string;
+}
+export declare const TargetType: {
+    readonly SELF: "self";
+    readonly ALLY: "ally";
+    readonly ENEMY: "enemy";
+    readonly TILE: "tile";
+    readonly NONE: "none";
+    readonly ALL_ALLIES: "all_allies";
+    readonly ALL_ENEMIES: "all_enemies";
+    readonly ADJACENT: "adjacent";
+};
+export type TargetType = typeof TargetType[keyof typeof TargetType];
+export interface AbilityResult {
+    success: boolean;
+    message?: string;
+    statusApplied?: StatusEffect[];
+    damageDealt?: number;
+    healingDone?: number;
+    movementBonus?: number;
+    actionBonus?: number;
+    targetPosition?: Coordinate;
+}
 //# sourceMappingURL=index.d.ts.map

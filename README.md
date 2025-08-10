@@ -68,85 +68,44 @@ HRmageddon/
 - **Testing:** Vitest (unit), Playwright (e2e)
 - **Linting:** ESLint + Prettier
 
-## 📋 Implementation Phases
+## 🚀 Implementation Phases
 
-### Phase 1: Core Game Engine (Weeks 1-3) ✅ COMPLETED
-**Goal:** Playable single-player skirmish mode
+### Phase 1: Core Game Engine ✅ COMPLETE
+- [x] Basic game board and tile system
+- [x] Unit movement and combat mechanics
+- [x] Turn-based gameplay loop
+- [x] Victory conditions and game state management
+- [x] Basic AI opponent
+- [x] Modern React + Phaser 3 architecture
 
-#### Week 1: Foundation ✅
-- ✅ Project setup (Vite + React + TypeScript + Phaser)
-- ✅ Basic tile grid system (8x10 board)
-- ✅ Unit placement and movement
-- ✅ Turn management system
-- ✅ Basic UI (HUD, unit selection, action menu)
+### Phase 2: Team Drafting & AI ✅ COMPLETE
+- [x] Team building system with budget constraints
+- [x] Unit selection and cost management
+- [x] AI team building with strategic unit selection
+- [x] Enhanced AI decision making and tactics
+- [x] Draft-to-battle game flow
 
-#### Week 2: Combat & Units ✅
-- ✅ Implement 4 core units (Intern, Secretary, Sales, HR)
-- ✅ Attack system with damage calculation
-- ✅ Line of sight and range checking
-- ✅ Basic abilities (1 per unit)
-- ✅ Status effects system
+### Phase 3: Advanced Gameplay 🚧 IN PROGRESS
+- [x] Ability system framework
+- [x] Status effects and buffs/debuffs
+- [x] Enhanced unit interactions
+- [ ] **CURRENT ISSUE: Tile capture mechanics need debugging**
+- [ ] Advanced AI behaviors
+- [ ] Multiple maps and scenarios
 
-#### Week 3: Game Loop ✅
-- ✅ Cubicle capture mechanics
-- ✅ Economy system (budget/income)
-- ✅ Win conditions (elimination, territory control)
-- ✅ Basic AI opponent (heuristic-based)
-- ✅ **NEW: Team Drafting System**
-- ✅ **NEW: AI Team Building**
-- ✅ **NEW: Enhanced AI Decision Making**
+### Phase 4: Polish & Features 📋 PLANNED
+- [ ] Sound effects and music
+- [ ] Particle effects and animations
+- [ ] Mobile responsiveness
+- [ ] Game balance tuning
+- [ ] Additional unit types
 
-**Deliverable:** ✅ Local single-player game with 1 map, 4 units, working AI, and team drafting
-
-### Phase 2: Polish & Content (Weeks 4-6)
-**Goal:** Complete single-player experience
-
-#### Week 4: Full Roster
-- [ ] Implement remaining units (IT, Accountant, Legal, Executive)
-- [ ] Complete ability set with cooldowns
-- [ ] Advanced status effects
-- [ ] Terrain types (conference rooms, hazards)
-
-#### Week 5: Maps & AI
-- [ ] 3 additional maps with varied layouts
-- [ ] AI difficulty levels (Easy/Normal/Hard)
-- [ ] Pathfinding optimization (A* algorithm)
-- [ ] Save/load game state
-
-#### Week 6: Polish
-- [ ] Animations (attacks, movements, KOs)
-- [ ] Particle effects
-- [ ] UI improvements (tooltips, previews)
-- [ ] Tutorial/onboarding flow
-- [ ] Settings menu (audio, graphics, controls)
-
-**Deliverable:** Polished single-player game with full content
-
-### Phase 3: Multiplayer & Launch (Weeks 7-9)
-**Goal:** Online multiplayer and deployment
-
-#### Week 7: Backend Infrastructure
-- [ ] Express server setup with Socket.io
-- [ ] Room/lobby system
-- [ ] Matchmaking logic
-- [ ] Database schema (Prisma + PostgreSQL)
-- [ ] Authentication (simple guest + optional accounts)
-
-#### Week 8: Multiplayer Implementation
-- [ ] Real-time turn synchronization
-- [ ] Network prediction and reconciliation
-- [ ] Disconnect handling and reconnection
-- [ ] Spectator mode
-- [ ] Chat system
-
-#### Week 9: Deployment & Launch
-- [ ] Deploy to Render.com
-- [ ] Load testing and optimization
-- [ ] Bug fixes from beta testing
-- [ ] Analytics integration
-- [ ] Launch on itch.io / game portals
-
-**Deliverable:** Live multiplayer game
+### Phase 5: Multiplayer & Expansion 📋 FUTURE
+- [ ] Real-time multiplayer
+- [ ] Campaign mode
+- [ ] Unit progression
+- [ ] Map editor
+- [ ] Tournament system
 
 ## 🚀 Quick Start
 
@@ -380,7 +339,7 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 
 ---
 
-**Current Status:** 🚧 Phase 1 Development - Core Game Engine + Team Drafting Complete
+**Current Status:** 🚧 Phase 3 Development - Debugging Tile Capture Mechanics
 
 **Last Updated:** January 2025
 
@@ -398,12 +357,13 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 - **NEW: AI Team Building**: AI creates balanced teams using strategic unit selection
 - **NEW: Enhanced AI**: Improved decision making and tactical behavior
 
-### 🔄 In Progress
-- Additional unit types and abilities
-- Sound effects and animations
-- Game balance tuning
+### 🔄 Currently Debugging
+- **Tile Capture Issue**: Blue units unable to capture cubicle tiles
+- **Unit Selection**: Investigating unit selection and action point logic
+- **State Updates**: Verifying capture logic and board state updates
 
 ### 📋 Next Steps
+- Fix tile capture mechanics
 - Add remaining unit types (IT Specialist, Accountant, Legal Counsel, Executive)
 - Implement advanced abilities and cooldowns
 - Add multiple maps and scenarios

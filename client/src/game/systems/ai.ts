@@ -1,9 +1,12 @@
 import { type GameState, type Unit, type Coordinate, TileType } from 'shared'
+import { type Ability } from 'shared'
+import { getUnitAbilities, canUseAbility, getValidTargets } from './abilities'
 
 interface AIActions {
   moveUnit: (unitId: string, to: Coordinate) => void
   attackTarget: (attackerId: string, targetId: string) => void
   captureCubicle: (unitId: string, coord: Coordinate) => void
+  useAbility: (unitId: string, abilityId: string, target?: Unit | Coordinate) => void
   endTurn: () => void
 }
 
@@ -52,9 +55,9 @@ export class AIController {
             console.log('Executing move decision')
             actions.moveUnit(currentUnit.id, decision.position!)
             break
-          case 'capture':
-            console.log('Executing capture decision')
-            actions.captureCubicle(currentUnit.id, decision.position!)
+          case 'ability':
+            console.log('Executing ability decision')
+            actions.useAbility(currentUnit.id, decision.abilityId!, decision.target)
             break
           default:
             console.log('Unknown decision type:', decision.type)
@@ -81,9 +84,17 @@ export class AIController {
     }
     
     // Priority order:
-    // 1. Attack low-health enemies in range
-    // 2. Capture nearby unowned cubicles
-    // 3. Move toward objectives (enemies or cubicles)
+    // 1. Use abilities strategically
+    // 2. Attack low-health enemies in range
+    // 3. Capture nearby unowned cubicles
+    // 4. Move toward objectives (enemies or cubicles)
+    
+    // Check for ability usage opportunities
+    const abilityDecision = this.evaluateAbilityUsage(unit, state)
+    if (abilityDecision) {
+      console.log('Ability decision:', abilityDecision)
+      return abilityDecision
+    }
     
     // Check for attack opportunities
     const enemiesInRange = this.getEnemiesInRange(unit, state)
@@ -95,12 +106,12 @@ export class AIController {
       return { type: 'attack', targetId: enemiesInRange[0].id }
     }
     
-    // Check for capture opportunities
+    // Check for capture opportunities (move to cubicles)
     const capturableTiles = this.getCapturableTiles(unit, state)
     console.log('Capturable tiles:', capturableTiles.length)
-    if (capturableTiles.length > 0 && unit.actionsRemaining > 0) {
-      console.log('Capture decision: position', capturableTiles[0])
-      return { type: 'capture', position: capturableTiles[0] }
+    if (capturableTiles.length > 0 && unit.actionsRemaining > 0 && !unit.hasMoved) {
+      console.log('Move to capture decision: position', capturableTiles[0])
+      return { type: 'move', position: capturableTiles[0] }
     }
     
     // Move toward nearest objective
@@ -115,6 +126,104 @@ export class AIController {
     
     console.log('No decision found')
     return null
+  }
+
+  private evaluateAbilityUsage(unit: Unit, state: GameState): any {
+    // Check if unit has abilities and enough actions to use them
+    if (!unit.abilities || unit.abilities.length === 0 || unit.actionsRemaining < 1) {
+      return null
+    }
+
+    const availableAbilities = getUnitAbilities(unit.type).filter(ability => 
+      canUseAbility(unit, ability.id)
+    )
+
+    if (availableAbilities.length === 0) {
+      return null
+    }
+
+    // Score each ability based on strategic value
+    let bestAbility = null
+    let bestScore = -Infinity
+    let bestTarget = null
+
+    for (const ability of availableAbilities) {
+      const validTargets = getValidTargets(unit, ability, state.board)
+      
+      for (const target of validTargets) {
+        const score = this.scoreAbilityUsage(ability, target, unit)
+        
+        if (score > bestScore) {
+          bestScore = score
+          bestAbility = ability
+          bestTarget = target
+        }
+      }
+    }
+
+    if (bestAbility && bestScore > 5) { // Threshold for using ability
+      return {
+        type: 'ability',
+        abilityId: bestAbility.id,
+        target: bestTarget
+      }
+    }
+
+    return null
+  }
+
+  private scoreAbilityUsage(ability: Ability, target: Unit | Coordinate, caster: Unit): number {
+    let score = 0
+
+    // Base score for different ability types
+    switch (ability.id) {
+      case 'pink_slip':
+        // High value for execution abilities
+        if ('hp' in target && target.hp <= 2) {
+          score += 20
+        }
+        break
+      case 'fetch_coffee':
+        // Good for supporting allies
+        if ('playerId' in target && target.playerId === caster.playerId) {
+          score += 8
+        }
+        break
+      case 'overtime':
+        // Good when actions are needed
+        if (caster.actionsRemaining <= 1) {
+          score += 10
+        }
+        break
+      case 'file_it':
+        // Good for debuffing enemies
+        if ('playerId' in target && target.playerId !== caster.playerId) {
+          score += 6
+        }
+        break
+      case 'harass':
+        // Good for preventing captures
+        if ('playerId' in target && target.playerId !== caster.playerId) {
+          score += 7
+        }
+        break
+      default:
+        score += 3
+    }
+
+    // Bonus for targeting low HP enemies
+    if ('hp' in target && target.hp <= 3) {
+      score += 5
+    }
+
+    // Bonus for targeting high-value units (HR Managers, Executives)
+    if ('type' in target) {
+      if (target.type === 'hr_manager' || target.type === 'executive') {
+        score += 4
+      }
+    }
+
+    return score
   }
 
   private getEnemiesInRange(unit: Unit, state: GameState): Unit[] {
@@ -132,28 +241,19 @@ export class AIController {
   }
 
   private getCapturableTiles(unit: Unit, state: GameState): Coordinate[] {
-    const adjacent = [
-      { x: unit.position.x + 1, y: unit.position.y },
-      { x: unit.position.x - 1, y: unit.position.y },
-      { x: unit.position.x, y: unit.position.y + 1 },
-      { x: unit.position.x, y: unit.position.y - 1 },
-    ]
+    // AI now moves TO cubicles instead of capturing from adjacent positions
+    // The actual capture happens at turn end when the unit is on the tile
+    const possibleMoves = this.calculatePossibleMoves(unit, state)
     
-    const capturable = adjacent.filter(coord => {
-      // Check bounds
-      if (coord.x < 0 || coord.x >= state.board[0].length || 
-          coord.y < 0 || coord.y >= state.board.length) {
-        return false
-      }
-      
+    const capturable = possibleMoves.filter(coord => {
       const tile = state.board[coord.y]?.[coord.x]
-      console.log('Checking tile at', coord, 'type:', tile?.type, 'owner:', tile?.owner, 'unit player:', unit.playerId)
+      console.log('Checking moveable tile at', coord, 'type:', tile?.type, 'owner:', tile?.owner, 'unit player:', unit.playerId)
       
       // Check if it's a cubicle and not owned by this unit's player
       return tile?.type === TileType.CUBICLE && tile.owner !== unit.playerId
     })
     
-    console.log('Capturable tiles found:', capturable)
+    console.log('Capturable tiles found (AI will move to):', capturable)
     return capturable
   }
 
