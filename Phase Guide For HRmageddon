@@ -1,0 +1,120 @@
+Action Menu Implementation Analysis & Fix Plan
+Current Status Analysis
+✅ What's Working
+
+Action menu appears when selecting player units
+Menu positioning system is implemented
+Basic move/attack/ability buttons are present
+GameScene integration exists
+Unit selection and highlighting basics work
+
+❌ Current Issues Identified
+1. Action Menu Closure Problem
+
+Menu doesn't close after action selection
+viewingUnit state causing interference
+Action mode persistence issues
+
+2. GameScene Communication Issues
+
+Race condition between GameScene initialization and React components
+window.gameScene availability timing problems
+Action mode setting not working reliably
+
+3. Highlight System Problems
+
+Multiple highlight types conflicting
+Attack range not showing properly
+Ability targeting previews missing
+
+4. Ability System Issues
+
+Complex targeting types (AOE, cone) not fully implemented
+Ability selection state management problems
+Target validation not working correctly
+
+Phase-by-Phase Fix Plan
+Phase 1: Core Action Menu Fixes (Priority 1)
+Goal: Make basic move/attack work reliably
+
+Fix Action Menu Closure
+
+Remove viewingUnit complications
+Ensure menu closes after action selection
+Simplify selection state management
+
+
+Fix GameScene Communication
+
+Add proper initialization checks
+Implement fallback mechanisms
+Fix timing issues
+
+
+
+Phase 2: Highlight System Fixes (Priority 2)
+Goal: Clean, clear visual feedback
+
+Simplify Highlight Types
+
+Reduce to essential types only
+Fix color conflicts with unit colors
+Ensure highlights clear properly
+
+
+Fix Attack Range Display
+
+Show red tiles for attack range
+Highlight valid targets clearly
+Remove when action completes
+
+
+
+Phase 3: Ability System Refinement (Priority 3)
+Goal: Basic abilities work, save complex targeting for later
+
+Implement Simple Abilities First
+
+Self-target abilities (Overtime, Audit)
+Single-target abilities (Fetch Coffee, File It)
+Skip AOE/cone abilities for now
+
+
+Fix Ability State Management
+
+Proper cooldown handling
+Action point consumption
+Clear targeting mode after use
+
+
+
+Phase 4: Polish & Advanced Features (Priority 4)
+
+AOE abilities with proper previews
+Cone abilities with directional targeting
+Enhanced visual effects
+Sound integration
+
+Recommended Approach
+Don't do a full refactor yet. The core architecture is sound. The issues are mostly:
+
+State management edge cases
+Timing/initialization problems
+UI state synchronization
+
+Start with Phase 1 to get the basics rock-solid, then build up incrementally.
+Cursor's Refactor Suggestion Analysis
+Cursor is right that there's complexity, but a full refactor isn't needed yet. The current issues are:
+
+Fixable with targeted changes
+Architectural problems are minimal
+Performance isn't the issue
+
+Focus on behavior fixes first, then optimize later if needed.
+Next Steps
+I'll provide 4 separate, focused prompts for Cursor:
+
+Phase 1A: Fix action menu closure and basic state management
+Phase 1B: Fix GameScene communication and timing
+Phase 2A: Simplify and fix highlight system
+Phase 2B: Fix attack range and targeting display
