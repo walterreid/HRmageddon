@@ -7,8 +7,8 @@ const BOARD_OFFSET_X = 100
 const BOARD_OFFSET_Y = 80
 
 export class GameScene extends Phaser.Scene {
-  private tileGraphics: Phaser.GameObjects.Graphics
-  private highlightGraphics: Phaser.GameObjects.Graphics
+  private tileGraphics!: Phaser.GameObjects.Graphics
+  private highlightGraphics!: Phaser.GameObjects.Graphics
   private unitSprites: Map<string, Phaser.GameObjects.Container> = new Map()
   private unsubscribe?: () => void
 
@@ -33,7 +33,13 @@ export class GameScene extends Phaser.Scene {
       this.updateHighlights(state.highlightedTiles, state.selectedUnit)
     })
 
+    // Enhanced input handling for Safari compatibility
     this.input.on('pointerdown', this.handleClick, this)
+    
+    // Configure input for better Safari support
+    this.input.setDefaultCursor('pointer')
+    
+    console.log('GameScene created with enhanced input handling') // Debug log
   }
 
   private drawBoard(board: Tile[][]) {
@@ -110,13 +116,39 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0, 0.5)
         .setName('hpFill')
       container.add([circle, label, hpBg, hpFill])
+      
+      // Make the container interactive with proper hit area
       container.setSize(TILE_SIZE, TILE_SIZE)
       container.setData('unitId', unit.id)
-      container.setInteractive()
+      
+      // Enhanced interactivity for Safari compatibility
+      container.setInteractive(new Phaser.Geom.Rectangle(-TILE_SIZE/2, -TILE_SIZE/2, TILE_SIZE, TILE_SIZE), Phaser.Geom.Rectangle.Contains)
+      
+      // Add multiple event listeners for better compatibility
       container.on('pointerdown', () => {
+        console.log('Unit clicked:', unit.id) // Debug log
         const u = useGameStore.getState().units.find((uu) => uu.id === unit.id)
         if (u) useGameStore.getState().selectUnit(u)
+        
+        // Add click feedback
+        circle.setScale(0.9)
+        this.time.delayedCall(100, () => {
+          circle.setScale(1)
+        })
       })
+      
+      // Add visual feedback for interactivity
+      container.on('pointerover', () => {
+        circle.setStrokeStyle(2, 0xffffff, 0.8)
+        // Add a subtle glow effect
+        circle.setAlpha(0.9)
+      })
+      
+      container.on('pointerout', () => {
+        circle.setStrokeStyle(0)
+        circle.setAlpha(1)
+      })
+      
       this.unitSprites.set(unit.id, container)
     }
   }
@@ -144,11 +176,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleClick(pointer: Phaser.Input.Pointer) {
+    console.log('Click detected at:', pointer.x, pointer.y) // Debug log
+    
+    // Check if we clicked on a unit first by checking all unit containers
+    for (const [unitId, container] of this.unitSprites) {
+      const bounds = container.getBounds()
+      if (bounds.contains(pointer.x, pointer.y)) {
+        console.log('Click hit unit container:', unitId) // Debug log
+        const unit = useGameStore.getState().units.find(u => u.id === unitId)
+        if (unit) {
+          useGameStore.getState().selectUnit(unit)
+          return
+        }
+      }
+    }
+    
+    // Fall back to tile selection
     const tileX = Math.floor((pointer.x - BOARD_OFFSET_X) / TILE_SIZE)
     const tileY = Math.floor((pointer.y - BOARD_OFFSET_Y) / TILE_SIZE)
     const state = useGameStore.getState()
     const board = state.board
     if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {
+      console.log('Selecting tile:', tileX, tileY) // Debug log
       state.selectTile({ x: tileX, y: tileY })
     }
   }
