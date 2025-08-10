@@ -91,8 +91,19 @@ export declare enum Team {
 export type PlayerId = string;
 export declare enum GamePhase {
     SETUP = "setup",
+    DRAFT = "draft",
     PLAYING = "playing",
     GAME_OVER = "game_over"
+}
+export interface DraftState {
+    playerBudget: number;
+    maxHeadcount: number;
+    selectedUnits: DraftUnit[];
+    aiUnits: DraftUnit[];
+}
+export interface DraftUnit {
+    type: UnitType;
+    position?: Coordinate;
 }
 export interface GameAction {
     type: ActionType;
@@ -110,4 +121,5 @@ export declare enum ActionType {
     END_TURN = "end_turn"
 }
 export declare const UNIT_STATS: Record<UnitType, Omit<Unit, 'id' | 'playerId' | 'position' | 'status' | 'hasMoved' | 'hasAttacked' | 'actionsRemaining'>>;
+export declare const UNIT_COSTS: Record<UnitType, number>;
 //# sourceMappingURL=index.d.ts.map

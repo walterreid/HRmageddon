@@ -43,6 +43,7 @@ export var Team;
 export var GamePhase;
 (function (GamePhase) {
     GamePhase["SETUP"] = "setup";
+    GamePhase["DRAFT"] = "draft";
     GamePhase["PLAYING"] = "playing";
     GamePhase["GAME_OVER"] = "game_over";
 })(GamePhase || (GamePhase = {}));
@@ -137,4 +138,15 @@ export const UNIT_STATS = {
         maxActions: 2,
         cost: 6,
     },
+};
+// Unit costs for draft system (in thousands of dollars)
+export const UNIT_COSTS = {
+    [UnitType.INTERN]: 20,
+    [UnitType.SECRETARY]: 30,
+    [UnitType.SALES_REP]: 30,
+    [UnitType.HR_MANAGER]: 50,
+    [UnitType.IT_SPECIALIST]: 40,
+    [UnitType.ACCOUNTANT]: 40,
+    [UnitType.LEGAL_COUNSEL]: 50,
+    [UnitType.EXECUTIVE]: 60,
 };

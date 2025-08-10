@@ -103,8 +103,22 @@ export type PlayerId = string
 
 export enum GamePhase {
   SETUP = 'setup',
+  DRAFT = 'draft',
   PLAYING = 'playing',
   GAME_OVER = 'game_over',
+}
+
+// Add draft-related interfaces
+export interface DraftState {
+  playerBudget: number;
+  maxHeadcount: number;
+  selectedUnits: DraftUnit[];
+  aiUnits: DraftUnit[];
+}
+
+export interface DraftUnit {
+  type: UnitType;
+  position?: Coordinate; // Will be set during deployment
 }
 
 // Actions
@@ -213,6 +227,18 @@ export const UNIT_STATS: Record<
     maxActions: 2,
     cost: 6,
   },
+}
+
+// Unit costs for draft system (in thousands of dollars)
+export const UNIT_COSTS: Record<UnitType, number> = {
+  [UnitType.INTERN]: 20,
+  [UnitType.SECRETARY]: 30,
+  [UnitType.SALES_REP]: 30,
+  [UnitType.HR_MANAGER]: 50,
+  [UnitType.IT_SPECIALIST]: 40,
+  [UnitType.ACCOUNTANT]: 40,
+  [UnitType.LEGAL_COUNSEL]: 50,
+  [UnitType.EXECUTIVE]: 60,
 }
 
 

@@ -1,11 +1,11 @@
 import { useGameStore } from '../stores/gameStore'
 
 export function MainMenu() {
-  const { initializeGame, setGameMode } = useGameStore()
+  const { initializeDraft, setGameMode } = useGameStore()
 
   const handleStartGame = (mode: 'ai' | 'multiplayer') => {
     setGameMode(mode)
-    initializeGame()
+    initializeDraft()
   }
 
   return (

@@ -2,10 +2,6 @@ import Phaser from 'phaser'
 import { useGameStore } from '../../stores/gameStore'
 import { TileType, type Unit, type Tile } from 'shared'
 
-const TILE_SIZE = 64
-const BOARD_OFFSET_X = 100
-const BOARD_OFFSET_Y = 80
-
 export class GameScene extends Phaser.Scene {
   private tileGraphics!: Phaser.GameObjects.Graphics
   private highlightGraphics!: Phaser.GameObjects.Graphics
@@ -18,7 +14,8 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     const store = useGameStore.getState()
-    store.initializeGame()
+    // Don't call initializeGame here - the game should already be initialized
+    // from the draft system or other initialization flow
 
     this.tileGraphics = this.add.graphics()
     this.highlightGraphics = this.add.graphics()
@@ -42,13 +39,36 @@ export class GameScene extends Phaser.Scene {
     console.log('GameScene created with enhanced input handling') // Debug log
   }
 
+  private getTileSize(): number {
+    // Calculate tile size based on canvas dimensions
+    // Use 80% of available space for the board, divided by grid dimensions
+    return Math.min(
+      (this.game.config.width as number) * 0.8 / 8,  // 8 columns
+      (this.game.config.height as number) * 0.8 / 10  // 10 rows
+    )
+  }
+
+  private getBoardOffsetX(): number {
+    const tileSize = this.getTileSize()
+    return ((this.game.config.width as number) - (8 * tileSize)) / 2
+  }
+
+  private getBoardOffsetY(): number {
+    const tileSize = this.getTileSize()
+    return ((this.game.config.height as number) - (10 * tileSize)) / 2
+  }
+
   private drawBoard(board: Tile[][]) {
     this.tileGraphics.clear()
+    const tileSize = this.getTileSize()
+    const boardOffsetX = this.getBoardOffsetX()
+    const boardOffsetY = this.getBoardOffsetY()
+    
     for (let y = 0; y < board.length; y++) {
       for (let x = 0; x < board[y].length; x++) {
         const tile = board[y][x]
-        const px = BOARD_OFFSET_X + x * TILE_SIZE
-        const py = BOARD_OFFSET_Y + y * TILE_SIZE
+        const px = boardOffsetX + x * tileSize
+        const py = boardOffsetY + y * tileSize
 
         let color = 0xcccccc
         switch (tile.type) {
@@ -78,9 +98,9 @@ export class GameScene extends Phaser.Scene {
         }
 
         this.tileGraphics.fillStyle(color, 1)
-        this.tileGraphics.fillRect(px, py, TILE_SIZE - 2, TILE_SIZE - 2)
+        this.tileGraphics.fillRect(px, py, tileSize - 2, tileSize - 2)
         this.tileGraphics.lineStyle(1, 0x0f172a, 0.5)
-        this.tileGraphics.strokeRect(px, py, TILE_SIZE - 2, TILE_SIZE - 2)
+        this.tileGraphics.strokeRect(px, py, tileSize - 2, tileSize - 2)
       }
     }
   }
@@ -94,9 +114,13 @@ export class GameScene extends Phaser.Scene {
       }
     })
 
+    const tileSize = this.getTileSize()
+    const boardOffsetX = this.getBoardOffsetX()
+    const boardOffsetY = this.getBoardOffsetY()
+
     for (const unit of units) {
-      const targetX = BOARD_OFFSET_X + unit.position.x * TILE_SIZE + TILE_SIZE / 2
-      const targetY = BOARD_OFFSET_Y + unit.position.y * TILE_SIZE + TILE_SIZE / 2
+      const targetX = boardOffsetX + unit.position.x * tileSize + tileSize / 2
+      const targetY = boardOffsetY + unit.position.y * tileSize + tileSize / 2
       const existing = this.unitSprites.get(unit.id)
       if (existing) {
         this.tweens.add({ targets: existing, x: targetX, y: targetY, duration: 250, ease: 'Power2' })
@@ -118,11 +142,11 @@ export class GameScene extends Phaser.Scene {
       container.add([circle, label, hpBg, hpFill])
       
       // Make the container interactive with proper hit area
-      container.setSize(TILE_SIZE, TILE_SIZE)
+      container.setSize(tileSize, tileSize)
       container.setData('unitId', unit.id)
       
       // Enhanced interactivity for Safari compatibility
-      container.setInteractive(new Phaser.Geom.Rectangle(-TILE_SIZE/2, -TILE_SIZE/2, TILE_SIZE, TILE_SIZE), Phaser.Geom.Rectangle.Contains)
+      container.setInteractive(new Phaser.Geom.Rectangle(-tileSize/2, -tileSize/2, tileSize, tileSize), Phaser.Geom.Rectangle.Contains)
       
       // Add multiple event listeners for better compatibility
       container.on('pointerdown', () => {
@@ -157,21 +181,27 @@ export class GameScene extends Phaser.Scene {
     this.highlightGraphics.clear()
     highlighted.forEach((type, key) => {
       const [x, y] = key.split(',').map(Number)
-      const px = BOARD_OFFSET_X + x * TILE_SIZE
-      const py = BOARD_OFFSET_Y + y * TILE_SIZE
+      const tileSize = this.getTileSize()
+      const boardOffsetX = this.getBoardOffsetX()
+      const boardOffsetY = this.getBoardOffsetY()
+      const px = boardOffsetX + x * tileSize
+      const py = boardOffsetY + y * tileSize
       let color = 0x22c55e
       if (type === 'attack') color = 0xef4444
       if (type === 'ability') color = 0xf59e0b
       if (type === 'capture') color = 0x06b6d4
       this.highlightGraphics.fillStyle(color, 0.3)
-      this.highlightGraphics.fillRect(px, py, TILE_SIZE - 2, TILE_SIZE - 2)
+      this.highlightGraphics.fillRect(px, py, tileSize - 2, tileSize - 2)
     })
 
     if (selectedUnit) {
-      const px = BOARD_OFFSET_X + selectedUnit.position.x * TILE_SIZE
-      const py = BOARD_OFFSET_Y + selectedUnit.position.y * TILE_SIZE
+      const tileSize = this.getTileSize()
+      const boardOffsetX = this.getBoardOffsetX()
+      const boardOffsetY = this.getBoardOffsetY()
+      const px = boardOffsetX + selectedUnit.position.x * tileSize
+      const py = boardOffsetY + selectedUnit.position.y * tileSize
       this.highlightGraphics.lineStyle(3, 0xf59e0b, 1)
-      this.highlightGraphics.strokeRect(px - 1, py - 1, TILE_SIZE, TILE_SIZE)
+      this.highlightGraphics.strokeRect(px - 1, py - 1, tileSize, tileSize)
     }
   }
 
@@ -192,8 +222,11 @@ export class GameScene extends Phaser.Scene {
     }
     
     // Fall back to tile selection
-    const tileX = Math.floor((pointer.x - BOARD_OFFSET_X) / TILE_SIZE)
-    const tileY = Math.floor((pointer.y - BOARD_OFFSET_Y) / TILE_SIZE)
+    const tileSize = this.getTileSize()
+    const boardOffsetX = this.getBoardOffsetX()
+    const boardOffsetY = this.getBoardOffsetY()
+    const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
+    const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
     const state = useGameStore.getState()
     const board = state.board
     if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {

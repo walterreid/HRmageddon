@@ -2,10 +2,12 @@ import './index.css'
 import { GameView } from './components/GameView'
 import { GameHUD } from './components/GameHUD'
 import { MainMenu } from './components/MainMenu'
+import { DraftScreen } from './components/DraftScreen'
 import { useGameStore } from './stores/gameStore'
+import { GamePhase } from 'shared'
 
 export default function App() {
-  const { gameMode, returnToMenu } = useGameStore()
+  const { gameMode, phase, winner, returnToMenu } = useGameStore()
 
   // Show main menu if not in a game
   if (gameMode === 'menu') {
@@ -28,18 +30,47 @@ export default function App() {
           </button>
         </div>
       </header>
-      <main className="p-4">
-        <div className="flex gap-6 max-w-7xl mx-auto">
-          {/* Left side - Game Board */}
-          <div className="flex-1">
-            <GameView />
+      <main className="p-4 flex justify-center">
+        {phase === GamePhase.DRAFT ? (
+          <DraftScreen />
+        ) : phase === GamePhase.GAME_OVER ? (
+          <div className="w-full max-w-2xl mx-auto text-center">
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-8">
+              <h2 className="text-3xl font-bold mb-4">
+                Game Over!
+              </h2>
+              <div className="text-xl mb-6">
+                {winner === 'player1' ? (
+                  <span className="text-blue-400">Blue Team Wins! 🎉</span>
+                ) : winner === 'player2' ? (
+                  <span className="text-red-400">Red Team Wins! 🎉</span>
+                ) : (
+                  <span>Unknown Winner</span>
+                )}
+              </div>
+              <button
+                onClick={returnToMenu}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-lg font-semibold transition-colors"
+              >
+                Return to Main Menu
+              </button>
+            </div>
           </div>
-          
-          {/* Right side - Game Information Panel */}
-          <div className="w-80 bg-slate-800 rounded-lg border border-slate-700 p-4">
-            <GameHUD />
+        ) : (
+          <div className="w-full max-w-8xl">
+            <div className="flex flex-col lg:flex-row gap-8 justify-center items-center lg:items-start">
+              {/* Left side - Game Board */}
+              <div className="flex-shrink-0 order-2 lg:order-1">
+                <GameView />
+              </div>
+              
+              {/* Right side - Game Information Panel */}
+              <div className="w-full lg:w-96 bg-slate-800 rounded-lg border border-slate-700 p-6 flex-shrink-0 order-1 lg:order-2">
+                <GameHUD />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   )

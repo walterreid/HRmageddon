@@ -10,6 +10,7 @@ A modern web remake of the 2009 Adult Swim Flash tactics game where rival depart
 **Platform:** Web browser (HTML5/JavaScript)
 
 ### Core Features
+- **Team Drafting System** - Build your dream team before battle with budget constraints
 - Grid-based tactical combat with office-themed units
 - Resource management through cubicle capture
 - Satirical office abilities (Write-ups, Pink Slips, Coffee Runs)
@@ -39,7 +40,15 @@ HRmageddon/
 ├── client/                 # React frontend + Phaser game
 │   ├── src/
 │   │   ├── components/     # React UI components
+│   │   │   ├── DraftScreen.tsx  # Team drafting interface
+│   │   │   ├── GameView.tsx     # Main game view
+│   │   │   ├── GameHUD.tsx      # Game heads-up display
+│   │   │   └── MainMenu.tsx     # Main menu
 │   │   ├── game/          # Phaser game scenes and logic
+│   │   │   ├── scenes/    # Game scenes (GameScene.ts)
+│   │   │   └── systems/   # Game systems
+│   │   │       ├── ai.ts      # AI opponent logic
+│   │   │       └── aiDraft.ts # AI team building
 │   │   ├── stores/        # Zustand state management
 │   │   └── types/         # TypeScript type definitions
 │   └── package.json
@@ -61,31 +70,33 @@ HRmageddon/
 
 ## 📋 Implementation Phases
 
-### Phase 1: Core Game Engine (Weeks 1-3)
+### Phase 1: Core Game Engine (Weeks 1-3) ✅ COMPLETED
 **Goal:** Playable single-player skirmish mode
 
-#### Week 1: Foundation
+#### Week 1: Foundation ✅
 - ✅ Project setup (Vite + React + TypeScript + Phaser)
 - ✅ Basic tile grid system (8x10 board)
 - ✅ Unit placement and movement
 - ✅ Turn management system
 - ✅ Basic UI (HUD, unit selection, action menu)
 
-#### Week 2: Combat & Units
+#### Week 2: Combat & Units ✅
 - ✅ Implement 4 core units (Intern, Secretary, Sales, HR)
 - ✅ Attack system with damage calculation
 - ✅ Line of sight and range checking
 - ✅ Basic abilities (1 per unit)
 - ✅ Status effects system
 
-#### Week 3: Game Loop
+#### Week 3: Game Loop ✅
 - ✅ Cubicle capture mechanics
 - ✅ Economy system (budget/income)
 - ✅ Win conditions (elimination, territory control)
-- [ ] Basic AI opponent (heuristic-based)
-- [ ] Sound effects and basic animations
+- ✅ Basic AI opponent (heuristic-based)
+- ✅ **NEW: Team Drafting System**
+- ✅ **NEW: AI Team Building**
+- ✅ **NEW: Enhanced AI Decision Making**
 
-**Deliverable:** Local single-player game with 1 map, 4 units, working AI
+**Deliverable:** ✅ Local single-player game with 1 map, 4 units, working AI, and team drafting
 
 ### Phase 2: Polish & Content (Weeks 4-6)
 **Goal:** Complete single-player experience
@@ -263,7 +274,7 @@ npm run dev
 ```
 HRmageddon/
 ├── client/src/           # Frontend React components
-│   ├── components/       # UI components (GameView, GameHUD, etc.)
+│   ├── components/       # UI components (GameView, GameHUD, DraftScreen, etc.)
 │   ├── stores/          # Zustand state management
 │   ├── game/            # Phaser game logic
 │   └── App.tsx          # Main app component
@@ -280,7 +291,7 @@ HRmageddon/
 
 ## 🎯 Development Milestones
 
-### MVP Features (Phase 1)
+### MVP Features (Phase 1) ✅ COMPLETED
 - ✅ Grid-based movement
 - ✅ Turn-based combat
 - ✅ 4 basic units (Intern, Secretary, Sales Rep, HR Manager)
@@ -289,14 +300,17 @@ HRmageddon/
 - ✅ Status effects system
 - ✅ Turn management with action points
 - ✅ Basic game loop and win conditions
+- ✅ **NEW: Team Drafting System** - Build teams before battle
+- ✅ **NEW: AI Team Building** - AI creates balanced teams
+- ✅ **NEW: Enhanced AI Decision Making** - Smarter opponent behavior
 
 ### Full Release (Phase 3)
 - ✅ 8 unique units with abilities
-- ✅ 4 diverse maps
-- ✅ Online multiplayer
-- ✅ Matchmaking
-- ✅ Persistent stats
-- ✅ Mobile-responsive
+- [ ] 4 diverse maps
+- [ ] Online multiplayer
+- [ ] Matchmaking
+- [ ] Persistent stats
+- [ ] Mobile-responsive
 
 ## 🎨 Art Style Guide
 
@@ -333,6 +347,13 @@ JWT_SECRET=your-secret-key
 - IT → Clustered enemies (Hazards)
 - Sales → Capture-focused units (Harass)
 
+### **NEW: Team Drafting System**
+- **Budget:** $200k starting budget
+- **Headcount:** Maximum 6 units per team
+- **Unit Costs:** Interns ($20k) to Executives ($60k)
+- **Strategy:** Balance between expensive powerful units and cost-effective support
+- **AI Drafting:** AI creates balanced teams using strategic unit selection
+
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -359,7 +380,7 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 
 ---
 
-**Current Status:** 🚧 Phase 1 Development - Core Game Engine Complete
+**Current Status:** 🚧 Phase 1 Development - Core Game Engine + Team Drafting Complete
 
 **Last Updated:** January 2025
 
@@ -373,15 +394,17 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 - **Resource Management**: Budget, income per turn, and cubicle control
 - **Game Loop**: Complete turn-based gameplay with win conditions
 - **Modern UI**: React + Tailwind CSS with Phaser 3 game rendering
+- **NEW: Team Drafting**: Build your team before battle with budget constraints
+- **NEW: AI Team Building**: AI creates balanced teams using strategic unit selection
+- **NEW: Enhanced AI**: Improved decision making and tactical behavior
 
 ### 🔄 In Progress
-- AI opponent implementation
 - Additional unit types and abilities
 - Sound effects and animations
 - Game balance tuning
 
 ### 📋 Next Steps
-- Complete AI opponent
 - Add remaining unit types (IT Specialist, Accountant, Legal Counsel, Executive)
 - Implement advanced abilities and cooldowns
 - Add multiple maps and scenarios
+- Polish UI and add animations

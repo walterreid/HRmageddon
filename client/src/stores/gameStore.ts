@@ -8,10 +8,12 @@ import {
   type Tile,
   TileType,
   UnitType,
-  StatusType,
   UNIT_STATS,
+  UNIT_COSTS,
+  type DraftState,
 } from 'shared'
 import { AIController } from '../game/systems/ai'
+import { generateAIDraft } from '../game/systems/aiDraft'
 
 type GameMode = 'menu' | 'ai' | 'multiplayer'
 
@@ -20,15 +22,21 @@ type GameStore = SharedGameState & {
   possibleMoves: Coordinate[]
   possibleTargets: Coordinate[]
   highlightedTiles: Map<string, string>
+  draftState: DraftState
 
   setGameMode: (mode: GameMode) => void
   initializeGame: () => void
+  initializeDraft: () => void
+  addUnitToDraft: (unitType: UnitType) => void
+  removeUnitFromDraft: (index: number) => void
+  confirmDraft: () => void
   selectUnit: (unit: Unit | undefined | null) => void
   selectTile: (coord: Coordinate) => void
   moveUnit: (unitId: string, to: Coordinate) => void
   attackTarget: (attackerId: string, targetId: string) => void
   captureCubicle: (unitId: string, coord: Coordinate) => void
   endTurn: () => void
+  executeAITurn: () => void
   returnToMenu: () => void
 
   getUnitAt: (coord: Coordinate) => Unit | undefined
@@ -43,9 +51,6 @@ type GameStore = SharedGameState & {
 export const useGameStore = create<GameStore>((set, get) => {
   // Create AI controller instance
   const aiController = new AIController('normal')
-  
-  // Set the game store reference in the AI controller
-  aiController.setGameStore({ moveUnit: undefined, attackTarget: undefined, captureCubicle: undefined })
   
   return {
   // Initial shared state
@@ -64,6 +69,12 @@ export const useGameStore = create<GameStore>((set, get) => {
   possibleMoves: [],
   possibleTargets: [],
   highlightedTiles: new Map<string, string>(),
+  draftState: {
+    playerBudget: 200,
+    maxHeadcount: 6,
+    selectedUnits: [],
+    aiUnits: [],
+  },
 
   setGameMode: (mode) => {
     set({ gameMode: mode })
@@ -83,6 +94,12 @@ export const useGameStore = create<GameStore>((set, get) => {
       possibleMoves: [],
       possibleTargets: [],
       highlightedTiles: new Map(),
+      draftState: {
+        playerBudget: 200,
+        maxHeadcount: 6,
+        selectedUnits: [],
+        aiUnits: [],
+      },
     })
   },
 
@@ -90,6 +107,17 @@ export const useGameStore = create<GameStore>((set, get) => {
     const board = createBoard()
     const players = createPlayers()
     const units = createInitialUnits()
+
+    // Debug: Log initial board state
+    const cubicleCount = board.flat().filter(t => t.type === TileType.CUBICLE).length
+    console.log('Initializing game with board:', {
+      width: board[0].length,
+      height: board.length,
+      totalCubicles: cubicleCount,
+      cubiclePositions: board.flat()
+        .filter(t => t.type === TileType.CUBICLE)
+        .map(t => ({ x: t.x, y: t.y }))
+    })
 
     set({
       board,
@@ -103,6 +131,159 @@ export const useGameStore = create<GameStore>((set, get) => {
       possibleTargets: [],
       highlightedTiles: new Map(),
       winner: undefined,
+      draftState: {
+        playerBudget: 200,
+        maxHeadcount: 6,
+        selectedUnits: [],
+        aiUnits: [],
+      },
+    })
+  },
+
+  initializeDraft: () => {
+    const aiUnits = generateAIDraft(200, 6)
+    set((state) => ({
+      phase: GamePhase.DRAFT,
+      draftState: {
+        ...state.draftState,
+        aiUnits,
+      }
+    }))
+  },
+
+  addUnitToDraft: (unitType) => {
+    const state = get()
+    const cost = UNIT_COSTS[unitType]
+    const currentCost = state.draftState.selectedUnits.reduce((sum, unit) => 
+      sum + UNIT_COSTS[unit.type], 0
+    )
+    
+    if (state.draftState.selectedUnits.length >= state.draftState.maxHeadcount) return
+    if (currentCost + cost > state.draftState.playerBudget) return
+    
+    set((state) => ({
+      draftState: {
+        ...state.draftState,
+        selectedUnits: [...state.draftState.selectedUnits, { type: unitType }]
+      }
+    }))
+  },
+
+  removeUnitFromDraft: (index) => {
+    set((state) => ({
+      draftState: {
+        ...state.draftState,
+        selectedUnits: state.draftState.selectedUnits.filter((_, i) => i !== index)
+      }
+    }))
+  },
+
+  confirmDraft: () => {
+    const state = get()
+    if (state.draftState.selectedUnits.length === 0) return
+    
+    // Define starting positions for each team
+    const getPlayerStartPositions = (teamId: string): Coordinate[] => {
+      if (teamId === 'player1') {
+        // Blue team starts in top-left area
+        return [
+          { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
+          { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 },
+        ]
+      } else {
+        // Red team starts in bottom-right area
+        const boardWidth = 8
+        const boardHeight = 10
+        return [
+          { x: boardWidth - 1, y: boardHeight - 1 }, 
+          { x: boardWidth - 2, y: boardHeight - 1 }, 
+          { x: boardWidth - 3, y: boardHeight - 1 },
+          { x: boardWidth - 1, y: boardHeight - 2 }, 
+          { x: boardWidth - 2, y: boardHeight - 2 }, 
+          { x: boardWidth - 3, y: boardHeight - 2 },
+        ]
+      }
+    }
+    
+    // Create units from draft selections
+    const playerPositions = getPlayerStartPositions('player1')
+    const aiPositions = getPlayerStartPositions('player2')
+    
+    const playerUnits: Unit[] = state.draftState.selectedUnits.map((draftUnit, index) => {
+      const stats = UNIT_STATS[draftUnit.type]
+      return {
+        id: `player1-${draftUnit.type}-${index}`,
+        playerId: 'player1',
+        type: draftUnit.type,
+        position: playerPositions[index] || { x: 0, y: 0 },
+        hp: stats.hp,
+        maxHp: stats.maxHp,
+        moveRange: stats.moveRange,
+        attackRange: stats.attackRange,
+        attackDamage: stats.attackDamage,
+        actionsRemaining: stats.maxActions,
+        maxActions: stats.maxActions,
+        status: [],
+        hasMoved: false,
+        hasAttacked: false,
+        cost: stats.cost,
+      }
+    })
+    
+    const aiUnits: Unit[] = state.draftState.aiUnits.map((draftUnit, index) => {
+      const stats = UNIT_STATS[draftUnit.type]
+      return {
+        id: `player2-${draftUnit.type}-${index}`,
+        playerId: 'player2',
+        type: draftUnit.type,
+        position: aiPositions[index] || { x: 7, y: 9 },
+        hp: stats.hp,
+        maxHp: stats.maxHp,
+        moveRange: stats.moveRange,
+        attackRange: stats.attackRange,
+        attackDamage: stats.attackDamage,
+        actionsRemaining: stats.maxActions, // AI units start with full actions
+        maxActions: stats.maxActions,
+        status: [],
+        hasMoved: false,
+        hasAttacked: false,
+        cost: stats.cost,
+      }
+    })
+    
+    // Initialize the game with drafted units
+    const board = createBoard()
+    const players = createPlayers()
+    
+    // Debug: Log board state after draft
+    const cubicleCount = board.flat().filter(t => t.type === TileType.CUBICLE).length
+    console.log('Draft confirmed, board state:', {
+      width: board[0].length,
+      height: board.length,
+      totalCubicles: cubicleCount,
+      cubiclePositions: board.flat()
+        .filter(t => t.type === TileType.CUBICLE)
+        .map(t => ({ x: t.x, y: t.y }))
+    })
+    
+    set({
+      board,
+      players,
+      units: [...playerUnits, ...aiUnits],
+      currentPlayerId: 'player1',
+      phase: GamePhase.PLAYING,
+      turnNumber: 1,
+      selectedUnit: undefined,
+      possibleMoves: [],
+      possibleTargets: [],
+      highlightedTiles: new Map(),
+      winner: undefined,
+      draftState: {
+        playerBudget: 200,
+        maxHeadcount: 6,
+        selectedUnits: [],
+        aiUnits: [],
+      },
     })
   },
 
@@ -118,7 +299,13 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
 
     const state = get()
-    if (unit.playerId !== state.currentPlayerId) return
+    
+    // IMPORTANT: Only allow selecting units belonging to current player
+    // AND only allow player1 to select (never let human control AI units)
+    if (unit.playerId !== state.currentPlayerId || state.currentPlayerId !== 'player1') {
+      return
+    }
+    
     if (unit.actionsRemaining === 0) return
 
     const moves = state.calculatePossibleMoves(unit)
@@ -228,6 +415,25 @@ export const useGameStore = create<GameStore>((set, get) => {
       const unit = state.units.find((u) => u.id === unitId)
       if (!unit || unit.actionsRemaining === 0) return state
 
+      const tile = state.board[coord.y]?.[coord.x]
+      if (!tile || tile.type !== TileType.CUBICLE) {
+        console.log('Cannot capture: not a cubicle tile')
+        return state
+      }
+
+      if (tile.owner === unit.playerId) {
+        console.log('Cannot capture: already owned by this player')
+        return state
+      }
+
+      console.log('Capturing cubicle:', {
+        unitId,
+        unitPlayer: unit.playerId,
+        coord,
+        currentOwner: tile.owner,
+        tileType: tile.type
+      })
+
       const updatedBoard = state.board.map((row) =>
         row.map((tile) => (tile.x === coord.x && tile.y === coord.y ? { ...tile, owner: unit.playerId } : tile))
       )
@@ -239,6 +445,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       const cubicleCount = updatedBoard
         .flat()
         .filter((t) => t.type === TileType.CUBICLE && t.owner === unit.playerId).length
+
+      console.log('Updated cubicle count for player', unit.playerId, ':', cubicleCount)
 
       const updatedPlayers = state.players.map((p) =>
         p.id === unit.playerId ? { ...p, controlledCubicles: cubicleCount, income: cubicleCount } : p
@@ -259,11 +467,6 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   endTurn: () => {
     set((state) => {
-      // Only allow ending turn if it's the player's turn (player1)
-      if (state.currentPlayerId !== 'player1') {
-        return state
-      }
-
       const currentPlayerIndex = state.players.findIndex((p) => p.id === state.currentPlayerId)
       const nextPlayerIndex = (currentPlayerIndex + 1) % state.players.length
       const nextPlayer = state.players[nextPlayerIndex]
@@ -291,24 +494,57 @@ export const useGameStore = create<GameStore>((set, get) => {
         highlightedTiles: new Map(),
       }
 
-      // If it's AI's turn, execute AI moves after a short delay
+      // IMPORTANT: Trigger AI turn if next player is AI
       if (nextPlayer.id === 'player2') {
         setTimeout(() => {
-          const currentState = get()
-          // Set the game store reference in the AI controller
-          aiController.setGameStore({
-            moveUnit: (unitId: string, to: Coordinate) => get().moveUnit(unitId, to),
-            attackTarget: (attackerId: string, targetId: string) => get().attackTarget(attackerId, targetId),
-            captureCubicle: (unitId: string, coord: Coordinate) => get().captureCubicle(unitId, coord),
-          })
-          aiController.takeTurn(currentState)
-          // Force a re-render after AI moves
-          set({ ...currentState })
-        }, 1000) // 1 second delay for better UX
+          get().executeAITurn()
+        }, 500) // Small delay for visual feedback
       }
 
       return newState
     })
+  },
+
+  // Add new function to execute AI turn
+  executeAITurn: () => {
+    const state = get()
+    if (state.currentPlayerId !== 'player2') return
+    
+    console.log('AI Turn starting...', {
+      currentPlayer: state.currentPlayerId,
+      aiUnits: state.units.filter(u => u.playerId === 'player2'),
+      playerUnits: state.units.filter(u => u.playerId === 'player1')
+    })
+    
+    // Create AI controller instance
+    const aiController = new AIController('normal')
+    
+    // Get current game state and let AI make decisions with action callbacks
+    aiController.takeTurn(state, {
+      moveUnit: (unitId: string, to: Coordinate) => {
+        console.log('AI moving unit', unitId, 'to', to)
+        get().moveUnit(unitId, to)
+        // Check victory conditions after each action
+        get().checkVictoryConditions()
+      },
+      attackTarget: (attackerId: string, targetId: string) => {
+        console.log('AI attacking', attackerId, '->', targetId)
+        get().attackTarget(attackerId, targetId)
+        // Check victory conditions after each action
+        get().checkVictoryConditions()
+      },
+      captureCubicle: (unitId: string, coord: Coordinate) => {
+        console.log('AI capturing cubicle', unitId, 'at', coord)
+        get().captureCubicle(unitId, coord)
+        // Check victory conditions after each action
+        get().checkVictoryConditions()
+      },
+      endTurn: () => {
+        // Check victory conditions one final time before ending turn
+        get().checkVictoryConditions()
+        get().endTurn()
+      },
+    }, get) // Pass the get function so AI can fetch fresh state
   },
 
   getUnitAt: (coord) => get().units.find((u) => u.position.x === coord.x && u.position.y === coord.y),
@@ -384,13 +620,42 @@ export const useGameStore = create<GameStore>((set, get) => {
     const state = get()
     const p1Units = state.units.filter((u) => u.playerId === 'player1')
     const p2Units = state.units.filter((u) => u.playerId === 'player2')
-    if (p1Units.length === 0) set({ winner: 'player2', phase: GamePhase.GAME_OVER })
-    if (p2Units.length === 0) set({ winner: 'player1', phase: GamePhase.GAME_OVER })
+    
+    console.log('Checking victory conditions:', {
+      p1Units: p1Units.length,
+      p2Units: p2Units.length,
+      p1ControlledCubicles: state.players.find(p => p.id === 'player1')?.controlledCubicles,
+      p2ControlledCubicles: state.players.find(p => p.id === 'player2')?.controlledCubicles,
+      totalCubicles: state.board.flat().filter(t => t.type === TileType.CUBICLE).length,
+      currentPhase: state.phase,
+      winner: state.winner
+    })
+    
+    // Check if game is already over
+    if (state.phase === GamePhase.GAME_OVER) {
+      console.log('Game is already over, skipping victory check')
+      return
+    }
+    
+    if (p1Units.length === 0) {
+      console.log('Player 1 has no units left - Player 2 wins!')
+      set({ winner: 'player2', phase: GamePhase.GAME_OVER })
+      return
+    }
+    if (p2Units.length === 0) {
+      console.log('Player 2 has no units left - Player 1 wins!')
+      set({ winner: 'player1', phase: GamePhase.GAME_OVER })
+      return
+    }
 
     const VICTORY_THRESHOLD = 7
-    state.players.forEach((p) => {
-      if (p.controlledCubicles >= VICTORY_THRESHOLD) set({ winner: p.id, phase: GamePhase.GAME_OVER })
-    })
+    for (const p of state.players) {
+      if (p.controlledCubicles >= VICTORY_THRESHOLD) {
+        console.log(`Player ${p.id} has ${p.controlledCubicles} cubicles (>= ${VICTORY_THRESHOLD}) - ${p.id} wins!`)
+        set({ winner: p.id, phase: GamePhase.GAME_OVER })
+        return
+      }
+    }
   },
 }})
 
@@ -436,9 +701,7 @@ function isAdjacent(a: Coordinate, b: Coordinate): boolean {
 }
 
 function calculateDamage(attacker: Unit, target: Unit): number {
-  let damage = attacker.attackDamage
-  if (target.status.some((s) => s.type === StatusType.WRITTEN_UP)) damage += 1
-  return Math.max(1, damage)
+  return Math.max(1, attacker.attackDamage - Math.floor(target.hp / 10))
 }
 
 
