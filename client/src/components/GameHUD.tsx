@@ -19,7 +19,10 @@ export function GameHUD() {
           <div className="flex items-center gap-2"><span>📈</span><span>+{currentPlayer?.income ?? 0}/turn</span></div>
           <div className="flex items-center gap-2"><span>🏢</span><span>{currentPlayer?.controlledCubicles ?? 0}</span></div>
         </div>
-        <div>
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-slate-300">
+            Press <kbd className="bg-slate-700 px-1 py-0.5 rounded text-xs">ESC</kbd> for help
+          </div>
           {isPlayerTurn && (
             <button onClick={endTurn} className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded">
               End Turn

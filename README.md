@@ -65,23 +65,23 @@ HRmageddon/
 **Goal:** Playable single-player skirmish mode
 
 #### Week 1: Foundation
-- [ ] Project setup (Vite + React + TypeScript + Phaser)
-- [ ] Basic tile grid system (8x10 board)
-- [ ] Unit placement and movement
-- [ ] Turn management system
-- [ ] Basic UI (HUD, unit selection, action menu)
+- ✅ Project setup (Vite + React + TypeScript + Phaser)
+- ✅ Basic tile grid system (8x10 board)
+- ✅ Unit placement and movement
+- ✅ Turn management system
+- ✅ Basic UI (HUD, unit selection, action menu)
 
 #### Week 2: Combat & Units
-- [ ] Implement 4 core units (Intern, Secretary, Sales, HR)
-- [ ] Attack system with damage calculation
-- [ ] Line of sight and range checking
-- [ ] Basic abilities (1 per unit)
-- [ ] Status effects system
+- ✅ Implement 4 core units (Intern, Secretary, Sales, HR)
+- ✅ Attack system with damage calculation
+- ✅ Line of sight and range checking
+- ✅ Basic abilities (1 per unit)
+- ✅ Status effects system
 
 #### Week 3: Game Loop
-- [ ] Cubicle capture mechanics
-- [ ] Economy system (budget/income)
-- [ ] Win conditions (elimination, territory control)
+- ✅ Cubicle capture mechanics
+- ✅ Economy system (budget/income)
+- ✅ Win conditions (elimination, territory control)
 - [ ] Basic AI opponent (heuristic-based)
 - [ ] Sound effects and basic animations
 
@@ -237,7 +237,7 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 
 ## 📞 Contact
 
-- GitHub Issues: [Report bugs or request features](https://github.com/yourusername/hrmageddon-web/issues)
+- GitHub Issues: [Report bugs or request features](https://github.com/walterreid/HRmageddon/issues)
 - Discord: [Join our community](#)
 
 ---
