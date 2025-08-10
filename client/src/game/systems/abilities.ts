@@ -12,13 +12,15 @@ export interface Ability {
   effect: (caster: Unit, target?: Unit | Coordinate) => AbilityResult
 }
 
-export enum TargetType {
-  SELF = 'self',
-  ALLY = 'ally',
-  ENEMY = 'enemy',
-  TILE = 'tile',
-  NONE = 'none',
-}
+export const TargetType = {
+  SELF: 'self',
+  ALLY: 'ally',
+  ENEMY: 'enemy',
+  TILE: 'tile',
+  NONE: 'none',
+} as const
+
+export type TargetType = typeof TargetType[keyof typeof TargetType]
 
 export interface AbilityResult {
   success: boolean

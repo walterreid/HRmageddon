@@ -11,8 +11,9 @@ export function GameView() {
   useEffect(() => {
     if (!containerRef.current || gameRef.current) return
 
-    const width = 8 * 64 + 200
-    const height = 10 * 64 + 160
+    // Remove the extra width since we now have a proper sidebar
+    const width = 8 * 64
+    const height = 10 * 64
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,

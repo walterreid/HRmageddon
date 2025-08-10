@@ -155,6 +155,123 @@ npm run dev
 # Server only: npm --workspace server run dev
 ```
 
+## 🖥️ Getting Started (Development)
+
+### Prerequisites
+- Node.js 18+ and npm
+- Git
+
+### Installation
+```bash
+# Clone and setup
+git clone https://github.com/walterreid/HRmageddon.git
+cd HRmageddon
+npm install
+```
+
+### Starting the Development Environment
+
+#### Option 1: Start Both Together (Recommended)
+```bash
+# From the root directory
+npm run dev
+```
+This starts both client and server concurrently using the workspace configuration.
+
+#### Option 2: Start Individually
+
+**Start the Server First:**
+```bash
+# From the root directory
+npm --workspace server run dev
+
+# Or navigate to server directory
+cd server
+npm run dev
+```
+
+**Start the Client:**
+```bash
+# From the root directory (in a new terminal)
+npm --workspace client run dev
+
+# Or navigate to client directory
+cd client
+npm run dev
+```
+
+### Development URLs
+
+Once both are running, you can access:
+
+- **Client (Game):** http://localhost:5177 (or next available port)
+- **Server (API):** http://localhost:4001
+- **Health Check:** http://localhost:4001/api/health
+
+### Port Configuration
+
+The system automatically finds available ports:
+- **Client:** Starts on 5173, then tries 5174, 5175, 5176, 5177, etc.
+- **Server:** Configured for port 4001 (see `server/src/index.ts`)
+
+### Troubleshooting
+
+**Port Already in Use:**
+```bash
+# Kill processes using specific ports
+lsof -ti:5177 | xargs kill -9  # Client port
+lsof -ti:4001 | xargs kill -9  # Server port
+```
+
+**Server Won't Start:**
+```bash
+# Check if dependencies are installed
+cd server
+npm install
+
+# Check for missing modules
+npm list express
+```
+
+**Client Won't Start:**
+```bash
+# Check if dependencies are installed
+cd client
+npm install
+
+# Clear Vite cache
+rm -rf node_modules/.vite
+```
+
+**Workspace Issues:**
+```bash
+# Reinstall from root
+npm install
+npm run dev
+```
+
+### Development Workflow
+
+1. **Start Development:** `npm run dev` from root
+2. **Make Changes:** Edit files in `client/src/` or `server/src/`
+3. **Auto-reload:** Both client and server will restart automatically
+4. **Test:** Visit http://localhost:5177 to see your changes
+5. **API Testing:** Use http://localhost:4001/api/health to verify server
+
+### File Structure for Development
+
+```
+HRmageddon/
+├── client/src/           # Frontend React components
+│   ├── components/       # UI components (GameView, GameHUD, etc.)
+│   ├── stores/          # Zustand state management
+│   ├── game/            # Phaser game logic
+│   └── App.tsx          # Main app component
+├── server/src/           # Backend Express server
+│   └── index.ts         # Server entry point
+└── shared/src/           # Shared types and utilities
+```
+
 ## 🌐 Development URLs
 
 - **Client (Game):** http://localhost:5177

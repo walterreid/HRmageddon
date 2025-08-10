@@ -11,12 +11,17 @@ import {
   StatusType,
   UNIT_STATS,
 } from 'shared'
+import { AIController } from '../game/systems/ai'
+
+type GameMode = 'menu' | 'ai' | 'multiplayer'
 
 type GameStore = SharedGameState & {
+  gameMode: GameMode
   possibleMoves: Coordinate[]
   possibleTargets: Coordinate[]
   highlightedTiles: Map<string, string>
 
+  setGameMode: (mode: GameMode) => void
   initializeGame: () => void
   selectUnit: (unit: Unit | undefined | null) => void
   selectTile: (coord: Coordinate) => void
@@ -24,6 +29,7 @@ type GameStore = SharedGameState & {
   attackTarget: (attackerId: string, targetId: string) => void
   captureCubicle: (unitId: string, coord: Coordinate) => void
   endTurn: () => void
+  returnToMenu: () => void
 
   getUnitAt: (coord: Coordinate) => Unit | undefined
   getTileAt: (coord: Coordinate) => Tile | undefined
@@ -34,7 +40,14 @@ type GameStore = SharedGameState & {
   checkVictoryConditions: () => void
 }
 
-export const useGameStore = create<GameStore>((set, get) => ({
+export const useGameStore = create<GameStore>((set, get) => {
+  // Create AI controller instance
+  const aiController = new AIController('normal')
+  
+  // Set the game store reference in the AI controller
+  aiController.setGameStore({ moveUnit: undefined, attackTarget: undefined, captureCubicle: undefined })
+  
+  return {
   // Initial shared state
   id: 'local-game',
   board: [],
@@ -47,9 +60,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
   winner: undefined,
 
   // Local UI state
+  gameMode: 'menu',
   possibleMoves: [],
   possibleTargets: [],
   highlightedTiles: new Map<string, string>(),
+
+  setGameMode: (mode) => {
+    set({ gameMode: mode })
+  },
+
+  returnToMenu: () => {
+    set({
+      gameMode: 'menu',
+      board: [],
+      units: [],
+      players: [],
+      currentPlayerId: '',
+      turnNumber: 1,
+      phase: GamePhase.SETUP,
+      selectedUnit: undefined,
+      winner: undefined,
+      possibleMoves: [],
+      possibleTargets: [],
+      highlightedTiles: new Map(),
+    })
+  },
 
   initializeGame: () => {
     const board = createBoard()
@@ -60,7 +95,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       board,
       players,
       units,
-      currentPlayerId: players[0].id,
+      currentPlayerId: 'player1', // Always start with player1 (blue team)
       phase: GamePhase.PLAYING,
       turnNumber: 1,
       selectedUnit: undefined,
@@ -224,6 +259,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   endTurn: () => {
     set((state) => {
+      // Only allow ending turn if it's the player's turn (player1)
+      if (state.currentPlayerId !== 'player1') {
+        return state
+      }
+
       const currentPlayerIndex = state.players.findIndex((p) => p.id === state.currentPlayerId)
       const nextPlayerIndex = (currentPlayerIndex + 1) % state.players.length
       const nextPlayer = state.players[nextPlayerIndex]
@@ -239,7 +279,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         updatedPlayers = state.players.map((p) => ({ ...p, budget: p.budget + p.income }))
       }
 
-      return {
+      const newState = {
         ...state,
         currentPlayerId: nextPlayer.id,
         turnNumber: nextPlayerIndex === 0 ? state.turnNumber + 1 : state.turnNumber,
@@ -250,6 +290,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
         possibleTargets: [],
         highlightedTiles: new Map(),
       }
+
+      // If it's AI's turn, execute AI moves after a short delay
+      if (nextPlayer.id === 'player2') {
+        setTimeout(() => {
+          const currentState = get()
+          // Set the game store reference in the AI controller
+          aiController.setGameStore({
+            moveUnit: (unitId: string, to: Coordinate) => get().moveUnit(unitId, to),
+            attackTarget: (attackerId: string, targetId: string) => get().attackTarget(attackerId, targetId),
+            captureCubicle: (unitId: string, coord: Coordinate) => get().captureCubicle(unitId, coord),
+          })
+          aiController.takeTurn(currentState)
+          // Force a re-render after AI moves
+          set({ ...currentState })
+        }, 1000) // 1 second delay for better UX
+      }
+
+      return newState
     })
   },
 
@@ -334,7 +392,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (p.controlledCubicles >= VICTORY_THRESHOLD) set({ winner: p.id, phase: GamePhase.GAME_OVER })
     })
   },
-}))
+}})
 
 function createBoard(): Tile[][] {
   const width = 8
@@ -366,10 +424,10 @@ function createPlayers(): Player[] {
 
 function createInitialUnits(): Unit[] {
   return [
-    { id: 'blue-intern-1', playerId: 'player1', type: UnitType.INTERN, position: { x: 0, y: 1 }, ...UNIT_STATS[UnitType.INTERN], actionsRemaining: 2, status: [], hasMoved: false, hasAttacked: false },
-    { id: 'blue-secretary-1', playerId: 'player1', type: UnitType.SECRETARY, position: { x: 1, y: 1 }, ...UNIT_STATS[UnitType.SECRETARY], actionsRemaining: 2, status: [], hasMoved: false, hasAttacked: false },
-    { id: 'red-intern-1', playerId: 'player2', type: UnitType.INTERN, position: { x: 7, y: 8 }, ...UNIT_STATS[UnitType.INTERN], actionsRemaining: 2, status: [], hasMoved: false, hasAttacked: false },
-    { id: 'red-secretary-1', playerId: 'player2', type: UnitType.SECRETARY, position: { x: 6, y: 8 }, ...UNIT_STATS[UnitType.SECRETARY], actionsRemaining: 2, status: [], hasMoved: false, hasAttacked: false },
+    { id: 'blue-intern-1', playerId: 'player1', position: { x: 0, y: 1 }, ...UNIT_STATS[UnitType.INTERN], actionsRemaining: 2, status: [], hasMoved: false, hasAttacked: false },
+    { id: 'blue-secretary-1', playerId: 'player1', position: { x: 1, y: 1 }, ...UNIT_STATS[UnitType.SECRETARY], actionsRemaining: 2, status: [], hasMoved: false, hasAttacked: false },
+    { id: 'red-intern-1', playerId: 'player2', position: { x: 7, y: 8 }, ...UNIT_STATS[UnitType.INTERN], actionsRemaining: 2, status: [], hasMoved: false, hasAttacked: false },
+    { id: 'red-secretary-1', playerId: 'player2', position: { x: 6, y: 8 }, ...UNIT_STATS[UnitType.SECRETARY], actionsRemaining: 2, status: [], hasMoved: false, hasAttacked: false },
   ]
 }
 

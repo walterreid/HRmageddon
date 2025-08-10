@@ -204,7 +204,6 @@ export class GameScene extends Phaser.Scene {
 
   destroy() {
     if (this.unsubscribe) this.unsubscribe()
-    super.destroy()
   }
 }
 

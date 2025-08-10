@@ -2,11 +2,22 @@ import { type GameState, type Unit, type Coordinate, ActionType, TileType } from
 
 export class AIController {
   private state!: GameState
-  constructor(private difficulty: 'easy' | 'normal' | 'hard' = 'normal') {}
+  private gameStore: any // Will be set when taking turn
+  private difficulty: 'easy' | 'normal' | 'hard'
+  
+  constructor(difficulty: 'easy' | 'normal' | 'hard' = 'normal') {
+    this.difficulty = difficulty
+  }
+
+  setGameStore(store: any) {
+    this.gameStore = store
+  }
 
   takeTurn(state: GameState): void {
     this.state = state
     const myUnits = state.units.filter((u) => u.playerId === state.currentPlayerId)
+    
+    // Process each unit's actions
     for (const unit of myUnits) {
       let safety = 10
       while (unit.actionsRemaining > 0 && safety-- > 0) {
@@ -28,11 +39,13 @@ export class AIController {
 
   private evaluateActions(unit: Unit): any[] {
     const actions: any[] = []
+    
     // attacks
     for (const enemy of this.calculatePossibleTargets(unit)) {
       const score = 50 + (enemy.maxHp - enemy.hp) * 20 + (enemy.hp <= unit.attackDamage ? 100 : 0) + enemy.cost * 5
       actions.push({ type: ActionType.ATTACK_UNIT, unitId: unit.id, targetId: enemy.id, score })
     }
+    
     // captures
     for (const tile of this.getCapturableTiles(unit)) {
       let score = 40
@@ -43,6 +56,7 @@ export class AIController {
       score -= nearbyEnemies.length * 15
       actions.push({ type: ActionType.CAPTURE_CUBICLE, unitId: unit.id, target: tile, score })
     }
+    
     // moves
     for (const move of this.calculatePossibleMoves(unit)) {
       let score = 0
@@ -52,12 +66,15 @@ export class AIController {
       score += (currentDist - newDist) * 10
       actions.push({ type: ActionType.MOVE_UNIT, unitId: unit.id, target: move, score })
     }
+    
     return actions
   }
 
   private calculatePossibleMoves(unit: Unit): Coordinate[] {
-    // Leave to store logic in real usage
-    return []
+    if (!this.gameStore) return []
+    
+    // Use the game store's method to calculate moves
+    return this.gameStore.calculatePossibleMoves(unit)
   }
 
   private calculatePossibleTargets(unit: Unit): Unit[] {
@@ -80,7 +97,25 @@ export class AIController {
   }
 
   private executeAction(action: any): void {
+    if (!this.gameStore) return
+    
     console.log('AI executing action:', action)
+    
+    try {
+      switch (action.type) {
+        case ActionType.MOVE_UNIT:
+          this.gameStore.moveUnit(action.unitId, action.target)
+          break
+        case ActionType.ATTACK_UNIT:
+          this.gameStore.attackTarget(action.unitId, action.targetId)
+          break
+        case ActionType.CAPTURE_CUBICLE:
+          this.gameStore.captureCubicle(action.unitId, action.target)
+          break
+      }
+    } catch (error) {
+      console.error('AI action execution failed:', error)
+    }
   }
 }
 
