@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -k -n client,server -c green,blue \"npm --workspace client run dev\" \"npm --workspace server run dev\"",
     "build": "npm -w client run build && npm -w server run build",
-    "start": "npm -w server start",
+    "start": "npm -w server run start",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

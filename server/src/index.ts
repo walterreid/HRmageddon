@@ -3,10 +3,23 @@ import http from 'http';
 import cors from 'cors';
 import { Server as SocketIOServer } from 'socket.io';
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 4001;
+// Parse env
+const PORT = Number(process.env.PORT ?? 4001);
+const HOST = process.env.HOST ?? '0.0.0.0';
+const rawOrigins = (process.env.CLIENT_ORIGIN ?? 'http://localhost:5178').split(',');
+const ALLOWED_ORIGINS = rawOrigins.map(o => o.trim());
 
 const app = express();
-app.use(cors());
+
+// CORS for REST
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true
+}));
+
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
@@ -15,7 +28,10 @@ app.get('/api/health', (_req, res) => {
 
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
-  cors: { origin: '*'}
+  cors: {
+    origin: ALLOWED_ORIGINS,
+    methods: ['GET', 'POST']
+  }
 });
 
 io.on('connection', (socket) => {
@@ -23,6 +39,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => console.log('socket disconnected', socket.id));
 });
 
-server.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`API listening on http://${HOST}:${PORT}`);
+  console.log(`CORS allowed: ${ALLOWED_ORIGINS.join(', ')}`);
 });

@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: hrmageddon-api
+    env: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: CLIENT_ORIGIN
+        value: https://hrmageddon-client.onrender.com
+      # If/when you add Postgres/Prisma, add DATABASE_URL here
+
+  - type: static
+    name: hrmageddon-client
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://hrmageddon-api.onrender.com
+      - key: VITE_SOCKET_URL
+        value: wss://hrmageddon-api.onrender.com
