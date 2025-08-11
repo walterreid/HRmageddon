@@ -549,7 +549,7 @@ export class GameScene extends Phaser.Scene {
     console.log('Found ability:', ability.name, 'with range:', ability.range)
 
     const store = useGameStore.getState()
-    this.validTargets = getValidTargets(selectedUnit, ability, store.board)
+          this.validTargets = getValidTargets(selectedUnit, ability, store.board, store.units)
     this.targetingMode = true
     
     console.log('Valid targets found:', this.validTargets.length)
@@ -861,7 +861,7 @@ export class GameScene extends Phaser.Scene {
               if (distance <= ability.range) {
                 // Check if this is a valid target for the ability
                 const targetCoord = { x: tileX, y: tileY }
-                const validTargets = getValidTargets(store.selectedUnit!, ability, store.board)
+                                    const validTargets = getValidTargets(store.selectedUnit!, ability, store.board, store.units)
                 isValidTarget = validTargets.some(target => {
                   if ('x' in target) {
                     return target.x === tileX && target.y === tileY
@@ -935,7 +935,7 @@ export class GameScene extends Phaser.Scene {
                                  Math.abs(unit.position.y - store.selectedUnit!.position.y)
                   if (distance <= ability.range) {
                     // Check if this is a valid target for the ability
-                    const validTargets = getValidTargets(store.selectedUnit!, ability, store.board)
+                    const validTargets = getValidTargets(store.selectedUnit!, ability, store.board, store.units)
                     const isValidTarget = validTargets.some(target => {
                       if ('id' in target) {
                         return target.id === unit.id

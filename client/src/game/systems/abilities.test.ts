@@ -160,7 +160,7 @@ describe('Ability System', () => {
       const unit = createMockUnit()
       const ability = ABILITIES.overtime
       
-      const targets = getValidTargets(unit, ability, mockGameState.board)
+      const targets = getValidTargets(unit, ability, mockGameState.board, mockGameState.units)
       expect(targets).toHaveLength(1)
       expect(targets[0]).toBe(unit)
     })
@@ -175,7 +175,7 @@ describe('Ability System', () => {
       mockGameState.board[0][2].occupied = enemy
       
       const ability = ABILITIES.fetch_coffee
-      const targets = getValidTargets(caster, ability, mockGameState.board)
+      const targets = getValidTargets(caster, ability, mockGameState.board, mockGameState.units)
       
       expect(targets).toContain(ally)
       expect(targets).not.toContain(enemy)
@@ -191,7 +191,7 @@ describe('Ability System', () => {
       mockGameState.board[0][2].occupied = enemy
       
       const ability = ABILITIES.file_it
-      const targets = getValidTargets(caster, ability, mockGameState.board)
+      const targets = getValidTargets(caster, ability, mockGameState.board, mockGameState.units)
       
       expect(targets).toContain(enemy)
       expect(targets).not.toContain(ally)
@@ -213,7 +213,7 @@ describe('Ability System', () => {
       mockGameState.board[0][3].occupied = farEnemy
       
       const ability = ABILITIES.file_it // Range 3
-      const targets = getValidTargets(caster, ability, mockGameState.board)
+      const targets = getValidTargets(caster, ability, mockGameState.board, mockGameState.units)
       
       expect(targets).toContain(nearbyEnemy)
       expect(targets).toContain(farEnemy) // Within range 3
@@ -343,7 +343,7 @@ describe('Ability System', () => {
       const unit = createMockUnit({ abilities: [] })
       
       expect(canUseAbility(unit, 'fetch_coffee')).toBe(false)
-      expect(getValidTargets(unit, ABILITIES.fetch_coffee, mockGameState.board)).toEqual([])
+      expect(getValidTargets(unit, ABILITIES.fetch_coffee, mockGameState.board, mockGameState.units)).toEqual([])
     })
 
     it('should handle abilities with no valid targets', () => {
@@ -354,7 +354,7 @@ describe('Ability System', () => {
       mockGameState.units = [unit]
       mockGameState.board[0][0].occupied = unit
       
-      const targets = getValidTargets(unit, ability, mockGameState.board)
+      const targets = getValidTargets(unit, ability, mockGameState.board, mockGameState.units)
       expect(targets).toEqual([])
     })
 
@@ -370,7 +370,7 @@ describe('Ability System', () => {
       mockGameState.units = [unit, edgeTarget]
       mockGameState.board[0][2].occupied = edgeTarget
       
-      const targets = getValidTargets(unit, ability, mockGameState.board)
+      const targets = getValidTargets(unit, ability, mockGameState.board, mockGameState.units)
       expect(targets).toContain(edgeTarget)
     })
   })

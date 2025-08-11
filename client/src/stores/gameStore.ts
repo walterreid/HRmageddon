@@ -1051,7 +1051,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (abilityId) {
       const ability = ABILITIES[abilityId]
       if (ability) {
-        const validTargets = getValidTargets(state.selectedUnit, ability, state.board)
+        const validTargets = getValidTargets(state.selectedUnit, ability, state.board, state.units)
         const abilityHighlights = new Map<string, string>()
         
         validTargets.forEach(target => {
@@ -1192,7 +1192,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     const unit = state.units.find(u => u.id === unitId)
     if (!unit) return []
     
-    return getValidTargets(unit, ABILITIES[abilityId], state.board)
+    return getValidTargets(unit, ABILITIES[abilityId], state.board, state.units)
   },
 
   canUseAbility: (unitId: string, abilityId: string) => {

@@ -320,7 +320,7 @@ export function canUseAbility(unit: Unit, abilityId: string): boolean {
   return true
 }
 
-export function getValidTargets(unit: Unit, ability: Ability, board: any[][]): (Unit | Coordinate)[] {
+export function getValidTargets(unit: Unit, ability: Ability, board: any[][], units?: Unit[]): (Unit | Coordinate)[] {
   const targets: (Unit | Coordinate)[] = []
   
   switch (ability.targetType) {
@@ -329,19 +329,18 @@ export function getValidTargets(unit: Unit, ability: Ability, board: any[][]): (
       break
     case TargetType.ALLY:
     case TargetType.ENEMY:
-      // Find units in range
-      for (let y = 0; y < board.length; y++) {
-        for (let x = 0; x < board[y].length; x++) {
-          const tile = board[y][x]
-          if (tile.occupied) {
-            const targetUnit = tile.occupied
-            const distance = Math.abs(unit.position.x - x) + Math.abs(unit.position.y - y)
-            if (distance <= ability.range) {
-              if (ability.targetType === TargetType.ALLY && targetUnit.playerId === unit.playerId) {
-                targets.push(targetUnit)
-              } else if (ability.targetType === TargetType.ENEMY && targetUnit.playerId !== unit.playerId) {
-                targets.push(targetUnit)
-              }
+      // Find units in range using the units array
+      if (units) {
+        for (const targetUnit of units) {
+          // Skip the caster unit
+          if (targetUnit.id === unit.id) continue
+          
+          const distance = Math.abs(unit.position.x - targetUnit.position.x) + Math.abs(unit.position.y - targetUnit.position.y)
+          if (distance <= ability.range) {
+            if (ability.targetType === TargetType.ALLY && targetUnit.playerId === unit.playerId) {
+              targets.push(targetUnit)
+            } else if (ability.targetType === TargetType.ENEMY && targetUnit.playerId !== unit.playerId) {
+              targets.push(targetUnit)
             }
           }
         }

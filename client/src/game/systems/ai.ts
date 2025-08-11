@@ -148,7 +148,7 @@ export class AIController {
     let bestTarget = null
 
     for (const ability of availableAbilities) {
-      const validTargets = getValidTargets(unit, ability, state.board)
+              const validTargets = getValidTargets(unit, ability, state.board, state.units)
       
       for (const target of validTargets) {
         const score = this.scoreAbilityUsage(ability, target, unit)
