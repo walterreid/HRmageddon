@@ -1,13 +1,34 @@
 import './index.css'
+import { useState, useEffect } from 'react'
 import { GameView } from './components/GameView'
 import { GameHUD } from './components/GameHUD'
 import { MainMenu } from './components/MainMenu'
 import { DraftScreen } from './components/DraftScreen'
+import { LoadingScreen } from './components/LoadingScreen'
 import { useGameStore } from './stores/gameStore'
 import { GamePhase } from 'shared'
 
 export default function App() {
   const { gameMode, phase, winner, returnToMenu } = useGameStore()
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    // Simulate initial loading time
+    const timer = setTimeout(() => {
+      setIsLoading(false)
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [])
+
+  const handleLoadingComplete = () => {
+    setIsLoading(false)
+  }
+
+  // Show loading screen first
+  if (isLoading) {
+    return <LoadingScreen onLoadingComplete={handleLoadingComplete} minDisplayTime={2000} />
+  }
 
   // Show main menu if not in a game
   if (gameMode === 'menu') {

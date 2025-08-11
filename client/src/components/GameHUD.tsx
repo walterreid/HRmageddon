@@ -615,7 +615,7 @@ export function GameHUD() {
                 {/* Unit Stats */}
                 <div className="space-y-1 mb-3">
                   <div>HP: {selectedUnit.hp}/{selectedUnit.maxHp}</div>
-                  <div>Actions: {selectedUnit.actionsRemaining}/2</div>
+                  <div>Actions: {selectedUnit.actionsRemaining}</div>
                   <div>Move Range: {selectedUnit.moveRange}</div>
                   <div>Attack Range: {selectedUnit.attackRange}</div>
                   <div>Attack Damage: {selectedUnit.attackDamage}</div>

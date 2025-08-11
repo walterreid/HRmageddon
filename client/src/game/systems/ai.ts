@@ -27,7 +27,18 @@ export class AIController {
       
       // Process this unit until it has no actions left
       let shouldContinue = true
+      let iterationCount = 0
+      const maxIterations = 5 // Safety limit to detect infinite loops
+      
       while (shouldContinue) {
+        iterationCount++
+        
+        if (iterationCount > maxIterations) {
+          console.error('🚨 INFINITE LOOP DETECTED! Unit', unit.id, 'has been processed', iterationCount, 'times without consuming actions')
+          console.error('This indicates a bug in the action execution or state update logic')
+          shouldContinue = false
+          break
+        }
         // Get fresh state before making decision
         const freshState = getState()
         const currentUnit = freshState.units.find(u => u.id === unit.id)
@@ -62,6 +73,20 @@ export class AIController {
           default:
             console.log('Unknown decision type:', decision.type)
             shouldContinue = false // Skip if no valid action
+        }
+        
+        // After executing an action, check if we should continue
+        // Get fresh state to see if actions were consumed
+        const updatedState = getState()
+        const updatedUnit = updatedState.units.find(u => u.id === unit.id)
+        
+        console.log('After action execution - Unit:', unit.id, 'Actions before:', currentUnit.actionsRemaining, 'Actions after:', updatedUnit?.actionsRemaining)
+        
+        if (!updatedUnit || updatedUnit.actionsRemaining <= 0) {
+          console.log('Unit', unit.id, 'actions consumed, stopping processing')
+          shouldContinue = false
+        } else {
+          console.log('Unit', unit.id, 'still has actions, continuing...')
         }
         
         // Small delay to allow state to update

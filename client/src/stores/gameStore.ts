@@ -1149,10 +1149,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         set({ units: updatedUnits })
       }
       
-      // Consume action points
+      // Consume action points (abilities cost 1 action, not coffee cost)
       const updatedUnits = state.units.map(u => 
         u.id === unitId 
-          ? { ...u, actionsRemaining: u.actionsRemaining - ability.cost }
+          ? { ...u, actionsRemaining: u.actionsRemaining - 1 }
           : u
       )
       
