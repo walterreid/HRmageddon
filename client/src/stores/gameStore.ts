@@ -436,33 +436,30 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ selectedAbility: undefined, targetingMode: false })
     }
     
-    // Normal movement logic only when NO ability is selected
+    // Don't automatically show movement highlights - wait for user to choose an action
     const canControl = unit.playerId === state.currentPlayerId && 
                       state.currentPlayerId === 'player1' && 
                       unit.actionsRemaining > 0
     
     if (canControl) {
-      // Calculate highlights BEFORE setting state
+      // Calculate possible moves/targets but DON'T show highlights yet
       const moves = state.calculatePossibleMoves(unit)
       const targets = state.calculatePossibleTargets(unit)
-      const highlights = new Map<string, string>()
-      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
-      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
-
+      
       console.log('selectUnit called:', {
         unitId: unit.id,
         currentAbility: state.selectedAbility,
-        highlightCount: highlights.size,
         moveCount: moves.length,
-        targetCount: targets.length
+        targetCount: targets.length,
+        note: 'Highlights will appear when user chooses an action'
       })
 
-      // Set ALL state atomically
+      // Set unit selection WITHOUT showing highlights
       set({
         selectedUnit: unit,
         possibleMoves: moves,
         possibleTargets: targets,
-        highlightedTiles: highlights,
+        highlightedTiles: new Map(), // No highlights until action is chosen
       })
     } else {
       set({
