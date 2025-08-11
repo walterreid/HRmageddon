@@ -336,42 +336,65 @@ export class GameScene extends Phaser.Scene {
         return
       }
       
+      // ALWAYS clear first
       this.highlightGraphics.clear()
       
-      // Create a map to track multiple highlight types per tile
-      const highlightMap = new Map<string, string[]>()
-      
-      // Group highlights by coordinate
-      highlighted.forEach((type, key) => {
-        if (!highlightMap.has(key)) {
-          highlightMap.set(key, [])
-        }
-        highlightMap.get(key)!.push(type)
-      })
-      
-      // Draw each highlight type with appropriate rendering
-      highlightMap.forEach((types, coordKey) => {
-        const [x, y] = coordKey.split(',').map(Number)
-        const tileSize = this.getTileSize()
-        const boardOffsetX = this.getBoardOffsetX()
-        const boardOffsetY = this.getBoardOffsetY()
-        const px = boardOffsetX + x * tileSize
-        const py = boardOffsetY + y * tileSize
-        
-        // Draw each highlight type for this tile
-        types.forEach(type => {
-          this.drawHighlight(px, py, tileSize, type)
+      // If ability is selected, ONLY show ability highlights
+      const store = useGameStore.getState()
+      if (store.selectedAbility && store.targetingMode) {
+        console.log('Ability mode active, showing ability highlights only')
+        // Only render highlights with type 'ability'
+        highlighted.forEach((type, coordKey) => {
+          if (type === 'ability') {
+            const [x, y] = coordKey.split(',').map(Number)
+            const tileSize = this.getTileSize()
+            const boardOffsetX = this.getBoardOffsetX()
+            const boardOffsetY = this.getBoardOffsetY()
+            const px = boardOffsetX + x * tileSize
+            const py = boardOffsetY + y * tileSize
+            
+            // Use distinct ability color (purple/gold)
+            this.drawHighlight(px, py, tileSize, 'ability')
+          }
         })
-      })
+      } else {
+        // Normal mode - show movement/attack highlights
+        console.log('Normal mode active, showing movement/attack highlights')
+        const highlightMap = new Map<string, string[]>()
+        
+        highlighted.forEach((type, key) => {
+          // IGNORE ability highlights in normal mode
+          if (type !== 'ability') {
+            if (!highlightMap.has(key)) {
+              highlightMap.set(key, [])
+            }
+            highlightMap.get(key)!.push(type)
+          }
+        })
+        
+        // Draw movement/attack highlights
+        highlightMap.forEach((types, coordKey) => {
+          const [x, y] = coordKey.split(',').map(Number)
+          const tileSize = this.getTileSize()
+          const boardOffsetX = this.getBoardOffsetX()
+          const boardOffsetY = this.getBoardOffsetY()
+          const px = boardOffsetX + x * tileSize
+          const py = boardOffsetY + y * tileSize
+          
+          types.forEach(type => {
+            this.drawHighlight(px, py, tileSize, type)
+          })
+        })
+      }
 
-      // Draw selected unit highlight
+      // Always draw selected unit highlight last
       if (selectedUnit) {
         const tileSize = this.getTileSize()
         const boardOffsetX = this.getBoardOffsetX()
         const boardOffsetY = this.getBoardOffsetY()
         const px = boardOffsetX + selectedUnit.position.x * tileSize
         const py = boardOffsetY + selectedUnit.position.y * tileSize
-        this.highlightGraphics.lineStyle(VISUAL_CONFIG.UNIT.SELECTION_BORDER_WIDTH, VISUAL_CONFIG.COLORS.UNITS.SELECTION_BORDER, 1)
+        this.highlightGraphics.lineStyle(3, 0xfbbf24, 1) // Gold selection
         this.highlightGraphics.strokeRect(px - 1, py - 1, tileSize, tileSize)
       }
     } catch (error) {
@@ -386,94 +409,58 @@ export class GameScene extends Phaser.Scene {
         return
       }
       
-      let color = VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL // Default green
+      let color = 0x16a34a // Default green
       let alpha = 0.3
-      let isOutline = false
-      let isFilled = true
-    
-    switch (type) {
-      case 'movement':
-        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.MOVEMENT // Corporate gray overlay for movement
-        alpha = VISUAL_CONFIG.HIGHLIGHT.MOVEMENT_ALPHA
-        isOutline = false
-        isFilled = true
-        break
-      case 'attack':
-        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK // Red overlay for attack
-        alpha = VISUAL_CONFIG.HIGHLIGHT.ATTACK_ALPHA
-        isOutline = false
-        isFilled = true
-        break
-      case 'attack_range':
-        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_RANGE // Darker red overlay for attack range
-        alpha = VISUAL_CONFIG.HIGHLIGHT.ATTACK_RANGE_ALPHA
-        isOutline = false
-        isFilled = true
-        break
-      case 'ability':
-        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY // Corporate gold overlay for ability targeting
-        alpha = VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA
-        isOutline = false
-        isFilled = true
-        break
-      case 'ability_aoe':
-        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE // Pink for AOE abilities
-        alpha = 0.4
-        isOutline = false
-        isFilled = true
-        break
-      case 'target_enemy':
-        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_RANGE // Red filled for enemy targets
-        alpha = 0.6
-        isOutline = false
-        isFilled = true
-        break
-      case 'target_ally':
-        color = VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL // Green filled for ally targets
-        alpha = 0.6
-        isOutline = false
-        isFilled = true
-        break
-      case 'capture':
-        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.MOVEMENT // Cyan for capture
-        alpha = 0.4
-        isOutline = false
-        isFilled = true
-        break
-      case 'invalid':
-        color = 0x6b7280 // Gray for invalid targets (keep as fallback)
-        alpha = 0.5
-        isOutline = false
-        isFilled = true
-        break
-      default:
-        color = VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL // Default green
-        alpha = 0.3
-        isOutline = false
-        isFilled = true
-    }
-    
-    if (isFilled) {
+      
+      switch (type) {
+        case 'movement':
+          color = 0x3b82f6 // Blue for movement
+          alpha = 0.4
+          break
+        case 'attack':
+          color = 0xef4444 // Red for attack
+          alpha = 0.4
+          break
+        case 'ability':
+          color = 0x9333ea // DISTINCT Purple for abilities
+          alpha = 0.5
+          break
+        case 'attack_range':
+          color = 0xdc2626 // Darker red for attack range
+          alpha = 0.3
+          break
+        case 'ability_aoe':
+          color = 0xec4899 // Pink for AOE abilities
+          alpha = 0.4
+          break
+        case 'target_enemy':
+          color = 0xef4444 // Red for enemy targets
+          alpha = 0.6
+          break
+        case 'target_ally':
+          color = 0x16a34a // Green for ally targets
+          alpha = 0.6
+          break
+        case 'capture':
+          color = 0x06b6d4 // Cyan for capture
+          alpha = 0.4
+          break
+        case 'invalid':
+          color = 0x6b7280 // Gray for invalid targets
+          alpha = 0.5
+          break
+        default:
+          color = 0x16a34a // Default green
+          alpha = 0.3
+      }
+      
+      // Fill the tile
       this.highlightGraphics.fillStyle(color, alpha)
       this.highlightGraphics.fillRect(x, y, tileSize, tileSize)
       
-      // Add a subtle border for better visibility
-      let borderColor = color
-      if (type === 'movement') {
-        borderColor = VISUAL_CONFIG.COLORS.HIGHLIGHTS.MOVEMENT_BORDER
-      } else if (type === 'attack' || type === 'attack_range') {
-        borderColor = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_BORDER
-      } else if (type === 'ability' || type === 'ability_aoe') {
-        borderColor = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_BORDER
-      }
-      this.highlightGraphics.lineStyle(1, borderColor, Math.min(alpha + 0.3, 1.0))
+      // Add border for clarity
+      this.highlightGraphics.lineStyle(2, color, alpha + 0.3)
       this.highlightGraphics.strokeRect(x, y, tileSize, tileSize)
-    }
-    
-    if (isOutline) {
-      this.highlightGraphics.lineStyle(2, color, alpha)
-      this.highlightGraphics.strokeRect(x, y, tileSize, tileSize)
-    }
     } catch (error) {
       console.error('Error drawing highlight:', error)
     }

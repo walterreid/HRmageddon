@@ -33,7 +33,8 @@ export function GameHUD() {
     moveUnit,
     attackTarget,
     useAbility,
-    getAbilityTargets
+    getAbilityTargets,
+    selectAbility
   } = useGameStore()
 
   const [actionMenuPosition, setActionMenuPosition] = useState({ x: 0, y: 0 })
@@ -176,32 +177,31 @@ export function GameHUD() {
       return;
     }
 
-    // Determine the actual action mode
-    let actualActionMode: 'move' | 'attack' | 'ability' = 'ability'
     if (action === 'move' || action === 'attack') {
-      actualActionMode = action
-    }
-    
-    console.log('Setting action mode to:', actualActionMode, 'with ability:', action)
-    setActionMode(actualActionMode)
-
-    // Handle ability selection
-    if (actualActionMode === 'ability') {
-      setSelectedAbility(action)
-      console.log('Selected ability:', action)
-    } else {
+      // Clear any ability selection first
+      selectAbility('')
+      
+      // Then set action mode
+      setActionMode(action)
       setSelectedAbility(null)
+      console.log(`${action} action mode set`)
+    } else {
+      // This is an ability
+      setActionMode('ability')
+      setSelectedAbility(action)
+      
+      // CRITICAL: Set ability in store
+      selectAbility(action)
+      console.log(`Ability mode set with ability:`, action)
     }
 
+    // Set GameScene action mode
     const gameScene = (window as any).gameScene
     if (gameScene && gameScene.setActionMode) {
-      if (actualActionMode === 'ability') {
-        // For abilities, pass 'ability' as the mode and the ability ID as the second parameter
-        gameScene.setActionMode('ability', action);
-        console.log(`Ability mode set with ability:`, action)
+      if (action !== 'move' && action !== 'attack') {
+        gameScene.setActionMode('ability', action)
       } else {
-        gameScene.setActionMode(actualActionMode);
-        console.log(`${actualActionMode} action mode set`)
+        gameScene.setActionMode(action)
       }
     } else {
       console.log('GameScene not available, but action mode set locally')

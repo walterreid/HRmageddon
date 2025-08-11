@@ -378,9 +378,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (!unit) {
       set({
         selectedUnit: undefined,
+        selectedAbility: undefined, // Clear ability when deselecting
         possibleMoves: [],
         possibleTargets: [],
         highlightedTiles: new Map(),
+        targetingMode: false
       })
       return
     }
@@ -420,40 +422,37 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     }
     
-    // Check if this is a player unit that can be controlled
+    // CRITICAL: Don't show movement if ability is selected
+    if (state.selectedAbility) {
+      set({
+        selectedUnit: unit,
+        // Keep ability state, don't show movement
+        possibleMoves: [],
+        possibleTargets: [],
+        // Don't clear ability highlights
+      })
+      return
+    }
+    
+    // Normal movement logic only when NO ability is selected
     const canControl = unit.playerId === state.currentPlayerId && 
                       state.currentPlayerId === 'player1' && 
                       unit.actionsRemaining > 0
     
     if (canControl) {
-      // Player unit with actions remaining - can be controlled
-      
-      // If an ability is currently selected, don't show movement highlights
-      if (state.selectedAbility) {
-        set({
-          selectedUnit: unit,
-          possibleMoves: [], // No movement when ability is active
-          possibleTargets: [], // No attack targets when ability is active
-          highlightedTiles: new Map(), // No movement highlights when ability is active
-        })
-      } else {
-        // Normal mode - show movement and attack highlights
-        const moves = state.calculatePossibleMoves(unit)
-        const targets = state.calculatePossibleTargets(unit)
+      const moves = state.calculatePossibleMoves(unit)
+      const targets = state.calculatePossibleTargets(unit)
+      const highlights = new Map<string, string>()
+      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
+      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
 
-        const highlights = new Map<string, string>()
-        moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
-        targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
-
-        set({
-          selectedUnit: unit,
-          possibleMoves: moves,
-          possibleTargets: targets,
-          highlightedTiles: highlights,
-        })
-      }
+      set({
+        selectedUnit: unit,
+        possibleMoves: moves,
+        possibleTargets: targets,
+        highlightedTiles: highlights,
+      })
     } else {
-      // Enemy unit or unit without actions - just view stats
       set({
         selectedUnit: unit,
         possibleMoves: [],
@@ -1024,30 +1023,34 @@ export const useGameStore = create<GameStore>((set, get) => {
     const state = get()
     if (!state.selectedUnit) return
     
-    // Update highlighted tiles for ability targeting
-    const newHighlights = new Map<string, string>()
+    set({ 
+      selectedAbility: abilityId,
+      // CRITICAL: Clear movement state when ability is selected
+      possibleMoves: [],
+      possibleTargets: [],
+      highlightedTiles: new Map(), // Clear ALL highlights first
+      targetingMode: !!abilityId
+    })
+    
+    // ONLY set ability highlights after clearing everything
     if (abilityId) {
-      // Highlight valid targets for the selected ability
       const ability = ABILITIES[abilityId]
       if (ability) {
         const validTargets = getValidTargets(state.selectedUnit, ability, state.board)
+        const abilityHighlights = new Map<string, string>()
+        
         validTargets.forEach(target => {
           if ('x' in target) {
-            // Tile target
-            newHighlights.set(`${target.x},${target.y}`, 'ability')
+            abilityHighlights.set(`${target.x},${target.y}`, 'ability')
           } else {
-            // Unit target
-            newHighlights.set(`${target.position.x},${target.position.y}`, 'ability')
+            abilityHighlights.set(`${target.position.x},${target.position.y}`, 'ability')
           }
         })
+        
+        // Update ONLY with ability highlights
+        set({ highlightedTiles: abilityHighlights })
       }
     }
-    
-    set({ 
-      selectedAbility: abilityId,
-      highlightedTiles: newHighlights,
-      targetingMode: !!abilityId
-    })
   },
 
   useAbility: (unitId: string, abilityId: string, target?: Unit | Coordinate) => {
