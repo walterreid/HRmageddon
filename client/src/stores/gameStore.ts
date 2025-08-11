@@ -427,19 +427,31 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     if (canControl) {
       // Player unit with actions remaining - can be controlled
-      const moves = state.calculatePossibleMoves(unit)
-      const targets = state.calculatePossibleTargets(unit)
+      
+      // If an ability is currently selected, don't show movement highlights
+      if (state.selectedAbility) {
+        set({
+          selectedUnit: unit,
+          possibleMoves: [], // No movement when ability is active
+          possibleTargets: [], // No attack targets when ability is active
+          highlightedTiles: new Map(), // No movement highlights when ability is active
+        })
+      } else {
+        // Normal mode - show movement and attack highlights
+        const moves = state.calculatePossibleMoves(unit)
+        const targets = state.calculatePossibleTargets(unit)
 
-      const highlights = new Map<string, string>()
-      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
-      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
+        const highlights = new Map<string, string>()
+        moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
+        targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
 
-      set({
-        selectedUnit: unit,
-        possibleMoves: moves,
-        possibleTargets: targets,
-        highlightedTiles: highlights,
-      })
+        set({
+          selectedUnit: unit,
+          possibleMoves: moves,
+          possibleTargets: targets,
+          highlightedTiles: highlights,
+        })
+      }
     } else {
       // Enemy unit or unit without actions - just view stats
       set({

@@ -2,6 +2,114 @@ import { useEffect, useState, useMemo } from 'react'
 import { useGameStore } from '../stores/gameStore'
 import { ActionMenu } from './ActionMenu'
 
+// Import UI config from ActionMenu for shared constants
+import { UI_CONFIG } from './ActionMenu'
+
+// ===== GAME HUD CONFIGURATION =====
+const HUD_CONFIG = {
+  // Panel Positioning & Sizing
+  PANELS: {
+    STATUS: {
+      POSITION: 'fixed top-4 left-4',
+      WIDTH: 'w-80',
+      MAX_HEIGHT: 'max-h-[calc(100vh-2rem)]',
+    },
+    UNIT_INFO: {
+      POSITION: 'fixed top-4 right-4', 
+      WIDTH: 'w-80',
+      MAX_HEIGHT: 'max-h-[calc(100vh-2rem)]',
+    }
+  },
+  
+  // Colors (Corporate Beige & Gray Theme)
+  COLORS: {
+    PANELS: {
+      BACKGROUND: 'bg-stone-50/95',
+      BORDER: 'border-stone-300',
+      BACKDROP: 'backdrop-blur-sm',
+    },
+    TEXT: {
+      PRIMARY: 'text-stone-800',
+      SECONDARY: 'text-stone-600',
+      ACCENT: 'text-amber-600',
+      SUCCESS: 'text-green-600',
+      WARNING: 'text-amber-600',
+      ERROR: 'text-red-600',
+    },
+    TEAMS: {
+      PLAYER1: {
+        BACKGROUND: 'bg-amber-50/80',
+        BORDER: 'border-amber-300',
+        TEXT: 'text-amber-700',
+      },
+      PLAYER2: {
+        BACKGROUND: 'bg-stone-100/80', 
+        BORDER: 'border-stone-300',
+        TEXT: 'text-stone-700',
+      }
+    },
+    BUTTONS: {
+      END_TURN: 'bg-green-600 hover:bg-green-700 text-white',
+      CANCEL: 'bg-stone-500 hover:bg-stone-600 text-white',
+    },
+    ACTION_MODES: {
+      MOVE: {
+        BACKGROUND: 'bg-stone-100/80',
+        BORDER: 'border-stone-400', 
+        TEXT: 'text-stone-700',
+      },
+      ATTACK: {
+        BACKGROUND: 'bg-red-50/80',
+        BORDER: 'border-red-300',
+        TEXT: 'text-red-700', 
+      },
+      ABILITY: {
+        BACKGROUND: 'bg-amber-50/80',
+        BORDER: 'border-amber-300',
+        TEXT: 'text-amber-700',
+      }
+    }
+  },
+  
+  // Feedback Messages
+  FEEDBACK: {
+    DURATION: 2000, // ms
+    POSITION: 'fixed top-20 left-1/2 transform -translate-x-1/2 z-50',
+  },
+  
+  // Text Content
+  TEXT: {
+    TURN_INDICATOR: {
+      YOUR_TURN: 'Your Turn (Gold)',
+      AI_TURN: 'AI Turn (Navy)', 
+    },
+    UNIT_STATUS: {
+      CONTROLLING: '🎮 Controlling',
+      VIEWING: '📖 Viewing Only',
+    },
+    ACTION_MODES: {
+      MOVE: '🚶 Move Mode Active',
+      ATTACK: '🎯 Attack Mode Active', 
+      ABILITY: '⚡ Ability Mode Active',
+    }
+  }
+}
+// ===== END CONFIGURATION =====
+
+// Helper function to get action mode styles with fallback
+function getActionModeStyles(actionMode: string) {
+  const upperActionMode = actionMode.toUpperCase() as keyof typeof HUD_CONFIG.COLORS.ACTION_MODES
+  
+  // Check if the action mode exists in our config
+  if (HUD_CONFIG.COLORS.ACTION_MODES[upperActionMode]) {
+    return HUD_CONFIG.COLORS.ACTION_MODES[upperActionMode]
+  }
+  
+  // Fallback to ability mode for unknown action modes (like ability names)
+  console.warn(`Unknown action mode: ${actionMode}, falling back to ability mode`)
+  return HUD_CONFIG.COLORS.ACTION_MODES.ABILITY
+}
+
 export function GameHUD() {
   const {
     players,
@@ -74,26 +182,26 @@ export function GameHUD() {
         const unitScreenY = boardOffsetY + (selectedUnit.position.y * tileSize) + (tileSize / 2)
         
         // Ensure the menu is visible on screen and positioned nicely
-        const menuWidth = 350
-        const menuHeight = 400
+        const menuWidth = UI_CONFIG.MENU.WIDTH
+        const menuHeight = UI_CONFIG.MENU.HEIGHT
         
         // Position menu to the right of the unit, or above if not enough space
-        let x = unitScreenX + 50
+        let x = unitScreenX + UI_CONFIG.MENU.OFFSET_X
         let y = unitScreenY - (menuHeight / 2)
         
         // If menu would go off the right side, position it to the left
-        if (x + menuWidth > window.innerWidth - 20) {
-          x = unitScreenX - menuWidth - 50
+        if (x + menuWidth > window.innerWidth - UI_CONFIG.MENU.MIN_MARGIN) {
+          x = unitScreenX - menuWidth - UI_CONFIG.MENU.OFFSET_X
         }
         
         // If menu would go off the bottom, position it above
-        if (y + menuHeight > window.innerHeight - 20) {
-          y = window.innerHeight - menuHeight - 20
+        if (y + menuHeight > window.innerHeight - UI_CONFIG.MENU.MIN_MARGIN) {
+          y = window.innerHeight - menuHeight - UI_CONFIG.MENU.MIN_MARGIN
         }
         
         // Ensure menu doesn't go off the left or top
-        x = Math.max(20, x)
-        y = Math.max(20, y)
+        x = Math.max(UI_CONFIG.MENU.MIN_MARGIN, x)
+        y = Math.max(UI_CONFIG.MENU.MIN_MARGIN, y)
         
         console.log('Action menu positioning:', {
           unitPosition: selectedUnit.position,
@@ -108,7 +216,7 @@ export function GameHUD() {
       } else {
         console.log('GameScene not available for positioning, using default position')
         // Use a default position when GameScene isn't available
-        setActionMenuPosition({ x: 100, y: 100 })
+        setActionMenuPosition({ x: UI_CONFIG.MENU.OFFSET_X * 2, y: UI_CONFIG.MENU.OFFSET_Y * 2 })
       }
     }
   }, [selectedUnit, isPlayerUnit])
@@ -157,11 +265,17 @@ export function GameHUD() {
       return;
     }
 
-    console.log('Setting action mode to:', action)
-    setActionMode(action as 'move' | 'attack' | 'ability')
+    // Determine the actual action mode
+    let actualActionMode: 'move' | 'attack' | 'ability' = 'ability'
+    if (action === 'move' || action === 'attack') {
+      actualActionMode = action
+    }
+    
+    console.log('Setting action mode to:', actualActionMode, 'with ability:', action)
+    setActionMode(actualActionMode)
 
     // Handle ability selection
-    if (action !== 'move' && action !== 'attack') {
+    if (actualActionMode === 'ability') {
       setSelectedAbility(action)
       console.log('Selected ability:', action)
     } else {
@@ -170,13 +284,13 @@ export function GameHUD() {
 
     const gameScene = (window as any).gameScene
     if (gameScene && gameScene.setActionMode) {
-      if (action === 'ability') {
-        // For abilities, pass the action as the ability ID
-        gameScene.setActionMode(action, action);
-        console.log(`${action} action mode set with ability:`, action)
+      if (actualActionMode === 'ability') {
+        // For abilities, pass 'ability' as the mode and the ability ID as the second parameter
+        gameScene.setActionMode('ability', action);
+        console.log(`Ability mode set with ability:`, action)
       } else {
-        gameScene.setActionMode(action);
-        console.log(`${action} action mode set`)
+        gameScene.setActionMode(actualActionMode);
+        console.log(`${actualActionMode} action mode set`)
       }
     } else {
       console.log('GameScene not available, but action mode set locally')
@@ -206,10 +320,10 @@ export function GameHUD() {
           }
           
           setActionFeedback({ type: 'success', message: 'Unit moved successfully!' })
-          setTimeout(() => setActionFeedback(null), 2000)
+          setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
         } else {
           setActionFeedback({ type: 'error', message: 'Invalid move location' })
-          setTimeout(() => setActionFeedback(null), 2000)
+          setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
         }
         break
 
@@ -235,10 +349,10 @@ export function GameHUD() {
           }
           
           setActionFeedback({ type: 'success', message: 'Attack executed!' })
-          setTimeout(() => setActionFeedback(null), 2000)
+          setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
         } else {
           setActionFeedback({ type: 'error', message: 'No enemy unit at this location' })
-          setTimeout(() => setActionFeedback(null), 2000)
+          setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
         }
         break
 
@@ -267,10 +381,10 @@ export function GameHUD() {
             }
             
             setActionFeedback({ type: 'success', message: 'Ability used successfully!' })
-            setTimeout(() => setActionFeedback(null), 2000)
+            setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
           } else {
             setActionFeedback({ type: 'error', message: 'Invalid target for this ability' })
-            setTimeout(() => setActionFeedback(null), 2000)
+            setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
         }
         }
         break
@@ -301,7 +415,7 @@ export function GameHUD() {
       setTimeout(() => {
         setUnitSelectionBlocked(false)
         setActionFeedback(null)
-      }, 3000)
+      }, HUD_CONFIG.FEEDBACK.DURATION * 1.5)
     }
 
     window.addEventListener('unitSelectionBlocked', handleUnitSelectionBlocked as EventListener)
@@ -315,13 +429,21 @@ export function GameHUD() {
     const checkGameScene = () => {
       const gameScene = (window as any).gameScene
       if (gameScene && gameScene.getActionMode) {
-        const sceneActionMode = gameScene.getActionMode()
+              const sceneActionMode = gameScene.getActionMode()
+      // Validate the action mode from the scene
+      if (sceneActionMode === 'move' || sceneActionMode === 'attack' || sceneActionMode === 'ability' || sceneActionMode === 'none') {
         if (sceneActionMode !== actionMode) {
           setActionMode(sceneActionMode)
           if (sceneActionMode === 'none') {
             setSelectedAbility(null)
           }
         }
+      } else {
+        console.warn('Invalid action mode from GameScene:', sceneActionMode, '- resetting to none')
+        setActionMode('none')
+        setSelectedAbility(null)
+        gameScene.clearActionMode()
+      }
       }
     }
 
@@ -329,7 +451,7 @@ export function GameHUD() {
     checkGameScene()
     
     // Check periodically until GameScene is available
-    const interval = setInterval(checkGameScene, 100)
+    const interval = setInterval(checkGameScene, HUD_CONFIG.FEEDBACK.DURATION / 20) // Check every 100ms
     
     return () => clearInterval(interval)
   }, [actionMode])
@@ -338,7 +460,7 @@ export function GameHUD() {
     <>
       {/* Action Feedback Toast */}
       {actionFeedback && (
-        <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
+        <div className={`${HUD_CONFIG.FEEDBACK.POSITION} px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
           actionFeedback.type === 'success' 
             ? 'bg-green-600 text-white' 
             : 'bg-red-600 text-white'
@@ -348,12 +470,12 @@ export function GameHUD() {
       )}
 
       {/* Game Status - Top Left */}
-      <div className="fixed top-4 left-4 w-80 bg-slate-800/90 backdrop-blur-sm border border-slate-600 rounded-lg p-4 text-slate-100 space-y-4">
+              <div className={`${HUD_CONFIG.PANELS.STATUS.POSITION} ${HUD_CONFIG.PANELS.STATUS.WIDTH} ${HUD_CONFIG.PANELS.STATUS.MAX_HEIGHT} ${HUD_CONFIG.COLORS.PANELS.BACKGROUND} ${HUD_CONFIG.COLORS.PANELS.BORDER} rounded-lg p-4 ${HUD_CONFIG.COLORS.TEXT.PRIMARY} space-y-4`}>
         <h2 className="text-lg font-bold text-center">Game Status</h2>
         <div className="text-center">
           <div className="text-2xl font-bold mb-2">Turn {turnNumber}</div>
-          <div className={`px-4 py-2 rounded-lg text-white font-semibold ${isPlayerTurn ? 'bg-yellow-600' : 'bg-slate-700'}`}>
-            {isPlayerTurn ? 'Your Turn (Gold)' : 'AI Turn (Navy)'}
+          <div className={`px-4 py-2 rounded-lg text-white font-semibold ${isPlayerTurn ? 'bg-amber-600' : 'bg-stone-600'}`}>
+            {isPlayerTurn ? HUD_CONFIG.TEXT.TURN_INDICATOR.YOUR_TURN : HUD_CONFIG.TEXT.TURN_INDICATOR.AI_TURN}
           </div>
         </div>
 
@@ -362,8 +484,8 @@ export function GameHUD() {
           <h3 className="text-md font-semibold text-center">Resources</h3>
           
           {/* Player 1 (Gold) */}
-          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-3">
-            <div className="text-yellow-300 font-semibold text-sm">Gold Team (You)</div>
+          <div className={`${HUD_CONFIG.COLORS.TEAMS.PLAYER1.BACKGROUND} border ${HUD_CONFIG.COLORS.TEAMS.PLAYER1.BORDER} rounded-lg p-3`}>
+            <div className={`${HUD_CONFIG.COLORS.TEAMS.PLAYER1.TEXT} font-semibold text-sm`}>Gold Team (You)</div>
             <div className="text-xs space-y-1 mt-2">
               <div>Budget: ${player1?.budget || 0}</div>
               <div>Income: +${player1?.income || 0}/turn</div>
@@ -372,8 +494,8 @@ export function GameHUD() {
           </div>
 
           {/* Player 2 (Navy) */}
-          <div className="bg-slate-900/20 border border-slate-700 rounded-lg p-3">
-            <div className="text-slate-300 font-semibold text-sm">Navy Team (AI)</div>
+          <div className={`${HUD_CONFIG.COLORS.TEAMS.PLAYER2.BACKGROUND} border ${HUD_CONFIG.COLORS.TEAMS.PLAYER2.BORDER} rounded-lg p-3`}>
+            <div className={`${HUD_CONFIG.COLORS.TEAMS.PLAYER2.TEXT} font-semibold text-sm`}>Navy Team (AI)</div>
             <div className="text-xs space-y-1 mt-2">
               <div>Budget: ${player2?.budget || 0}</div>
               <div>Income: +${player2?.income || 0}/turn</div>
@@ -387,7 +509,7 @@ export function GameHUD() {
           <div className="text-center">
             <button
               onClick={endTurn}
-              className="w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
+              className={`w-full px-6 py-3 ${HUD_CONFIG.COLORS.BUTTONS.END_TURN} text-white font-semibold rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl`}
             >
               End Turn
             </button>
@@ -400,17 +522,17 @@ export function GameHUD() {
 
       {/* Unit Info - Top Right (Simplified) */}
       {selectedUnit && (
-        <div className="fixed top-4 right-4 w-80 bg-slate-800/90 backdrop-blur-sm border border-slate-600 rounded-lg p-4 text-slate-100 space-y-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
+        <div className={`${HUD_CONFIG.PANELS.UNIT_INFO.POSITION} ${HUD_CONFIG.PANELS.UNIT_INFO.WIDTH} ${HUD_CONFIG.PANELS.UNIT_INFO.MAX_HEIGHT} ${HUD_CONFIG.COLORS.PANELS.BACKGROUND} ${HUD_CONFIG.COLORS.PANELS.BORDER} rounded-lg p-4 ${HUD_CONFIG.COLORS.TEXT.PRIMARY} space-y-4 max-h-[calc(100vh-2rem)] overflow-y-auto`}>
           {/* Unit Info Header */}
-          <div className="border-b border-slate-600 pb-3">
+          <div className={`border-b ${HUD_CONFIG.COLORS.PANELS.BORDER} pb-3`}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-yellow-400 capitalize">
+              <h3 className={`text-lg font-bold ${HUD_CONFIG.COLORS.TEXT.ACCENT} capitalize`}>
                 {selectedUnit.type.replace('_', ' ')}
               </h3>
               <div className="flex items-center space-x-2">
                 {/* Player indicator */}
-                <div className={`w-3 h-3 rounded-full ${isPlayerUnit ? 'bg-yellow-500' : 'bg-slate-600'}`} />
-                <span className="text-xs text-slate-400">
+                <div className={`w-3 h-3 rounded-full ${isPlayerUnit ? 'bg-amber-500' : 'bg-stone-500'}`} />
+                <span className={`text-xs ${HUD_CONFIG.COLORS.TEXT.SECONDARY}`}>
                   {isPlayerUnit ? 'Player' : 'Enemy'}
                 </span>
               </div>
@@ -418,12 +540,12 @@ export function GameHUD() {
             
             {/* Control indicator */}
             {canControl ? (
-              <div className="text-xs text-green-400 mt-1">
-                🎮 Controlling - {selectedUnit.actionsRemaining} action{selectedUnit.actionsRemaining !== 1 ? 's' : ''} remaining
+              <div className={`text-xs ${HUD_CONFIG.COLORS.TEXT.SUCCESS} mt-1`}>
+                {HUD_CONFIG.TEXT.UNIT_STATUS.CONTROLLING} - {selectedUnit.actionsRemaining} action{selectedUnit.actionsRemaining !== 1 ? 's' : ''} remaining
               </div>
             ) : (
-              <div className="text-xs text-gray-400 mt-1">
-                📖 Viewing Only
+              <div className={`text-xs ${HUD_CONFIG.COLORS.TEXT.SECONDARY} mt-1`}>
+                {HUD_CONFIG.TEXT.UNIT_STATUS.VIEWING}
               </div>
             )}
           </div>
@@ -431,45 +553,45 @@ export function GameHUD() {
           {/* Unit Stats */}
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-300">HP:</span>
-              <span className="text-white">{selectedUnit.hp}/{selectedUnit.maxHp}</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>HP:</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.hp}/{selectedUnit.maxHp}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-300">Actions:</span>
-              <span className="text-white">{selectedUnit.actionsRemaining}/{selectedUnit.maxActions}</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>Actions:</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.actionsRemaining}/{selectedUnit.maxActions}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-300">Move Range:</span>
-              <span className="text-white">{selectedUnit.moveRange}</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>Move Range:</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.moveRange}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-300">Attack Range:</span>
-              <span className="text-white">{selectedUnit.attackRange}</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>Attack Range:</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.attackRange}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-300">Attack Damage:</span>
-              <span className="text-white">{selectedUnit.attackDamage}</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>Attack Damage:</span>
+              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.attackDamage}</span>
             </div>
           </div>
 
           {/* Available Actions (only for player units) */}
           {canControl && (
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-yellow-300">Available Actions</h4>
+              <h4 className={`text-sm font-semibold ${HUD_CONFIG.COLORS.TEXT.ACCENT}`}>Available Actions</h4>
               <div className="text-xs space-y-1">
-                <div className="text-slate-300">
+                <div className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>
                   Moves: {possibleMoves.length} available
                 </div>
-                <div className="text-slate-300">
+                <div className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>
                   Targets: {possibleTargets.length} available
                 </div>
               </div>
               
               {/* Move Mode Instructions */}
               {actionMode === 'move' && possibleMoves.length > 0 && (
-                <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-2 mt-2">
-                  <div className="text-blue-300 text-xs font-semibold">
-                    🚶 Move Mode Active
+                <div className={`${HUD_CONFIG.COLORS.ACTION_MODES.MOVE.BACKGROUND} border ${HUD_CONFIG.COLORS.ACTION_MODES.MOVE.BORDER} rounded-lg p-2 mt-2`}>
+                  <div className={`${HUD_CONFIG.COLORS.ACTION_MODES.MOVE.TEXT} text-xs font-semibold`}>
+                    {HUD_CONFIG.TEXT.ACTION_MODES.MOVE}
                   </div>
                   <div className="text-blue-200 text-xs mt-1">
                     Click on highlighted tiles to move
@@ -482,9 +604,9 @@ export function GameHUD() {
 
               {/* Attack Mode Instructions */}
               {actionMode === 'attack' && possibleTargets.length > 0 && (
-                <div className="bg-red-900/20 border border-red-700 rounded-lg p-2 mt-2">
-                  <div className="text-red-300 text-xs font-semibold">
-                    🎯 Attack Mode Active
+                <div className={`${HUD_CONFIG.COLORS.ACTION_MODES.ATTACK.BACKGROUND} border ${HUD_CONFIG.COLORS.ACTION_MODES.ATTACK.BORDER} rounded-lg p-2 mt-2`}>
+                  <div className={`${HUD_CONFIG.COLORS.ACTION_MODES.ATTACK.TEXT} text-xs font-semibold`}>
+                    {HUD_CONFIG.TEXT.ACTION_MODES.ATTACK}
                   </div>
                   <div className="text-red-200 text-xs mt-1">
                     Click on enemy units to attack them
@@ -499,8 +621,8 @@ export function GameHUD() {
 
           {/* Current Action Mode Display */}
           {actionMode !== 'none' && (
-            <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-3">
-              <div className="text-yellow-300 font-semibold text-sm">
+            <div className={`${getActionModeStyles(actionMode).BACKGROUND} border ${getActionModeStyles(actionMode).BORDER} rounded-lg p-3`}>
+              <div className={`${getActionModeStyles(actionMode).TEXT} font-semibold text-sm`}>
                 Current Mode: {actionMode.toUpperCase()}
                 {selectedAbility && ` - ${selectedAbility.replace('_', ' ')}`}
               </div>
@@ -518,7 +640,7 @@ export function GameHUD() {
                     gameScene.clearActionMode()
                   }
                 }}
-                className="mt-2 px-3 py-1 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded transition-colors"
+                className={`mt-2 px-3 py-1 ${HUD_CONFIG.COLORS.BUTTONS.CANCEL} text-white text-xs rounded transition-colors`}
               >
                 Cancel Action
               </button>
@@ -538,7 +660,7 @@ export function GameHUD() {
           )}
 
           {/* Help Text */}
-          <div className="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-600">
+          <div className={`text-xs ${HUD_CONFIG.COLORS.TEXT.SECONDARY} space-y-1 pt-2 border-t ${HUD_CONFIG.COLORS.PANELS.BORDER}`}>
             <div>• Click any unit to view their stats</div>
             <div>• Click player units (gold) to control them</div>
             <div>• Click highlighted tiles to move/attack</div>
@@ -546,8 +668,8 @@ export function GameHUD() {
             <div>• Capture cubicles to increase income</div>
             <div>• End turn when you're done</div>
             {actionMode !== 'none' && (
-              <div className="text-amber-400 font-semibold">
-                ⚠️ Action mode active - complete or cancel current action first
+              <div className={`${HUD_CONFIG.COLORS.TEXT.WARNING} font-semibold`}>
+                {UI_CONFIG.TEXT.HEADERS.ACTION_MODE_WARNING}
               </div>
             )}
           </div>

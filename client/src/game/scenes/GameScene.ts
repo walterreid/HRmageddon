@@ -3,11 +3,81 @@ import { useGameStore } from '../../stores/gameStore'
 import { TileType, type Unit, type Tile, type Coordinate, AbilityTargetingType } from 'shared'
 import { getAbilityById, getValidTargets } from '../systems/abilities.ts'
 
+// ===== GAME SCENE CONFIGURATION =====
+const VISUAL_CONFIG = {
+  // Tile Colors (Corporate Beige & Gray Theme)
+  COLORS: {
+    TILES: {
+      NORMAL: 0xf5f5f4,        // Stone-100 (Light beige)
+      CUBICLE: 0xfef3c7,       // Amber-100 (Very light amber)
+      OBSTACLE: 0x78716c,      // Stone-500 (Medium gray)
+      CONFERENCE_ROOM: 0xd6d3d1, // Stone-300 (Light gray)
+      HQ_BLUE: 0x57534e,       // Stone-600 (Dark gray for Player 1 HQ)
+      HQ_RED: 0x44403c,        // Stone-700 (Darker gray for Player 2 HQ)
+    },
+    OWNERSHIP: {
+      PLAYER1_CUBICLE: 0xfbbf24, // Amber-400 (Gold for Player 1)
+      PLAYER2_CUBICLE: 0x6b7280, // Stone-500 (Gray for Player 2)
+    },
+    UNITS: {
+      PLAYER1: 0xf59e0b,       // Amber-500 (Corporate gold)
+      PLAYER2: 0x57534e,       // Stone-600 (Corporate gray)
+      HP_BAR_BG: 0x000000,     // Black (kept for contrast)
+      HP_BAR_FILL: 0x16a34a,   // Green-600 (kept for healing)
+      SELECTION_BORDER: 0xf59e0b, // Amber-500 (Corporate gold)
+      HOVER_BORDER: 0x78716c,  // Stone-500 (Corporate gray)
+    },
+    HIGHLIGHTS: {
+      MOVEMENT: 0x78716c,      // Stone-500 (Corporate gray for movement)
+      ATTACK: 0xef4444,        // Red-500 (Kept red for damage/attack)
+      ATTACK_RANGE: 0xdc2626,  // Red-600 (Kept red for attack range)
+      ABILITY: 0xf59e0b,       // Amber-500 (Corporate gold for abilities)
+      ABILITY_AOE: 0xfbbf24,   // Amber-400 (Lighter gold for AOE abilities)
+      MOVEMENT_BORDER: 0x57534e, // Stone-600 (Darker border for movement)
+      ATTACK_BORDER: 0xdc2626,   // Red-600 (Darker border for attack)
+      ABILITY_BORDER: 0xd97706,  // Amber-600 (Darker border for abilities)
+    }
+  },
+  
+  // Visual Properties
+  UNIT: {
+    CIRCLE_RADIUS: 20,
+    FONT_SIZE: '14px',
+    HP_BAR_WIDTH: 40,
+    HP_BAR_HEIGHT: 6,
+    HP_BAR_OFFSET_Y: -28,
+    SELECTION_BORDER_WIDTH: 3,
+    HOVER_BORDER_WIDTH: 2,
+    HOVER_ALPHA: 0.9,
+  },
+  
+  // Highlight Properties
+  HIGHLIGHT: {
+    MOVEMENT_ALPHA: 0.4,
+    ATTACK_ALPHA: 0.3,
+    ATTACK_RANGE_ALPHA: 0.2,
+    ABILITY_ALPHA: 0.3,
+    AOE_ALPHA: 0.4,
+    BORDER_WIDTH: 2,
+    TILE_BORDER_ALPHA: 0.5,
+    OVERLAY_ENABLED: true, // Use transparent overlays instead of borders
+  },
+  
+  // Animation
+  ANIMATION: {
+    MOVEMENT_DURATION: 250,
+    CLICK_SCALE_DURATION: 100,
+    CLICK_SCALE_FACTOR: 0.9,
+  }
+}
+// ===== END CONFIGURATION =====
+
 export class GameScene extends Phaser.Scene {
   private tileGraphics!: Phaser.GameObjects.Graphics
   private highlightGraphics!: Phaser.GameObjects.Graphics
   private unitSprites: Map<string, Phaser.GameObjects.Container> = new Map()
   private unsubscribe?: () => void
+  private isDestroyed: boolean = false
   
   // Action menu integration
   private actionMode: 'none' | 'move' | 'attack' | 'ability' = 'none'
@@ -27,12 +97,64 @@ export class GameScene extends Phaser.Scene {
     this.highlightGraphics = this.add.graphics()
     this.abilityTargetGraphics = this.add.graphics()
     
+    // Ensure ability graphics are drawn on top
+    this.abilityTargetGraphics.setDepth(100)
+    
+    console.log('Graphics initialized:', {
+      tileGraphics: !!this.tileGraphics,
+      highlightGraphics: !!this.highlightGraphics,
+      abilityTargetGraphics: !!this.abilityTargetGraphics
+    })
+    
     // Subscribe to game store changes
     this.unsubscribe = useGameStore.subscribe((state) => {
-      this.drawBoard(state.board)
-      this.drawUnits(state.units)
-      this.updateHighlights(state.highlightedTiles, state.selectedUnit)
-      this.updateAbilityTargeting(state.selectedUnit, state.selectedAbility)
+      try {
+        // Check if scene is still valid and has a valid manager
+        if (this.isDestroyed || !this.scene || !this.scene.manager || !this.scene.isActive || !this.scene.isActive()) {
+          console.warn('Scene destroyed or not active, skipping render update')
+          return
+        }
+        
+        if (!this.tileGraphics || !this.highlightGraphics || !this.abilityTargetGraphics) {
+          console.warn('Graphics not initialized, skipping render update')
+          return
+        }
+        
+        console.log('Rendering update:', {
+          board: state.board?.length,
+          units: state.units?.length,
+          highlights: state.highlightedTiles?.size,
+          selectedUnit: !!state.selectedUnit,
+          selectedAbility: !!state.selectedAbility
+        })
+        
+        this.drawBoard(state.board)
+        this.drawUnits(state.units)
+        
+        // If an ability is selected, don't show movement highlights
+        if (state.selectedAbility) {
+          console.log('Ability selected, clearing movement highlights and showing ability range')
+          // Clear movement highlights when ability is active
+          this.highlightGraphics.clear()
+          // Only show ability targeting
+          this.updateAbilityTargeting(state.selectedUnit, state.selectedAbility)
+        } else {
+          console.log('No ability selected, showing normal highlights')
+          // Show normal highlights (movement, attack, etc.)
+          this.updateHighlights(state.highlightedTiles, state.selectedUnit)
+          // Clear ability targeting graphics
+          this.abilityTargetGraphics.clear()
+        }
+      } catch (error) {
+        console.error('Error in game store subscription:', error)
+        // Try to recover by re-initializing graphics if they were lost
+        if (!this.tileGraphics || !this.highlightGraphics || !this.abilityTargetGraphics) {
+          console.log('Attempting to recover graphics...')
+          this.tileGraphics = this.add.graphics()
+          this.highlightGraphics = this.add.graphics()
+          this.abilityTargetGraphics = this.add.graphics()
+        }
+      }
     })
     
     // Set up input handling
@@ -45,6 +167,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   public getTileSize(): number {
+    // Validate scene state before accessing game config
+    if (!this.game || !this.game.config) {
+      console.warn('Game not initialized, returning default tile size')
+      return 40 // Default fallback tile size
+    }
+    
     // Calculate tile size based on canvas dimensions
     // Use 80% of available space for the board, divided by grid dimensions
     return Math.min(
@@ -55,237 +183,271 @@ export class GameScene extends Phaser.Scene {
 
   public getBoardOffsetX(): number {
     const tileSize = this.getTileSize()
+    if (!this.game || !this.game.config) {
+      return 0 // Default fallback offset
+    }
     return ((this.game.config.width as number) - (8 * tileSize)) / 2
   }
 
   public getBoardOffsetY(): number {
     const tileSize = this.getTileSize()
+    if (!this.game || !this.game.config) {
+      return 0 // Default fallback offset
+    }
     return ((this.game.config.height as number) - (10 * tileSize)) / 2
   }
 
   private drawBoard(board: Tile[][]) {
-    this.tileGraphics.clear()
-    const tileSize = this.getTileSize()
-    const boardOffsetX = this.getBoardOffsetX()
-    const boardOffsetY = this.getBoardOffsetY()
-    
-    for (let y = 0; y < board.length; y++) {
-      for (let x = 0; x < board[y].length; x++) {
-        const tile = board[y][x]
-        const px = boardOffsetX + x * tileSize
-        const py = boardOffsetY + y * tileSize
-
-        let color = 0xcccccc
-        switch (tile.type) {
-          case TileType.NORMAL:
-            color = 0x94a3b8
-            break
-          case TileType.CUBICLE:
-            color = 0xfde68a
-            break
-          case TileType.OBSTACLE:
-            color = 0x475569
-            break
-          case TileType.CONFERENCE_ROOM:
-            color = 0x8b7355
-            break
-          case TileType.HQ_BLUE:
-            color = 0x3b82f6
-            break
-          case TileType.HQ_RED:
-            color = 0xef4444
-            break
-        }
-
-        // owner tint for cubicles
-        if (tile.type === TileType.CUBICLE && tile.owner) {
-          color = tile.owner === 'player1' ? 0x93c5fd : 0xfca5a5
-        }
-
-        this.tileGraphics.fillStyle(color, 1)
-        this.tileGraphics.fillRect(px, py, tileSize - 2, tileSize - 2)
-        this.tileGraphics.lineStyle(1, 0x0f172a, 0.5)
-        this.tileGraphics.strokeRect(px, py, tileSize - 2, tileSize - 2)
+    try {
+      if (!this.tileGraphics) {
+        console.warn('tileGraphics not initialized, skipping board draw')
+        return
       }
+      
+      this.tileGraphics.clear()
+      const tileSize = this.getTileSize()
+      const boardOffsetX = this.getBoardOffsetX()
+      const boardOffsetY = this.getBoardOffsetY()
+      
+      for (let y = 0; y < board.length; y++) {
+        for (let x = 0; x < board[y].length; x++) {
+          const tile = board[y][x]
+          const px = boardOffsetX + x * tileSize
+          const py = boardOffsetY + y * tileSize
+
+          let color = 0xcccccc // Default fallback color
+          switch (tile.type) {
+            case TileType.NORMAL:
+              color = VISUAL_CONFIG.COLORS.TILES.NORMAL
+              break
+            case TileType.CUBICLE:
+              color = VISUAL_CONFIG.COLORS.TILES.CUBICLE
+              break
+            case TileType.OBSTACLE:
+              color = VISUAL_CONFIG.COLORS.TILES.OBSTACLE
+              break
+            case TileType.CONFERENCE_ROOM:
+              color = VISUAL_CONFIG.COLORS.TILES.CONFERENCE_ROOM
+              break
+            case TileType.HQ_BLUE:
+              color = VISUAL_CONFIG.COLORS.TILES.HQ_BLUE
+              break
+            case TileType.HQ_RED:
+              color = VISUAL_CONFIG.COLORS.TILES.HQ_RED
+              break
+          }
+
+          // owner tint for cubicles
+          if (tile.type === TileType.CUBICLE && tile.owner) {
+            color = tile.owner === 'player1' ? VISUAL_CONFIG.COLORS.OWNERSHIP.PLAYER1_CUBICLE : VISUAL_CONFIG.COLORS.OWNERSHIP.PLAYER2_CUBICLE
+          }
+
+          this.tileGraphics.fillStyle(color, 1)
+          this.tileGraphics.fillRect(px, py, tileSize, tileSize)
+          this.tileGraphics.lineStyle(1, 0x0f172a, VISUAL_CONFIG.HIGHLIGHT.TILE_BORDER_ALPHA)
+          this.tileGraphics.strokeRect(px, py, tileSize, tileSize)
+        }
+      }
+    } catch (error) {
+      console.error('Error drawing board:', error)
     }
   }
 
   private drawUnits(units: Unit[]) {
-    // remove containers that no longer exist
-    this.unitSprites.forEach((container, id) => {
-      if (!units.find((u) => u.id === id)) {
-        container.destroy()
-        this.unitSprites.delete(id)
-      }
-    })
+    try {
+      // remove containers that no longer exist
+      this.unitSprites.forEach((container, id) => {
+        if (!units.find((u) => u.id === id)) {
+          container.destroy()
+          this.unitSprites.delete(id)
+        }
+      })
 
-    const tileSize = this.getTileSize()
-    const boardOffsetX = this.getBoardOffsetX()
-    const boardOffsetY = this.getBoardOffsetY()
+      const tileSize = this.getTileSize()
+      const boardOffsetX = this.getBoardOffsetX()
+      const boardOffsetY = this.getBoardOffsetY()
 
-    for (const unit of units) {
-      const targetX = boardOffsetX + unit.position.x * tileSize + tileSize / 2
-      const targetY = boardOffsetY + unit.position.y * tileSize + tileSize / 2
-      const existing = this.unitSprites.get(unit.id)
-      if (existing) {
-        this.tweens.add({ targets: existing, x: targetX, y: targetY, duration: 250, ease: 'Power2' })
-        // Update HP bar width
-        const hpFill = existing.getByName('hpFill') as Phaser.GameObjects.Rectangle
-        if (hpFill) hpFill.width = 40 * (unit.hp / unit.maxHp)
-        continue
-      }
+      for (const unit of units) {
+        const targetX = boardOffsetX + unit.position.x * tileSize + tileSize / 2
+        const targetY = boardOffsetY + unit.position.y * tileSize + tileSize / 2
+        const existing = this.unitSprites.get(unit.id)
+        if (existing) {
+          this.tweens.add({ targets: existing, x: targetX, y: targetY, duration: VISUAL_CONFIG.ANIMATION.MOVEMENT_DURATION, ease: 'Power2' })
+          // Update HP bar width
+          const hpFill = existing.getByName('hpFill') as Phaser.GameObjects.Rectangle
+          if (hpFill) hpFill.width = VISUAL_CONFIG.UNIT.HP_BAR_WIDTH * (unit.hp / unit.maxHp)
+          continue
+        }
 
-      const container = this.add.container(targetX, targetY)
-      const circleColor = unit.playerId === 'player1' ? 0xFFD700 : 0x191970 // Gold vs Navy
-      const circle = this.add.circle(0, 0, 20, circleColor)
-      const label = this.add.text(0, 0, unit.type.charAt(0).toUpperCase(), { color: '#fff', fontSize: '14px' })
-      label.setOrigin(0.5)
-      const hpBg = this.add.rectangle(0, -28, 40, 6, 0x000000).setOrigin(0.5)
-      const hpFill = this.add.rectangle(-20, -28, 40 * (unit.hp / unit.maxHp), 6, 0x16a34a)
-        .setOrigin(0, 0.5)
-        .setName('hpFill')
-      container.add([circle, label, hpBg, hpFill])
-      
-      // Make the container interactive with proper hit area
-      container.setSize(tileSize, tileSize)
-      container.setData('unitId', unit.id)
-      
-      // Enhanced interactivity for Safari compatibility
-      container.setInteractive(new Phaser.Geom.Rectangle(-tileSize/2, -tileSize/2, tileSize, tileSize), Phaser.Geom.Rectangle.Contains)
-      
-      // Add multiple event listeners for better compatibility
-      container.on('pointerdown', () => {
-        console.log('Unit clicked:', unit.id) // Debug log
-        const u = useGameStore.getState().units.find((uu) => uu.id === unit.id)
-        if (u) useGameStore.getState().selectUnit(u)
+        const container = this.add.container(targetX, targetY)
+        const circleColor = unit.playerId === 'player1' ? VISUAL_CONFIG.COLORS.UNITS.PLAYER1 : VISUAL_CONFIG.COLORS.UNITS.PLAYER2 // Gold vs Navy
+        const circle = this.add.circle(0, 0, VISUAL_CONFIG.UNIT.CIRCLE_RADIUS, circleColor)
+        const label = this.add.text(0, 0, unit.type.charAt(0).toUpperCase(), { color: '#fff', fontSize: VISUAL_CONFIG.UNIT.FONT_SIZE })
+        label.setOrigin(0.5)
+        const hpBg = this.add.rectangle(0, VISUAL_CONFIG.UNIT.HP_BAR_OFFSET_Y, VISUAL_CONFIG.UNIT.HP_BAR_WIDTH, VISUAL_CONFIG.UNIT.HP_BAR_HEIGHT, VISUAL_CONFIG.COLORS.UNITS.HP_BAR_BG).setOrigin(0.5)
+        const hpFill = this.add.rectangle(-20, VISUAL_CONFIG.UNIT.HP_BAR_OFFSET_Y, VISUAL_CONFIG.UNIT.HP_BAR_WIDTH * (unit.hp / unit.maxHp), VISUAL_CONFIG.UNIT.HP_BAR_HEIGHT, VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL)
+          .setOrigin(0, 0.5)
+          .setName('hpFill')
+        container.add([circle, label, hpBg, hpFill])
         
-        // Add click feedback
-        circle.setScale(0.9)
-        this.time.delayedCall(100, () => {
-          circle.setScale(1)
+        // Make the container interactive with proper hit area
+        container.setSize(tileSize, tileSize)
+        container.setData('unitId', unit.id)
+        
+        // Enhanced interactivity for Safari compatibility
+        container.setInteractive(new Phaser.Geom.Rectangle(-tileSize/2, -tileSize/2, tileSize, tileSize), Phaser.Geom.Rectangle.Contains)
+        
+        // Add multiple event listeners for better compatibility
+        container.on('pointerdown', () => {
+          console.log('Unit clicked:', unit.id) // Debug log
+          const u = useGameStore.getState().units.find((uu) => uu.id === unit.id)
+          if (u) useGameStore.getState().selectUnit(u)
+          
+          // Add click feedback
+          circle.setScale(VISUAL_CONFIG.ANIMATION.CLICK_SCALE_FACTOR)
+          this.time.delayedCall(VISUAL_CONFIG.ANIMATION.CLICK_SCALE_DURATION, () => {
+            circle.setScale(1)
+          })
         })
-      })
-      
-      // Add visual feedback for interactivity
-      container.on('pointerover', () => {
-        circle.setStrokeStyle(2, 0xffffff, 0.8)
-        // Add a subtle glow effect
-        circle.setAlpha(0.9)
-      })
-      
-      container.on('pointerout', () => {
-        circle.setStrokeStyle(0)
-        circle.setAlpha(1)
-      })
-      
-      this.unitSprites.set(unit.id, container)
+        
+        // Add visual feedback for interactivity
+        container.on('pointerover', () => {
+          circle.setStrokeStyle(VISUAL_CONFIG.UNIT.HOVER_BORDER_WIDTH, VISUAL_CONFIG.COLORS.UNITS.HOVER_BORDER, VISUAL_CONFIG.UNIT.HOVER_ALPHA)
+          // Add a subtle glow effect
+          circle.setAlpha(0.9)
+        })
+        
+        container.on('pointerout', () => {
+          circle.setStrokeStyle(0)
+          circle.setAlpha(1)
+        })
+        
+        this.unitSprites.set(unit.id, container)
+      }
+    } catch (error) {
+      console.error('Error drawing units:', error)
     }
   }
 
   private updateHighlights(highlighted: Map<string, string>, selectedUnit?: Unit) {
-    this.highlightGraphics.clear()
-    
-    // Create a map to track multiple highlight types per tile
-    const highlightMap = new Map<string, string[]>()
-    
-    // Group highlights by coordinate
-    highlighted.forEach((type, key) => {
-      if (!highlightMap.has(key)) {
-        highlightMap.set(key, [])
+    try {
+      if (!this.highlightGraphics) {
+        console.warn('highlightGraphics not initialized, skipping highlight update')
+        return
       }
-      highlightMap.get(key)!.push(type)
-    })
-    
-    // Draw each highlight type with appropriate rendering
-    highlightMap.forEach((types, coordKey) => {
-      const [x, y] = coordKey.split(',').map(Number)
-      const tileSize = this.getTileSize()
-      const boardOffsetX = this.getBoardOffsetX()
-      const boardOffsetY = this.getBoardOffsetY()
-      const px = boardOffsetX + x * tileSize
-      const py = boardOffsetY + y * tileSize
       
-      // Draw each highlight type for this tile
-      types.forEach(type => {
-        this.drawHighlight(px, py, tileSize, type)
+      this.highlightGraphics.clear()
+      
+      // Create a map to track multiple highlight types per tile
+      const highlightMap = new Map<string, string[]>()
+      
+      // Group highlights by coordinate
+      highlighted.forEach((type, key) => {
+        if (!highlightMap.has(key)) {
+          highlightMap.set(key, [])
+        }
+        highlightMap.get(key)!.push(type)
       })
-    })
+      
+      // Draw each highlight type with appropriate rendering
+      highlightMap.forEach((types, coordKey) => {
+        const [x, y] = coordKey.split(',').map(Number)
+        const tileSize = this.getTileSize()
+        const boardOffsetX = this.getBoardOffsetX()
+        const boardOffsetY = this.getBoardOffsetY()
+        const px = boardOffsetX + x * tileSize
+        const py = boardOffsetY + y * tileSize
+        
+        // Draw each highlight type for this tile
+        types.forEach(type => {
+          this.drawHighlight(px, py, tileSize, type)
+        })
+      })
 
-    // Draw selected unit highlight
-    if (selectedUnit) {
-      const tileSize = this.getTileSize()
-      const boardOffsetX = this.getBoardOffsetX()
-      const boardOffsetY = this.getBoardOffsetY()
-      const px = boardOffsetX + selectedUnit.position.x * tileSize
-      const py = boardOffsetY + selectedUnit.position.y * tileSize
-      this.highlightGraphics.lineStyle(3, 0xf59e0b, 1)
-      this.highlightGraphics.strokeRect(px - 1, py - 1, tileSize, tileSize)
+      // Draw selected unit highlight
+      if (selectedUnit) {
+        const tileSize = this.getTileSize()
+        const boardOffsetX = this.getBoardOffsetX()
+        const boardOffsetY = this.getBoardOffsetY()
+        const px = boardOffsetX + selectedUnit.position.x * tileSize
+        const py = boardOffsetY + selectedUnit.position.y * tileSize
+        this.highlightGraphics.lineStyle(VISUAL_CONFIG.UNIT.SELECTION_BORDER_WIDTH, VISUAL_CONFIG.COLORS.UNITS.SELECTION_BORDER, 1)
+        this.highlightGraphics.strokeRect(px - 1, py - 1, tileSize, tileSize)
+      }
+    } catch (error) {
+      console.error('Error updating highlights:', error)
     }
   }
 
   private drawHighlight(x: number, y: number, tileSize: number, type: string) {
-    let color = 0x22c55e // Default green
-    let alpha = 0.3
-    let isOutline = false
-    let isFilled = true
+    try {
+      if (!this.highlightGraphics) {
+        console.warn('highlightGraphics not initialized, skipping highlight draw')
+        return
+      }
+      
+      let color = VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL // Default green
+      let alpha = 0.3
+      let isOutline = false
+      let isFilled = true
     
     switch (type) {
       case 'movement':
-        color = 0x06b6d4 // Cyan outline for movement
-        alpha = 0.8
-        isOutline = true
-        isFilled = false
+        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.MOVEMENT // Corporate gray overlay for movement
+        alpha = VISUAL_CONFIG.HIGHLIGHT.MOVEMENT_ALPHA
+        isOutline = false
+        isFilled = true
         break
       case 'attack':
-        color = 0xef4444 // Red outline for attack
-        alpha = 0.8
-        isOutline = true
-        isFilled = false
+        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK // Red overlay for attack
+        alpha = VISUAL_CONFIG.HIGHLIGHT.ATTACK_ALPHA
+        isOutline = false
+        isFilled = true
         break
       case 'attack_range':
-        color = 0xdc2626 // Darker red for attack range
-        alpha = 0.3
-        isOutline = true
-        isFilled = false
+        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_RANGE // Darker red overlay for attack range
+        alpha = VISUAL_CONFIG.HIGHLIGHT.ATTACK_RANGE_ALPHA
+        isOutline = false
+        isFilled = true
         break
       case 'ability':
-        color = 0x8b5cf6 // Purple for ability targeting
-        alpha = 0.6
-        isOutline = true
-        isFilled = false
+        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY // Corporate gold overlay for ability targeting
+        alpha = VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA
+        isOutline = false
+        isFilled = true
         break
       case 'ability_aoe':
-        color = 0xec4899 // Pink for AOE abilities
+        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE // Pink for AOE abilities
         alpha = 0.4
         isOutline = false
         isFilled = true
         break
       case 'target_enemy':
-        color = 0xdc2626 // Red filled for enemy targets
+        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_RANGE // Red filled for enemy targets
         alpha = 0.6
         isOutline = false
         isFilled = true
         break
       case 'target_ally':
-        color = 0x16a34a // Green filled for ally targets
+        color = VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL // Green filled for ally targets
         alpha = 0.6
         isOutline = false
         isFilled = true
         break
       case 'capture':
-        color = 0x06b6d4 // Cyan for capture
+        color = VISUAL_CONFIG.COLORS.HIGHLIGHTS.MOVEMENT // Cyan for capture
         alpha = 0.4
         isOutline = false
         isFilled = true
         break
       case 'invalid':
-        color = 0x6b7280 // Gray for invalid targets
+        color = 0x6b7280 // Gray for invalid targets (keep as fallback)
         alpha = 0.5
         isOutline = false
         isFilled = true
         break
       default:
-        color = 0x22c55e // Default green
+        color = VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL // Default green
         alpha = 0.3
         isOutline = false
         isFilled = true
@@ -293,31 +455,63 @@ export class GameScene extends Phaser.Scene {
     
     if (isFilled) {
       this.highlightGraphics.fillStyle(color, alpha)
-      this.highlightGraphics.fillRect(x, y, tileSize - 2, tileSize - 2)
+      this.highlightGraphics.fillRect(x, y, tileSize, tileSize)
+      
+      // Add a subtle border for better visibility
+      let borderColor = color
+      if (type === 'movement') {
+        borderColor = VISUAL_CONFIG.COLORS.HIGHLIGHTS.MOVEMENT_BORDER
+      } else if (type === 'attack' || type === 'attack_range') {
+        borderColor = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_BORDER
+      } else if (type === 'ability' || type === 'ability_aoe') {
+        borderColor = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_BORDER
+      }
+      this.highlightGraphics.lineStyle(1, borderColor, Math.min(alpha + 0.3, 1.0))
+      this.highlightGraphics.strokeRect(x, y, tileSize, tileSize)
     }
     
     if (isOutline) {
       this.highlightGraphics.lineStyle(2, color, alpha)
-      this.highlightGraphics.strokeRect(x, y, tileSize - 2, tileSize - 2)
+      this.highlightGraphics.strokeRect(x, y, tileSize, tileSize)
+    }
+    } catch (error) {
+      console.error('Error drawing highlight:', error)
     }
   }
 
   private updateAbilityTargeting(selectedUnit?: Unit, selectedAbility?: string) {
+    console.log('updateAbilityTargeting called with:', { 
+      selectedUnit: selectedUnit?.id, 
+      selectedAbility,
+      hasGraphics: !!this.abilityTargetGraphics 
+    })
+    
     this.abilityTargetGraphics.clear()
     
     if (!selectedUnit || !selectedAbility) {
+      console.log('No unit or ability selected, clearing targeting')
       this.targetingMode = false
       this.validTargets = []
       return
     }
 
     const ability = getAbilityById(selectedAbility)
-    if (!ability) return
+    if (!ability) {
+      console.log('Ability not found:', selectedAbility)
+      return
+    }
+
+    console.log('Found ability:', ability.name, 'with range:', ability.range)
 
     const store = useGameStore.getState()
     this.validTargets = getValidTargets(selectedUnit, ability, store.board)
     this.targetingMode = true
+    
+    console.log('Valid targets found:', this.validTargets.length)
 
+    // Show range highlight first
+    this.showAbilityRange(selectedUnit, ability)
+    
     // Handle different targeting types
     switch (ability.targetingType) {
       case AbilityTargetingType.AOE_CONE:
@@ -333,6 +527,85 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // Show the range area for an ability
+  private showAbilityRange(caster: Unit, ability: any) {
+    console.log('showAbilityRange called for:', ability.name, 'with range:', ability.range)
+    console.log('Caster position:', caster.position)
+    
+    // Validate graphics context
+    if (!this.abilityTargetGraphics) {
+      console.error('abilityTargetGraphics not initialized!')
+      return
+    }
+    
+    const tileSize = this.getTileSize()
+    const boardOffsetX = this.getBoardOffsetX()
+    const boardOffsetY = this.getBoardOffsetY()
+    
+    console.log('Tile size:', tileSize, 'Board offset:', { x: boardOffsetX, y: boardOffsetY })
+    
+    // Determine if this is a positive or negative ability based on target type
+    const isPositiveAbility = ability.targetType === 'ally' || ability.targetType === 'self'
+    const isNegativeAbility = ability.targetType === 'enemy'
+    
+    console.log('Ability type:', { isPositiveAbility, isNegativeAbility, targetType: ability.targetType })
+    
+    // Use appropriate colors for range highlighting
+    let rangeColor: number
+    let rangeAlpha: number
+    
+    if (isNegativeAbility) {
+      // Reddish for negative abilities (harmful to enemies)
+      rangeColor = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_RANGE
+      rangeAlpha = 0.25 // Good visibility without being too opaque
+      console.log('Using negative ability colors:', { rangeColor: rangeColor.toString(16), rangeAlpha })
+    } else {
+      // Greenish for positive abilities (helpful to allies)
+      rangeColor = VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL
+      rangeAlpha = 0.25 // Good visibility without being too opaque
+      console.log('Using positive ability colors:', { rangeColor: rangeColor.toString(16), rangeAlpha })
+    }
+    
+    // Draw range highlight for all tiles within range
+    const range = ability.range || 1
+    let tilesHighlighted = 0
+    
+    console.log('Drawing range highlights for range:', range)
+    
+    for (let dx = -range; dx <= range; dx++) {
+      for (let dy = -range; dy <= range; dy++) {
+        // Check if this tile is within the actual range (Manhattan distance)
+        if (Math.abs(dx) + Math.abs(dy) <= range) {
+          const targetX = caster.position.x + dx
+          const targetY = caster.position.y + dy
+          
+          // Check if this position is on the board
+          const store = useGameStore.getState()
+          if (targetX >= 0 && targetX < store.board[0].length && 
+              targetY >= 0 && targetY < store.board.length) {
+            
+            const px = boardOffsetX + targetX * tileSize
+            const py = boardOffsetY + targetY * tileSize
+            
+            console.log(`Highlighting tile at (${targetX}, ${targetY}) -> screen (${px}, ${py})`)
+            
+            // Draw range highlight
+            this.abilityTargetGraphics.fillStyle(rangeColor, rangeAlpha)
+            this.abilityTargetGraphics.fillRect(px, py, tileSize, tileSize)
+            
+            // Add subtle border
+            this.abilityTargetGraphics.lineStyle(1, rangeColor, rangeAlpha + 0.2)
+            this.abilityTargetGraphics.strokeRect(px, py, tileSize, tileSize)
+            
+            tilesHighlighted++
+          }
+        }
+      }
+    }
+    
+    console.log(`Range highlighting complete. Tiles highlighted: ${tilesHighlighted}`)
+  }
+
   private showStandardTargeting() {
     // Highlight valid targets with standard targeting
     this.validTargets.forEach(target => {
@@ -344,10 +617,28 @@ export class GameScene extends Phaser.Scene {
         const px = boardOffsetX + target.x * tileSize
         const py = boardOffsetY + target.y * tileSize
         
-        this.abilityTargetGraphics.lineStyle(2, 0xf59e0b, 0.8)
+        // Determine if this is a positive or negative ability
+        const ability = getAbilityById(useGameStore.getState().selectedAbility || '')
+        const isPositiveAbility = ability?.targetType === 'ally' || ability?.targetType === 'self'
+        const isNegativeAbility = ability?.targetType === 'enemy'
+        
+        // Use appropriate colors for target highlighting
+        let targetColor: number
+        let targetAlpha: number
+        
+        if (isNegativeAbility) {
+          // Reddish for negative abilities
+          targetColor = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK
+          targetAlpha = VISUAL_CONFIG.HIGHLIGHT.ATTACK_ALPHA
+        } else {
+          // Greenish for positive abilities
+          targetColor = VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL
+          targetAlpha = VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA
+        }
+        
+        this.abilityTargetGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, targetColor, targetAlpha)
         this.abilityTargetGraphics.strokeRect(px, py, tileSize, tileSize)
-        this.abilityTargetGraphics.fillRect(px, py, tileSize, tileSize)
-        this.abilityTargetGraphics.fillStyle(0xf59e0b, 0.2)
+        this.abilityTargetGraphics.fillStyle(targetColor, targetAlpha * 0.3)
         this.abilityTargetGraphics.fillRect(px, py, tileSize, tileSize)
       } else {
         // Target is a unit
@@ -357,9 +648,28 @@ export class GameScene extends Phaser.Scene {
         const px = boardOffsetX + target.position.x * tileSize
         const py = boardOffsetY + target.position.y * tileSize
         
-        this.abilityTargetGraphics.lineStyle(2, 0xf59e0b, 0.8)
+        // Determine if this is a positive or negative ability
+        const ability = getAbilityById(useGameStore.getState().selectedAbility || '')
+        const isPositiveAbility = ability?.targetType === 'ally' || ability?.targetType === 'self'
+        const isNegativeAbility = ability?.targetType === 'enemy'
+        
+        // Use appropriate colors for target highlighting
+        let targetColor: number
+        let targetAlpha: number
+        
+        if (isNegativeAbility) {
+          // Reddish for negative abilities
+          targetColor = VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK
+          targetAlpha = VISUAL_CONFIG.HIGHLIGHT.ATTACK_ALPHA
+        } else {
+          // Greenish for positive abilities
+          targetColor = VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL
+          targetAlpha = VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA
+        }
+        
+        this.abilityTargetGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, targetColor, targetAlpha)
         this.abilityTargetGraphics.strokeCircle(px + tileSize/2, py + tileSize/2, tileSize/2 + 2)
-        this.abilityTargetGraphics.fillStyle(0xf59e0b, 0.2)
+        this.abilityTargetGraphics.fillStyle(targetColor, targetAlpha * 0.3)
         this.abilityTargetGraphics.fillCircle(px + tileSize/2, py + tileSize/2, tileSize/2)
       }
     })
@@ -378,7 +688,7 @@ export class GameScene extends Phaser.Scene {
     const coneAngle = (ability.coneAngle || 90) * Math.PI / 180 // Convert to radians
     
     // Draw cone outline
-    this.abilityTargetGraphics.lineStyle(3, 0xec4899, 0.8)
+    this.abilityTargetGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
     this.abilityTargetGraphics.beginPath()
     this.abilityTargetGraphics.moveTo(casterX, casterY)
     
@@ -390,7 +700,7 @@ export class GameScene extends Phaser.Scene {
     this.abilityTargetGraphics.strokePath()
     
     // Fill cone area
-    this.abilityTargetGraphics.fillStyle(0xec4899, 0.2)
+    this.abilityTargetGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.AOE_ALPHA)
     this.abilityTargetGraphics.fill()
   }
 
@@ -405,15 +715,20 @@ export class GameScene extends Phaser.Scene {
     const aoeRadius = (ability.aoeRadius || 2) * tileSize
     
     // Draw circle outline
-    this.abilityTargetGraphics.lineStyle(3, 0xec4899, 0.8)
+    this.abilityTargetGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
     this.abilityTargetGraphics.strokeCircle(casterX, casterY, aoeRadius)
     
     // Fill circle area
-    this.abilityTargetGraphics.fillStyle(0xec4899, 0.2)
+    this.abilityTargetGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.AOE_ALPHA)
     this.abilityTargetGraphics.fill()
   }
 
   private handleClick(pointer: Phaser.Input.Pointer) {
+    // Validate scene state before processing clicks
+    if (this.isDestroyed || !this.scene || !this.scene.manager || !this.scene.isActive || !this.scene.isActive()) {
+      console.warn('Scene destroyed or not active, ignoring click')
+      return
+    }
     
     const store = useGameStore.getState()
     
@@ -466,20 +781,43 @@ export class GameScene extends Phaser.Scene {
         const board = store.board
         if (tileX < 0 || tileX >= board[0].length || tileY < 0 || tileY >= board.length) {
           // Clicked outside board - cancel action mode
+          console.log('Clicked outside board, cancelling action mode')
           this.setActionMode('none')
           return
         }
         
-        // Check if clicked on a tile that's not a valid move/attack target
+        // Check if clicked on a tile that's not a valid move/attack/ability target
         let isValidTarget = false
         if (this.actionMode === 'move') {
           isValidTarget = store.possibleMoves.some(move => move.x === tileX && move.y === tileY)
         } else if (this.actionMode === 'attack') {
           isValidTarget = store.possibleTargets.some(target => target.x === tileX && target.y === tileY)
+        } else if (this.actionMode === 'ability') {
+          // For abilities, check if this tile is within range and a valid target
+          const selectedAbility = store.selectedAbility
+          if (selectedAbility) {
+            const ability = getAbilityById(selectedAbility)
+            if (ability) {
+              // Check if tile is within range
+              const distance = Math.abs(tileX - store.selectedUnit!.position.x) + Math.abs(tileY - store.selectedUnit!.position.y)
+              if (distance <= ability.range) {
+                // Check if this is a valid target for the ability
+                const targetCoord = { x: tileX, y: tileY }
+                const validTargets = getValidTargets(store.selectedUnit!, ability, store.board)
+                isValidTarget = validTargets.some(target => {
+                  if ('x' in target) {
+                    return target.x === tileX && target.y === tileY
+                  }
+                  return false
+                })
+              }
+            }
+          }
         }
         
         if (!isValidTarget) {
           // Clicked on invalid tile - cancel action mode
+          console.log('Clicked on invalid target, cancelling action mode')
           this.setActionMode('none')
           return
         }
@@ -517,6 +855,39 @@ export class GameScene extends Phaser.Scene {
                 this.actionMode = 'none'
                 return
               }
+            } else if (this.actionMode === 'ability') {
+              // Check if this unit is a valid ability target
+              const selectedAbility = store.selectedAbility
+              if (selectedAbility) {
+                const ability = getAbilityById(selectedAbility)
+                if (ability) {
+                  // Check if unit is within range
+                  const distance = Math.abs(unit.position.x - store.selectedUnit!.position.x) + 
+                                 Math.abs(unit.position.y - store.selectedUnit!.position.y)
+                  if (distance <= ability.range) {
+                    // Check if this is a valid target for the ability
+                    const validTargets = getValidTargets(store.selectedUnit!, ability, store.board)
+                    const isValidTarget = validTargets.some(target => {
+                      if ('id' in target) {
+                        return target.id === unit.id
+                      }
+                      return false
+                    })
+                    
+                    if (isValidTarget) {
+                      // Execute ability on this unit
+                      store.useAbility(store.selectedUnit!.id, selectedAbility, unit)
+                      this.actionMode = 'none'
+                      return
+                    }
+                  }
+                }
+              }
+              
+              // If we get here, the unit is not a valid ability target
+              console.log('Clicked on invalid ability target, cancelling action mode')
+              this.setActionMode('none')
+              return
             }
           }
           
@@ -659,9 +1030,9 @@ export class GameScene extends Phaser.Scene {
           const py = boardOffsetY + move.y * tileSize
           
           // Draw blue highlight for move targets
-          this.highlightGraphics.fillStyle(0x3b82f6, 0.6)
-          this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
-          this.highlightGraphics.lineStyle(2, 0x1d4ed8, 1)
+                  this.highlightGraphics.fillStyle(VISUAL_CONFIG.COLORS.TILES.HQ_BLUE, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
+        this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
+        this.highlightGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, 0x1d4ed8, 1)
           this.highlightGraphics.strokeRect(px, py, tileSize, tileSize)
         })
       }
@@ -714,9 +1085,9 @@ export class GameScene extends Phaser.Scene {
       const py = boardOffsetY + enemy.position.y * tileSize
       
       // Draw red highlight for enemy targets
-      this.highlightGraphics.fillStyle(0xef4444, 0.6)
+              this.highlightGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK, VISUAL_CONFIG.HIGHLIGHT.ATTACK_ALPHA)
       this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
-      this.highlightGraphics.lineStyle(2, 0xdc2626, 1)
+              this.highlightGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_RANGE, 1)
       this.highlightGraphics.strokeRect(px, py, tileSize, tileSize)
     })
   }
@@ -750,40 +1121,77 @@ export class GameScene extends Phaser.Scene {
       }
       
       // Draw purple highlight for ability targets
-      this.highlightGraphics.fillStyle(0x8b5cf6, 0.6)
+              this.highlightGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
       this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
-      this.highlightGraphics.lineStyle(2, 0x7c3aed, 1)
+              this.highlightGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, 0x7c3aed, 1)
       this.highlightGraphics.strokeRect(px, py, tileSize, tileSize)
     })
   }
 
   destroy() {
-    if (this.unsubscribe) this.unsubscribe()
+    console.log('GameScene destroy called')
+    
+    // Mark as destroyed to prevent further operations
+    this.isDestroyed = true
+    
+    // Clean up subscription first
+    if (this.unsubscribe) {
+      this.unsubscribe()
+      this.unsubscribe = undefined
+    }
+    
+    // Clear graphics to prevent further operations
+    if (this.tileGraphics) {
+      this.tileGraphics.destroy()
+      this.tileGraphics = undefined as any
+    }
+    if (this.highlightGraphics) {
+      this.highlightGraphics.destroy()
+      this.highlightGraphics = undefined as any
+    }
+    if (this.abilityTargetGraphics) {
+      this.abilityTargetGraphics.destroy()
+      this.abilityTargetGraphics = undefined as any
+    }
+    
+    // Clear unit sprites
+    this.unitSprites.forEach(container => {
+      if (container && container.destroy) {
+        container.destroy()
+      }
+    })
+    this.unitSprites.clear()
+    
+    console.log('GameScene destroy completed')
   }
 
   // Ability visual effects
   playAbilityEffect(abilityId: string, target: Unit | Coordinate) {
-    const ability = getAbilityById(abilityId)
-    if (!ability) return
+    try {
+      const ability = getAbilityById(abilityId)
+      if (!ability) return
 
-    switch (ability.visualEffect) {
-      case 'coffee_steam':
-        this.createCoffeeParticles(target)
-        break
-      case 'pink_slip_flash':
-        this.createPinkSlipEffect(target)
-        break
-      case 'paper_flying':
-        this.createPaperEffect(target)
-        break
-      case 'harass_aura':
-        this.createHarassEffect(target)
-        break
-      case 'overtime_glow':
-        this.createOvertimeEffect(target)
-        break
-      default:
-        this.createGenericEffect(target)
+      switch (ability.visualEffect) {
+        case 'coffee_steam':
+          this.createCoffeeParticles(target)
+          break
+        case 'pink_slip_flash':
+          this.createPinkSlipEffect(target)
+          break
+        case 'paper_flying':
+          this.createPaperEffect(target)
+          break
+        case 'harass_aura':
+          this.createHarassEffect(target)
+          break
+        case 'overtime_glow':
+          this.createOvertimeEffect(target)
+          break
+        default:
+          this.createGenericEffect(target)
+      }
+    } catch (error) {
+      console.error('Error playing ability effect:', error)
     }
   }
 
