@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useGameStore } from '../stores/gameStore'
 import { ActionMenu } from './ActionMenu'
+import { getUnitAbilities, canUseAbility } from '../game/systems/abilities.ts'
 
 // Import UI config from ActionMenu for shared constants
 import { UI_CONFIG } from '../config/uiConfig'
@@ -34,7 +35,10 @@ export function GameHUD() {
     attackTarget,
     useAbility,
     getAbilityTargets,
-    selectAbility
+    selectAbility,
+    canUnitMove,
+    canUnitAttack,
+    getEnemiesInRange
   } = useGameStore()
 
   const [actionMenuPosition, setActionMenuPosition] = useState({ x: 0, y: 0 })
@@ -42,6 +46,7 @@ export function GameHUD() {
   const [selectedAbility, setSelectedAbility] = useState<string | null>(null)
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
   const [unitSelectionBlocked, setUnitSelectionBlocked] = useState(false)
+  const [showDebugInfo, setShowDebugInfo] = useState(false)
   
   const isPlayerUnit = selectedUnit && selectedUnit.playerId === 'player1'
   const canControl = selectedUnit && selectedUnit.playerId === 'player1' && selectedUnit.actionsRemaining > 0
@@ -89,46 +94,24 @@ export function GameHUD() {
         const boardOffsetX = gameScene.getBoardOffsetX()
         const boardOffsetY = gameScene.getBoardOffsetY()
         
-        // Calculate unit position on screen
+        // Calculate unit center position
         const unitScreenX = boardOffsetX + (selectedUnit.position.x * tileSize) + (tileSize / 2)
         const unitScreenY = boardOffsetY + (selectedUnit.position.y * tileSize) + (tileSize / 2)
         
-        // Ensure the menu is visible on screen and positioned nicely
-        const menuWidth = UI_CONFIG.MENU.WIDTH
-        const menuHeight = UI_CONFIG.MENU.HEIGHT
-        
-        // Position menu to the right of the unit, or above if not enough space
-        let x = unitScreenX + UI_CONFIG.MENU.OFFSET_X
-        let y = unitScreenY - (menuHeight / 2)
-        
-        // If menu would go off the right side, position it to the left
-        if (x + menuWidth > window.innerWidth - UI_CONFIG.MENU.MIN_MARGIN) {
-          x = unitScreenX - menuWidth - UI_CONFIG.MENU.OFFSET_X
-        }
-        
-        // If menu would go off the bottom, position it above
-        if (y + menuHeight > window.innerHeight - UI_CONFIG.MENU.MIN_MARGIN) {
-          y = window.innerHeight - menuHeight - UI_CONFIG.MENU.MIN_MARGIN
-        }
-        
-        // Ensure menu doesn't go off the left or top
-        x = Math.max(UI_CONFIG.MENU.MIN_MARGIN, x)
-        y = Math.max(UI_CONFIG.MENU.MIN_MARGIN, y)
+        // Simple positioning - ActionMenu will handle smart positioning internally
+        setActionMenuPosition({ x: unitScreenX, y: unitScreenY })
         
         console.log('Action menu positioning:', {
           unitPosition: selectedUnit.position,
           tileSize,
           boardOffset: { x: boardOffsetX, y: boardOffsetY },
           unitScreenPos: { x: unitScreenX, y: unitScreenY },
-          finalMenuPos: { x, y },
           windowSize: { width: window.innerWidth, height: window.innerHeight }
         })
-        
-        setActionMenuPosition({ x, y })
       } else {
         console.log('GameScene not available for positioning, using default position')
         // Use a default position when GameScene isn't available
-        setActionMenuPosition({ x: UI_CONFIG.MENU.OFFSET_X * 2, y: UI_CONFIG.MENU.OFFSET_Y * 2 })
+        setActionMenuPosition({ x: 100, y: 100 })
       }
     }
   }, [selectedUnit, isPlayerUnit])
@@ -613,6 +596,80 @@ export function GameHUD() {
               </div>
             </div>
           )}
+
+          {/* Debug Info Panel (Collapsible) */}
+          <div className="mt-4">
+            <button
+              onClick={() => setShowDebugInfo(!showDebugInfo)}
+              className={`w-full text-left px-2 py-1 ${HUD_CONFIG.COLORS.BUTTONS.CANCEL} text-white text-xs rounded transition-colors`}
+            >
+              {showDebugInfo ? '▼ Hide Debug Info' : '▶ Show Debug Info'}
+            </button>
+            
+            {showDebugInfo && selectedUnit && (
+              <div className={`${HUD_CONFIG.COLORS.PANELS.BACKGROUND} border ${HUD_CONFIG.COLORS.PANELS.BORDER} rounded-lg p-3 mt-2 text-xs`}>
+                <div className={`${HUD_CONFIG.COLORS.TEXT.ACCENT} font-semibold mb-2`}>
+                  Debug: {selectedUnit.type} Details
+                </div>
+                
+                {/* Unit Stats */}
+                <div className="space-y-1 mb-3">
+                  <div>HP: {selectedUnit.hp}/{selectedUnit.maxHp}</div>
+                  <div>Actions: {selectedUnit.actionsRemaining}/2</div>
+                  <div>Move Range: {selectedUnit.moveRange}</div>
+                  <div>Attack Range: {selectedUnit.attackRange}</div>
+                  <div>Attack Damage: {selectedUnit.attackDamage}</div>
+                  {selectedUnit.hasMoved && (
+                    <div className="text-amber-400">Movement used: {selectedUnit.movementUsed || 0}/{selectedUnit.moveRange}</div>
+                  )}
+                  {selectedUnit.hasAttacked && (
+                    <div className="text-red-400">Already attacked this turn</div>
+                  )}
+                </div>
+                
+                {/* Action Availability */}
+                <div className="space-y-1 mb-3">
+                  <div className="font-semibold">Action Status:</div>
+                  <div>Can Move: {canUnitMove(selectedUnit) ? '✅' : '❌'}</div>
+                  <div>Can Attack: {canUnitAttack(selectedUnit) ? '✅' : '❌'}</div>
+                  <div>Enemies in Range: {getEnemiesInRange(selectedUnit).length}</div>
+                </div>
+                
+                {/* Abilities */}
+                <div className="space-y-1">
+                  <div className="font-semibold">Abilities:</div>
+                  {getUnitAbilities(selectedUnit.type).map((ability) => {
+                    const canUse = canUseAbility(selectedUnit, ability.id)
+                    const cooldownRemaining = selectedUnit.abilityCooldowns?.[ability.id] || 0
+                    
+                    return (
+                      <div key={ability.id} className="ml-2">
+                        <div className={canUse ? 'text-green-400' : 'text-red-400'}>
+                          {ability.name}: {canUse ? '✅' : '❌'}
+                        </div>
+                        {canUse && (
+                          <div className="ml-2 text-xs text-gray-300">
+                            Cost: {ability.cost} AP • Range: {ability.range}
+                            {ability.description && ` • ${ability.description}`}
+                          </div>
+                        )}
+                        {!canUse && (
+                          <div className="ml-2 text-xs text-gray-300">
+                            {selectedUnit.actionsRemaining < ability.cost ? 'Not enough AP' : 'Out of range or on cooldown'}
+                          </div>
+                        )}
+                        {ability.cooldown > 0 && (
+                          <div className="ml-2 text-xs text-gray-300">
+                            Cooldown: {cooldownRemaining > 0 ? `${cooldownRemaining} turns remaining` : `${ability.cooldown} turns`}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Help Text */}
           <div className={`text-xs ${HUD_CONFIG.COLORS.TEXT.SECONDARY} space-y-1 pt-2 border-t ${HUD_CONFIG.COLORS.PANELS.BORDER}`}>

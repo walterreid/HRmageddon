@@ -296,21 +296,48 @@ export class GameScene extends Phaser.Scene {
         const existing = this.unitSprites.get(unit.id)
         if (existing) {
           this.tweens.add({ targets: existing, x: targetX, y: targetY, duration: VISUAL_CONFIG.ANIMATION.MOVEMENT_DURATION, ease: 'Power2' })
+          
           // Update HP bar width
           const hpFill = existing.getByName('hpFill') as Phaser.GameObjects.Rectangle
           if (hpFill) hpFill.width = VISUAL_CONFIG.UNIT.HP_BAR_WIDTH * (unit.hp / unit.maxHp)
+          
+          // Update transparency for "done" state
+          const circle = existing.getByName('circle') as Phaser.GameObjects.Graphics
+          const label = existing.getByName('label') as Phaser.GameObjects.Text
+          const hpBg = existing.getByName('hpBg') as Phaser.GameObjects.Rectangle
+          
+          const alpha = unit.actionsRemaining === 0 ? 0.5 : 1.0
+          if (circle) circle.setAlpha(alpha)
+          if (label) label.setAlpha(alpha)
+          if (hpBg) hpBg.setAlpha(alpha)
+          if (hpFill) hpFill.setAlpha(alpha)
+          
           continue
         }
 
         const container = this.add.container(targetX, targetY)
         const circleColor = unit.playerId === 'player1' ? VISUAL_CONFIG.COLORS.UNITS.PLAYER1 : VISUAL_CONFIG.COLORS.UNITS.PLAYER2 // Gold vs Navy
-        const circle = this.add.circle(0, 0, VISUAL_CONFIG.UNIT.CIRCLE_RADIUS, circleColor)
-        const label = this.add.text(0, 0, unit.type.charAt(0).toUpperCase(), { color: '#fff', fontSize: VISUAL_CONFIG.UNIT.FONT_SIZE })
+        const circle = this.add.circle(0, 0, VISUAL_CONFIG.UNIT.CIRCLE_RADIUS, circleColor).setName('circle')
+        const label = this.add.text(0, 0, unit.type.charAt(0).toUpperCase(), { color: '#fff', fontSize: VISUAL_CONFIG.UNIT.FONT_SIZE }).setName('label')
         label.setOrigin(0.5)
-        const hpBg = this.add.rectangle(0, VISUAL_CONFIG.UNIT.HP_BAR_OFFSET_Y, VISUAL_CONFIG.UNIT.HP_BAR_WIDTH, VISUAL_CONFIG.UNIT.HP_BAR_HEIGHT, VISUAL_CONFIG.COLORS.UNITS.HP_BAR_BG).setOrigin(0.5)
+        const hpBg = this.add.rectangle(0, VISUAL_CONFIG.UNIT.HP_BAR_OFFSET_Y, VISUAL_CONFIG.UNIT.HP_BAR_WIDTH, VISUAL_CONFIG.UNIT.HP_BAR_HEIGHT, VISUAL_CONFIG.COLORS.UNITS.HP_BAR_BG).setOrigin(0.5).setName('hpBg')
         const hpFill = this.add.rectangle(-20, VISUAL_CONFIG.UNIT.HP_BAR_OFFSET_Y, VISUAL_CONFIG.UNIT.HP_BAR_WIDTH * (unit.hp / unit.maxHp), VISUAL_CONFIG.UNIT.HP_BAR_HEIGHT, VISUAL_CONFIG.COLORS.UNITS.HP_BAR_FILL)
           .setOrigin(0, 0.5)
           .setName('hpFill')
+        
+        // Set transparency for units with no actions remaining (visual "done" state)
+        if (unit.actionsRemaining === 0) {
+          circle.setAlpha(0.5) // Semi-transparent to show "done" state
+          label.setAlpha(0.5)
+          hpBg.setAlpha(0.5)
+          hpFill.setAlpha(0.5)
+        } else {
+          circle.setAlpha(1.0) // Full opacity for active units
+          label.setAlpha(1.0)
+          hpBg.setAlpha(1.0)
+          hpFill.setAlpha(1.0)
+        }
+        
         container.add([circle, label, hpBg, hpFill])
         
         // Make the container interactive with proper hit area
