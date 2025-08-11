@@ -773,12 +773,25 @@ export class GameScene extends Phaser.Scene {
         // Clear targeting mode and action mode
         store.selectAbility('')
         this.actionMode = 'none'
+        
+        // CRITICAL: Notify GameHUD that ability was used
+        if (typeof window !== 'undefined') {
+          const event = new CustomEvent('abilityUsed', { detail: { abilityId: store.selectedAbility } })
+          window.dispatchEvent(event)
+        }
         return
       }
       
       // If clicked outside valid targets, cancel targeting
+      console.log('Clicked outside ability range, cancelling ability')
       store.selectAbility('')
       this.actionMode = 'none'
+      
+      // CRITICAL: Notify GameHUD that ability was cancelled
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('abilityCancelled')
+        window.dispatchEvent(event)
+      }
       return
     }
     
@@ -836,6 +849,17 @@ export class GameScene extends Phaser.Scene {
         if (!isValidTarget) {
           // Clicked on invalid tile - cancel action mode
           console.log('Clicked on invalid target, cancelling action mode')
+          
+          // If this was an ability, notify GameHUD
+          if (this.actionMode === 'ability' && store.selectedAbility) {
+            console.log('Cancelling ability due to invalid target')
+            store.selectAbility('')
+            if (typeof window !== 'undefined') {
+              const event = new CustomEvent('abilityCancelled')
+              window.dispatchEvent(event)
+            }
+          }
+          
           this.setActionMode('none')
           return
         }

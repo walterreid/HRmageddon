@@ -181,10 +181,33 @@ export function GameHUD() {
       // Clear any ability selection first
       selectAbility('')
       
+      // CRITICAL: Force recalculation of movement/attack highlights
+      // This ensures the highlights appear immediately when the button is clicked
+      const store = useGameStore.getState()
+      if (store.calculatePossibleMoves && store.calculatePossibleTargets) {
+        const moves = store.calculatePossibleMoves(selectedUnit)
+        const targets = store.calculatePossibleTargets(selectedUnit)
+        const highlights = new Map<string, string>()
+        
+        if (action === 'move') {
+          moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
+        } else if (action === 'attack') {
+          targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
+        }
+        
+        // Update the store with the new highlights
+        useGameStore.setState({ 
+          highlightedTiles: highlights,
+          possibleMoves: action === 'move' ? moves : [],
+          possibleTargets: action === 'attack' ? targets : []
+        })
+        
+        console.log(`${action} action mode set with ${highlights.size} highlights`)
+      }
+      
       // Then set action mode
       setActionMode(action)
       setSelectedAbility(null)
-      console.log(`${action} action mode set`)
     } else {
       // This is an ability
       setActionMode('ability')
@@ -309,9 +332,30 @@ export function GameHUD() {
       handleTileClick(coord)
     }
 
+    const handleAbilityUsed = (event: CustomEvent) => {
+      console.log('Ability used:', event.detail?.abilityId)
+      setActionMode('none')
+      setSelectedAbility(null)
+      setActionFeedback({ type: 'success', message: 'Ability used successfully!' })
+      setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
+    }
+
+    const handleAbilityCancelled = () => {
+      console.log('Ability cancelled')
+      setActionMode('none')
+      setSelectedAbility(null)
+      setActionFeedback({ type: 'error', message: 'Ability cancelled - invalid target' })
+      setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
+    }
+
     window.addEventListener('gameTileClick', handleGameTileClick as EventListener)
+    window.addEventListener('abilityUsed', handleAbilityUsed as EventListener)
+    window.addEventListener('abilityCancelled', handleAbilityCancelled as EventListener)
+    
     return () => {
       window.removeEventListener('gameTileClick', handleGameTileClick as EventListener)
+      window.removeEventListener('abilityUsed', handleAbilityUsed as EventListener)
+      window.removeEventListener('abilityCancelled', handleAbilityCancelled as EventListener)
     }
   }, [selectedUnit, actionMode, selectedAbility, canControl])
 
