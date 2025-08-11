@@ -1,24 +1,25 @@
 services:
+  # API (Node/Express + Socket.io)
   - type: web
     name: hrmageddon-api
-    env: node
+    runtime: node         # use runtime (preferred) instead of env
     rootDir: server
-    plan: free
+    plan: free            # ok for web services (non-static)
     buildCommand: npm install && npm run build
     startCommand: npm start
-    autoDeploy: true
     envVars:
       - key: NODE_VERSION
         value: 20
       - key: CLIENT_ORIGIN
         value: https://hrmageddon-client.onrender.com
 
-  - type: static
+  # Client (Vite static site)
+  - type: web
     name: hrmageddon-client
+    runtime: static       # required for static sites
     rootDir: client
     buildCommand: npm install && npm run build
     staticPublishPath: dist
-    autoDeploy: true
     envVars:
       - key: VITE_API_URL
         value: https://hrmageddon-api.onrender.com
