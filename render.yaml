@@ -12,15 +12,12 @@ services:
         value: 20
       - key: CLIENT_ORIGIN
         value: https://hrmageddon-client.onrender.com
-      # If/when you add Postgres/Prisma, add DATABASE_URL here
 
-  - type: web
+  - type: static_site
     name: hrmageddon-client
-    env: static
     rootDir: client
-    plan: free
     buildCommand: npm install && npm run build
-    startCommand: npx serve -s dist -l $PORT
+    staticPublishPath: dist
     autoDeploy: true
     envVars:
       - key: VITE_API_URL
