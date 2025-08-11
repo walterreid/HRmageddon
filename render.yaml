@@ -13,7 +13,7 @@ services:
       - key: CLIENT_ORIGIN
         value: https://hrmageddon-client.onrender.com
 
-  - type: static_site
+  - type: static
     name: hrmageddon-client
     rootDir: client
     buildCommand: npm install && npm run build
