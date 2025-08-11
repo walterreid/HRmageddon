@@ -389,6 +389,15 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     const state = get()
     
+    // BEFORE selecting new unit, check if we're in ability mode
+    if (state.selectedAbility && unit) {
+      // Preserve ability mode if re-selecting same unit
+      if (state.selectedUnit?.id === unit.id) {
+        console.log('Re-selecting same unit in ability mode, preserving state')
+        return // Don't reset state
+      }
+    }
+    
     // Check if we're trying to select a different unit while one is already selected
     if (state.selectedUnit && state.selectedUnit.id !== unit.id) {
       // Check if the currently selected unit is in action mode
@@ -422,16 +431,9 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     }
     
-    // CRITICAL: Don't show movement if ability is selected
+    // Clear ability state when selecting different unit
     if (state.selectedAbility) {
-      set({
-        selectedUnit: unit,
-        // Keep ability state, don't show movement
-        possibleMoves: [],
-        possibleTargets: [],
-        // Don't clear ability highlights
-      })
-      return
+      set({ selectedAbility: undefined, targetingMode: false })
     }
     
     // Normal movement logic only when NO ability is selected
@@ -440,12 +442,22 @@ export const useGameStore = create<GameStore>((set, get) => {
                       unit.actionsRemaining > 0
     
     if (canControl) {
+      // Calculate highlights BEFORE setting state
       const moves = state.calculatePossibleMoves(unit)
       const targets = state.calculatePossibleTargets(unit)
       const highlights = new Map<string, string>()
       moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
       targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
 
+      console.log('selectUnit called:', {
+        unitId: unit.id,
+        currentAbility: state.selectedAbility,
+        highlightCount: highlights.size,
+        moveCount: moves.length,
+        targetCount: targets.length
+      })
+
+      // Set ALL state atomically
       set({
         selectedUnit: unit,
         possibleMoves: moves,
@@ -1023,16 +1035,22 @@ export const useGameStore = create<GameStore>((set, get) => {
     const state = get()
     if (!state.selectedUnit) return
     
+    console.log('selectAbility called:', {
+      abilityId,
+      unitId: state.selectedUnit.id,
+      currentAbility: state.selectedAbility
+    })
+    
+    // CRITICAL: Clear ALL movement state first
     set({ 
-      selectedAbility: abilityId,
-      // CRITICAL: Clear movement state when ability is selected
       possibleMoves: [],
       possibleTargets: [],
-      highlightedTiles: new Map(), // Clear ALL highlights first
+      highlightedTiles: new Map(),
+      selectedAbility: abilityId,
       targetingMode: !!abilityId
     })
     
-    // ONLY set ability highlights after clearing everything
+    // Then calculate and set ONLY ability highlights
     if (abilityId) {
       const ability = ABILITIES[abilityId]
       if (ability) {
@@ -1045,6 +1063,12 @@ export const useGameStore = create<GameStore>((set, get) => {
           } else {
             abilityHighlights.set(`${target.position.x},${target.position.y}`, 'ability')
           }
+        })
+        
+        console.log('selectAbility called:', {
+          abilityId,
+          validTargets: validTargets.length,
+          highlightCount: abilityHighlights.size
         })
         
         // Update ONLY with ability highlights

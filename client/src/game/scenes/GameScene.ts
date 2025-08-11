@@ -78,6 +78,7 @@ export class GameScene extends Phaser.Scene {
   private unitSprites: Map<string, Phaser.GameObjects.Container> = new Map()
   private unsubscribe?: () => void
   private isDestroyed: boolean = false
+  private lastSelectedAbility?: string // Track ability changes for synchronization
   
   // Action menu integration
   private actionMode: 'none' | 'move' | 'attack' | 'ability' = 'none'
@@ -120,30 +121,52 @@ export class GameScene extends Phaser.Scene {
           return
         }
         
-        console.log('Rendering update:', {
-          board: state.board?.length,
-          units: state.units?.length,
-          highlights: state.highlightedTiles?.size,
-          selectedUnit: !!state.selectedUnit,
-          selectedAbility: !!state.selectedAbility
-        })
-        
-        this.drawBoard(state.board)
-        this.drawUnits(state.units)
-        
-        // If an ability is selected, don't show movement highlights
-        if (state.selectedAbility) {
-          console.log('Ability selected, clearing movement highlights and showing ability range')
-          // Clear movement highlights when ability is active
+        // Check for ability changes specifically
+        if (state.selectedAbility !== this.lastSelectedAbility) {
+          console.log('Ability selection changed:', {
+            from: this.lastSelectedAbility,
+            to: state.selectedAbility
+          })
+          this.lastSelectedAbility = state.selectedAbility
+          
+          // Force complete re-render of highlights
           this.highlightGraphics.clear()
-          // Only show ability targeting
-          this.updateAbilityTargeting(state.selectedUnit, state.selectedAbility)
-        } else {
-          console.log('No ability selected, showing normal highlights')
-          // Show normal highlights (movement, attack, etc.)
-          this.updateHighlights(state.highlightedTiles, state.selectedUnit)
-          // Clear ability targeting graphics
           this.abilityTargetGraphics.clear()
+          
+          if (state.selectedAbility) {
+            console.log('Ability mode active, updating ability targeting')
+            this.updateAbilityTargeting(state.selectedUnit, state.selectedAbility)
+          } else {
+            console.log('Ability mode cleared, updating normal highlights')
+            this.updateHighlights(state.highlightedTiles, state.selectedUnit)
+          }
+        } else {
+          // Regular update (no ability change)
+          console.log('Regular rendering update:', {
+            board: state.board?.length,
+            units: state.units?.length,
+            highlights: state.highlightedTiles?.size,
+            selectedUnit: !!state.selectedUnit,
+            selectedAbility: !!state.selectedAbility
+          })
+          
+          this.drawBoard(state.board)
+          this.drawUnits(state.units)
+          
+          // If an ability is selected, don't show movement highlights
+          if (state.selectedAbility) {
+            console.log('Ability selected, clearing movement highlights and showing ability range')
+            // Clear movement highlights when ability is active
+            this.highlightGraphics.clear()
+            // Only show ability targeting
+            this.updateAbilityTargeting(state.selectedUnit, state.selectedAbility)
+          } else {
+            console.log('No ability selected, showing normal highlights')
+            // Show normal highlights (movement, attack, etc.)
+            this.updateHighlights(state.highlightedTiles, state.selectedUnit)
+            // Clear ability targeting graphics
+            this.abilityTargetGraphics.clear()
+          }
         }
       } catch (error) {
         console.error('Error in game store subscription:', error)
@@ -152,7 +175,7 @@ export class GameScene extends Phaser.Scene {
           console.log('Attempting to recover graphics...')
           this.tileGraphics = this.add.graphics()
           this.highlightGraphics = this.add.graphics()
-          this.abilityTargetGraphics = this.add.graphics()
+          this.abilityTargetGraphics.clear()
         }
       }
     })
@@ -339,7 +362,7 @@ export class GameScene extends Phaser.Scene {
       // ALWAYS clear first
       this.highlightGraphics.clear()
       
-      // If ability is selected, ONLY show ability highlights
+      // Check ability state FIRST
       const store = useGameStore.getState()
       if (store.selectedAbility && store.targetingMode) {
         console.log('Ability mode active, showing ability highlights only')
@@ -353,39 +376,47 @@ export class GameScene extends Phaser.Scene {
             const px = boardOffsetX + x * tileSize
             const py = boardOffsetY + y * tileSize
             
-            // Use distinct ability color (purple/gold)
+            // Use DISTINCT purple color for abilities
             this.drawHighlight(px, py, tileSize, 'ability')
           }
         })
-      } else {
-        // Normal mode - show movement/attack highlights
-        console.log('Normal mode active, showing movement/attack highlights')
-        const highlightMap = new Map<string, string[]>()
-        
-        highlighted.forEach((type, key) => {
-          // IGNORE ability highlights in normal mode
-          if (type !== 'ability') {
-            if (!highlightMap.has(key)) {
-              highlightMap.set(key, [])
-            }
-            highlightMap.get(key)!.push(type)
-          }
-        })
-        
-        // Draw movement/attack highlights
-        highlightMap.forEach((types, coordKey) => {
-          const [x, y] = coordKey.split(',').map(Number)
-          const tileSize = this.getTileSize()
-          const boardOffsetX = this.getBoardOffsetX()
-          const boardOffsetY = this.getBoardOffsetY()
-          const px = boardOffsetX + x * tileSize
-          const py = boardOffsetY + y * tileSize
-          
-          types.forEach(type => {
-            this.drawHighlight(px, py, tileSize, type)
-          })
-        })
+        return // Don't show any other highlights
       }
+      
+      console.log('updateHighlights:', {
+        hasAbility: !!store.selectedAbility,
+        targetingMode: store.targetingMode,
+        highlightCount: highlighted.size,
+        highlightTypes: Array.from(highlighted.values())
+      })
+      
+      // Normal mode - show movement/attack highlights
+      console.log('Normal mode active, showing movement/attack highlights')
+      const highlightMap = new Map<string, string[]>()
+      
+      highlighted.forEach((type, key) => {
+        // IGNORE ability highlights in normal mode
+        if (type !== 'ability') {
+          if (!highlightMap.has(key)) {
+            highlightMap.set(key, [])
+          }
+          highlightMap.get(key)!.push(type)
+        }
+      })
+      
+      // Draw movement/attack highlights
+      highlightMap.forEach((types, coordKey) => {
+        const [x, y] = coordKey.split(',').map(Number)
+        const tileSize = this.getTileSize()
+        const boardOffsetX = this.getBoardOffsetX()
+        const boardOffsetY = this.getBoardOffsetY()
+        const px = boardOffsetX + x * tileSize
+        const py = boardOffsetY + y * tileSize
+        
+        types.forEach(type => {
+          this.drawHighlight(px, py, tileSize, type)
+        })
+      })
 
       // Always draw selected unit highlight last
       if (selectedUnit) {
