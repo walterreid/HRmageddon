@@ -583,6 +583,14 @@ export const useGameStore = create<GameStore>((set, get) => {
       moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
       targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
 
+      // Emit action completed event
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('actionCompleted', {
+          detail: { actionType: 'move', unitId, remainingActions: updatedUnit.actionsRemaining }
+        })
+        window.dispatchEvent(event)
+      }
+
       return {
         ...state,
         units: updatedUnits,
@@ -626,6 +634,14 @@ export const useGameStore = create<GameStore>((set, get) => {
       const highlights = new Map<string, string>()
       moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
       targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
+
+      // Emit action completed event
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('actionCompleted', {
+          detail: { actionType: 'attack', unitId: attackerId, remainingActions: updatedAttacker.actionsRemaining }
+        })
+        window.dispatchEvent(event)
+      }
 
       return {
         ...state,
@@ -1114,6 +1130,14 @@ export const useGameStore = create<GameStore>((set, get) => {
       const highlights = new Map<string, string>()
       moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
       targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
+
+      // Emit action completed event
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('actionCompleted', {
+          detail: { actionType: 'ability', unitId, abilityId, remainingActions: updatedUnit.actionsRemaining }
+        })
+        window.dispatchEvent(event)
+      }
 
       set({ 
         units: updatedUnits,

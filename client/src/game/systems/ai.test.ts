@@ -6,7 +6,7 @@ import { TileType } from 'shared'
 describe('AI Controller', () => {
   let aiController: AIController
   let mockActions: any
-  let mockGetState: () => any
+  let mockGetState: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     aiController = new AIController('normal')
@@ -106,9 +106,11 @@ describe('AI Controller', () => {
       
       // Set up adjacent unowned cubicle
       gameState.board[0][1] = {
+        x: 1,
+        y: 0,
         type: TileType.CUBICLE,
         owner: 'player2',
-        occupied: null
+        occupied: undefined
       }
       
       const decision = (aiController as any).makeDecision(unit, gameState)
@@ -220,16 +222,16 @@ describe('AI Controller', () => {
         currentPlayerId: 'player1'
       })
       
-      // Add obstacles
-      gameState.board[0][1] = { type: TileType.OBSTACLE, owner: null, occupied: null }
-      gameState.board[2][1] = { type: TileType.OBSTACLE, owner: null, occupied: null }
+              // Add obstacles
+        gameState.board[0][1] = { x: 1, y: 0, type: TileType.OBSTACLE, owner: undefined, occupied: undefined }
+        gameState.board[2][1] = { x: 1, y: 2, type: TileType.OBSTACLE, owner: undefined, occupied: undefined }
       
       const possibleMoves = (aiController as any).calculatePossibleMoves(unit, gameState)
       
       expect(possibleMoves.length).toBeGreaterThan(0)
       // Should not include obstacle positions
-      expect(possibleMoves.some(move => move.x === 1 && move.y === 0)).toBe(false)
-      expect(possibleMoves.some(move => move.x === 1 && move.y === 2)).toBe(false)
+      expect(possibleMoves.some((move: any) => move.x === 1 && move.y === 0)).toBe(false)
+      expect(possibleMoves.some((move: any) => move.x === 1 && move.y === 2)).toBe(false)
     })
 
     it('should find best move position based on objectives', () => {
@@ -298,9 +300,11 @@ describe('AI Controller', () => {
       
       // Set up adjacent unowned cubicle
       gameState.board[1][2] = {
+        x: 2,
+        y: 1,
         type: TileType.CUBICLE,
         owner: 'player2',
-        occupied: null
+        occupied: undefined
       }
       
       const capturableTiles = (aiController as any).getCapturableTiles(unit, gameState)
@@ -407,8 +411,8 @@ describe('AI Controller', () => {
       })
       
       // Surround with obstacles
-      gameState.board[0][1] = { type: TileType.OBSTACLE, owner: null, occupied: null }
-      gameState.board[1][0] = { type: TileType.OBSTACLE, owner: null, occupied: null }
+      gameState.board[0][1] = { x: 1, y: 0, type: TileType.OBSTACLE, owner: undefined, occupied: undefined }
+      gameState.board[1][0] = { x: 0, y: 1, type: TileType.OBSTACLE, owner: undefined, occupied: undefined }
       
       const bestMove = (aiController as any).getBestMovePosition(unit, gameState)
       

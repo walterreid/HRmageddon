@@ -14,6 +14,12 @@ export var HighlightType;
     HighlightType["ATTACK"] = "attack";
     HighlightType["ABILITY"] = "ability";
     HighlightType["CAPTURE"] = "capture";
+    // New enhanced highlighting types
+    HighlightType["ATTACK_RANGE"] = "attack_range";
+    HighlightType["ABILITY_AOE"] = "ability_aoe";
+    HighlightType["TARGET_ENEMY"] = "target_enemy";
+    HighlightType["TARGET_ALLY"] = "target_ally";
+    HighlightType["INVALID"] = "invalid";
 })(HighlightType || (HighlightType = {}));
 export var UnitType;
 (function (UnitType) {
@@ -77,6 +83,8 @@ export const UNIT_STATS = {
         cost: 2,
         abilities: ['fetch_coffee', 'overtime'],
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: 3,
     },
     [UnitType.SECRETARY]: {
         type: UnitType.SECRETARY,
@@ -89,6 +97,8 @@ export const UNIT_STATS = {
         cost: 3,
         abilities: ['file_it'],
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: 3,
     },
     [UnitType.SALES_REP]: {
         type: UnitType.SALES_REP,
@@ -101,6 +111,8 @@ export const UNIT_STATS = {
         cost: 3,
         abilities: ['harass'],
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: 4,
     },
     [UnitType.HR_MANAGER]: {
         type: UnitType.HR_MANAGER,
@@ -113,6 +125,8 @@ export const UNIT_STATS = {
         cost: 5,
         abilities: ['pink_slip', 'mediation'],
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: 3,
     },
     [UnitType.IT_SPECIALIST]: {
         type: UnitType.IT_SPECIALIST,
@@ -125,6 +139,8 @@ export const UNIT_STATS = {
         cost: 4,
         abilities: ['hack_system', 'tech_support'],
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: 3,
     },
     [UnitType.ACCOUNTANT]: {
         type: UnitType.ACCOUNTANT,
@@ -137,6 +153,8 @@ export const UNIT_STATS = {
         cost: 4,
         abilities: ['audit', 'creative_accounting'],
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: 3,
     },
     [UnitType.LEGAL_COUNSEL]: {
         type: UnitType.LEGAL_COUNSEL,
@@ -149,6 +167,8 @@ export const UNIT_STATS = {
         cost: 5,
         abilities: ['legal_threat', 'contract_negotiation'],
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: 3,
     },
     [UnitType.EXECUTIVE]: {
         type: UnitType.EXECUTIVE,
@@ -161,6 +181,8 @@ export const UNIT_STATS = {
         cost: 6,
         abilities: ['executive_order', 'corporate_restructuring'],
         abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: 3,
     },
 };
 // Unit costs for draft system (in thousands of dollars)
@@ -174,6 +196,17 @@ export const UNIT_COSTS = {
     [UnitType.LEGAL_COUNSEL]: 50,
     [UnitType.EXECUTIVE]: 60,
 };
+// New ability targeting types
+export var AbilityTargetingType;
+(function (AbilityTargetingType) {
+    AbilityTargetingType["SINGLE_TARGET"] = "single_target";
+    AbilityTargetingType["AOE_CIRCLE"] = "aoe_circle";
+    AbilityTargetingType["AOE_CONE"] = "aoe_cone";
+    AbilityTargetingType["DIRECTIONAL"] = "directional";
+    AbilityTargetingType["SELF_BUFF"] = "self_buff";
+    AbilityTargetingType["ALL_ALLIES"] = "all_allies";
+    AbilityTargetingType["ALL_ENEMIES"] = "all_enemies";
+})(AbilityTargetingType || (AbilityTargetingType = {}));
 export const TargetType = {
     SELF: 'self',
     ALLY: 'ally',

@@ -28,7 +28,7 @@ export function GameHUD() {
   const isPlayerTurn = currentPlayerId === 'player1'
 
   // Show action menu when a player unit is selected and can be controlled
-  // Hide it when we're in an action mode
+  // Hide it when we're in an action mode OR when the unit has no actions remaining
   const showActionMenu = useMemo(() => {
     if (!selectedUnit) return false
     
@@ -38,13 +38,20 @@ export function GameHUD() {
       return false
     }
     
+    // Hide action menu when unit has no actions remaining
+    if (selectedUnit.actionsRemaining <= 0) {
+      console.log('Action menu hidden: unit has no actions remaining')
+      return false
+    }
+    
     const shouldShow = isPlayerUnit && canControl
     console.log('Action menu check:', { 
       selectedUnit: !!selectedUnit, 
       isPlayerUnit, 
       canControl, 
       shouldShow,
-      actionMode
+      actionMode,
+      actionsRemaining: selectedUnit.actionsRemaining
     })
     return shouldShow
   }, [selectedUnit, isPlayerUnit, canControl, actionMode])
@@ -105,6 +112,43 @@ export function GameHUD() {
       }
     }
   }, [selectedUnit, isPlayerUnit])
+
+  // Reset action mode when selected unit changes or when unit has no actions remaining
+  useEffect(() => {
+    if (!selectedUnit || selectedUnit.actionsRemaining <= 0) {
+      console.log('Resetting action mode: no unit selected or no actions remaining')
+      setActionMode('none')
+      setSelectedAbility(null)
+      
+      // Clear action mode in GameScene if available
+      const gameScene = (window as any).gameScene
+      if (gameScene && gameScene.clearActionMode) {
+        gameScene.clearActionMode()
+      }
+    }
+  }, [selectedUnit?.id, selectedUnit?.actionsRemaining])
+
+  // Listen for action completion events from the game store
+  useEffect(() => {
+    const handleActionCompleted = () => {
+      console.log('Action completed, resetting action mode')
+      setActionMode('none')
+      setSelectedAbility(null)
+      
+      // Clear action mode in GameScene if available
+      const gameScene = (window as any).gameScene
+      if (gameScene && gameScene.clearActionMode) {
+        gameScene.clearActionMode()
+      }
+    }
+
+    // Listen for custom events when actions complete
+    window.addEventListener('actionCompleted', handleActionCompleted)
+    
+    return () => {
+      window.removeEventListener('actionCompleted', handleActionCompleted)
+    }
+  }, [])
 
   const handleActionSelect = (action: string) => {
     console.log('handleActionSelect called with action:', action)
@@ -232,37 +276,6 @@ export function GameHUD() {
         break
     }
   }
-
-  // Reset action mode when unit is deselected or changed
-  useEffect(() => {
-    if (!selectedUnit) {
-      setActionMode('none')
-      setSelectedAbility(null)
-      
-      // Clear action mode in game scene
-      const gameScene = (window as any).gameScene
-      if (gameScene && gameScene.clearActionMode) {
-        gameScene.clearActionMode()
-      }
-    } else {
-      // If a new unit is selected, check if we should maintain action mode
-      // Only maintain if it's the same unit (for deselection/reselection)
-      const currentUnitId = selectedUnit.id
-      const previousUnitId = useGameStore.getState().selectedUnit?.id
-      
-      if (currentUnitId !== previousUnitId) {
-        // New unit selected - reset action mode
-        setActionMode('none')
-        setSelectedAbility(null)
-        
-        // Clear action mode in game scene
-        const gameScene = (window as any).gameScene
-        if (gameScene && gameScene.clearActionMode) {
-          gameScene.clearActionMode()
-        }
-      }
-    }
-  }, [selectedUnit])
 
   // Listen for tile clicks from the game scene
   useEffect(() => {

@@ -23,7 +23,12 @@ export declare enum HighlightType {
     MOVEMENT = "movement",
     ATTACK = "attack",
     ABILITY = "ability",
-    CAPTURE = "capture"
+    CAPTURE = "capture",
+    ATTACK_RANGE = "attack_range",
+    ABILITY_AOE = "ability_aoe",
+    TARGET_ENEMY = "target_enemy",
+    TARGET_ALLY = "target_ally",
+    INVALID = "invalid"
 }
 export interface Unit {
     id: string;
@@ -43,6 +48,8 @@ export interface Unit {
     hasAttacked: boolean;
     abilities: string[];
     abilityCooldowns: Record<string, number>;
+    movementUsed: number;
+    remainingMovement: number;
 }
 export declare enum UnitType {
     INTERN = "intern",
@@ -140,9 +147,22 @@ export interface Ability {
     cooldown: number;
     range: number;
     targetType: TargetType;
+    targetingType: AbilityTargetingType;
+    aoeRadius?: number;
+    coneAngle?: number;
+    requiresDirection?: boolean;
     effect: (caster: Unit, target?: Unit | Coordinate) => AbilityResult;
     visualEffect?: string;
     soundEffect?: string;
+}
+export declare enum AbilityTargetingType {
+    SINGLE_TARGET = "single_target",
+    AOE_CIRCLE = "aoe_circle",
+    AOE_CONE = "aoe_cone",
+    DIRECTIONAL = "directional",
+    SELF_BUFF = "self_buff",
+    ALL_ALLIES = "all_allies",
+    ALL_ENEMIES = "all_enemies"
 }
 export declare const TargetType: {
     readonly SELF: "self";

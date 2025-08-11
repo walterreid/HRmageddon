@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { useGameStore } from '../../stores/gameStore'
-import { TileType, type Unit, type Tile, type Coordinate } from 'shared'
+import { TileType, type Unit, type Tile, type Coordinate, AbilityTargetingType } from 'shared'
 import { getAbilityById, getValidTargets } from '../systems/abilities.ts'
 
 export class GameScene extends Phaser.Scene {
@@ -320,13 +320,13 @@ export class GameScene extends Phaser.Scene {
 
     // Handle different targeting types
     switch (ability.targetingType) {
-      case 'aoe_cone':
+      case AbilityTargetingType.AOE_CONE:
         this.showConePreview(selectedUnit, ability)
         break
-      case 'aoe_circle':
+      case AbilityTargetingType.AOE_CIRCLE:
         this.showCirclePreview(selectedUnit, ability)
         break
-      case 'single_target':
+      case AbilityTargetingType.SINGLE_TARGET:
       default:
         this.showStandardTargeting()
         break
@@ -597,6 +597,14 @@ export class GameScene extends Phaser.Scene {
           this.actionMode = 'none'
           // Clear highlights after successful move
           this.highlightGraphics.clear()
+          
+          // Emit action completed event
+          if (typeof window !== 'undefined') {
+            const actionEvent = new CustomEvent('actionCompleted', {
+              detail: { actionType: 'move', unitId: unit.id }
+            })
+            window.dispatchEvent(actionEvent)
+          }
         }
         break
         
@@ -608,6 +616,14 @@ export class GameScene extends Phaser.Scene {
           this.actionMode = 'none'
           // Clear highlights after successful attack
           this.highlightGraphics.clear()
+          
+          // Emit action completed event
+          if (typeof window !== 'undefined') {
+            const actionEvent = new CustomEvent('actionCompleted', {
+              detail: { actionType: 'attack', unitId: unit.id }
+            })
+            window.dispatchEvent(actionEvent)
+          }
         }
         break
         

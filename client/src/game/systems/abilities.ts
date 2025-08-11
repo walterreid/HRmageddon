@@ -1,4 +1,4 @@
-import { type Unit, StatusType, UnitType, type Coordinate, type Ability, TargetType } from 'shared'
+import { type Unit, StatusType, UnitType, type Coordinate, type Ability, TargetType, AbilityTargetingType } from 'shared'
 
 // Enhanced ability definitions with new abilities for each unit type
 export const ABILITIES: Record<string, Ability> = {
@@ -11,6 +11,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 1,
     range: 1,
     targetType: TargetType.ALLY,
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId !== caster.playerId) return { success: false, message: 'Must target an ally' }
@@ -27,6 +28,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 2,
     range: 0,
     targetType: TargetType.SELF,
+    targetingType: AbilityTargetingType.SELF_BUFF,
     effect: () => ({ 
       success: true, 
       actionBonus: 1, 
@@ -46,7 +48,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 2,
     range: 3,
     targetType: TargetType.ENEMY,
-    targetingType: 'single_target',
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
@@ -65,7 +67,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 1,
     range: 2,
     targetType: TargetType.ENEMY,
-    targetingType: 'single_target',
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
@@ -84,11 +86,11 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 3,
     range: 3,
     targetType: TargetType.ENEMY,
-    targetingType: 'aoe_cone',
+    targetingType: AbilityTargetingType.AOE_CONE,
     aoeRadius: 3,
     coneAngle: 90,
     requiresDirection: true,
-    effect: (caster, target) => {
+    effect: (_caster, _target) => {
       // This would need to be enhanced to handle AOE targeting
       return { success: true, damageDealt: 1, message: 'Paperclip storm unleashed!' }
     },
@@ -105,6 +107,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: -1, // One-time use
     range: 1,
     targetType: TargetType.ENEMY,
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
@@ -122,6 +125,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 2,
     range: 1,
     targetType: TargetType.ALLY,
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId !== caster.playerId) return { success: false, message: 'Must target an ally' }
@@ -140,6 +144,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 2,
     range: 3,
     targetType: TargetType.ENEMY,
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
@@ -156,6 +161,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 2,
     range: 2,
     targetType: TargetType.ALLY,
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId !== caster.playerId) return { success: false, message: 'Must target an ally' }
@@ -174,6 +180,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 2,
     range: 0,
     targetType: TargetType.SELF,
+    targetingType: AbilityTargetingType.SELF_BUFF,
     effect: () => ({ 
       success: true, 
       statusApplied: [{ type: StatusType.FOCUSED, duration: 2 }], 
@@ -190,6 +197,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 3,
     range: 0,
     targetType: TargetType.SELF,
+    targetingType: AbilityTargetingType.SELF_BUFF,
     effect: () => ({ 
       success: true, 
       actionBonus: 1, 
@@ -208,6 +216,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 3,
     range: 3,
     targetType: TargetType.ENEMY,
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
@@ -224,6 +233,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 2,
     range: 2,
     targetType: TargetType.ALLY,
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
     effect: (caster, target) => {
       const t = target as Unit | undefined
       if (!t || t.playerId !== caster.playerId) return { success: false, message: 'Must target an ally' }
@@ -242,6 +252,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 4,
     range: 0,
     targetType: TargetType.ALL_ALLIES,
+    targetingType: AbilityTargetingType.ALL_ALLIES,
     effect: () => ({ 
       success: true, 
       statusApplied: [{ type: StatusType.INSPIRED, duration: 2 }], 
@@ -258,6 +269,7 @@ export const ABILITIES: Record<string, Ability> = {
     cooldown: 4,
     range: 3,
     targetType: TargetType.ALL_ENEMIES,
+    targetingType: AbilityTargetingType.ALL_ENEMIES,
     effect: () => ({ 
       success: true, 
       damageDealt: 2, 
