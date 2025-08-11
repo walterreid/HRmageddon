@@ -590,10 +590,9 @@ export class GameScene extends Phaser.Scene {
     console.log('Tile size:', tileSize, 'Board offset:', { x: boardOffsetX, y: boardOffsetY })
     
     // Determine if this is a positive or negative ability based on target type
-    const isPositiveAbility = ability.targetType === 'ally' || ability.targetType === 'self'
     const isNegativeAbility = ability.targetType === 'enemy'
     
-    console.log('Ability type:', { isPositiveAbility, isNegativeAbility, targetType: ability.targetType })
+    console.log('Ability type:', { isPositiveAbility: false, isNegativeAbility, targetType: ability.targetType })
     
     // Use appropriate colors for range highlighting
     let rangeColor: number
@@ -664,7 +663,6 @@ export class GameScene extends Phaser.Scene {
         
         // Determine if this is a positive or negative ability
         const ability = getAbilityById(useGameStore.getState().selectedAbility || '')
-        const isPositiveAbility = ability?.targetType === 'ally' || ability?.targetType === 'self'
         const isNegativeAbility = ability?.targetType === 'enemy'
         
         // Use appropriate colors for target highlighting
@@ -695,7 +693,6 @@ export class GameScene extends Phaser.Scene {
         
         // Determine if this is a positive or negative ability
         const ability = getAbilityById(useGameStore.getState().selectedAbility || '')
-        const isPositiveAbility = ability?.targetType === 'ally' || ability?.targetType === 'self'
         const isNegativeAbility = ability?.targetType === 'enemy'
         
         // Use appropriate colors for target highlighting
@@ -860,8 +857,7 @@ export class GameScene extends Phaser.Scene {
               const distance = Math.abs(tileX - store.selectedUnit!.position.x) + Math.abs(tileY - store.selectedUnit!.position.y)
               if (distance <= ability.range) {
                 // Check if this is a valid target for the ability
-                const targetCoord = { x: tileX, y: tileY }
-                                    const validTargets = getValidTargets(store.selectedUnit!, ability, store.board, store.units)
+                const validTargets = getValidTargets(store.selectedUnit!, ability, store.board, store.units)
                 isValidTarget = validTargets.some(target => {
                   if ('x' in target) {
                     return target.x === tileX && target.y === tileY

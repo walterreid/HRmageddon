@@ -16,7 +16,6 @@
     "phaser": "^3.90.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "serve": "^14.2.1",
     "shared": "file:../shared",
     "zustand": "^5.0.7"
   },
