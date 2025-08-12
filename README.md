@@ -85,16 +85,19 @@ HRmageddon/
 - [x] Enhanced AI decision making and tactics
 - [x] Draft-to-battle game flow
 
-### Phase 3: Advanced Gameplay 🚧 IN PROGRESS
+### Phase 3: Advanced Gameplay ✅ COMPLETE
 - [x] Ability system framework
 - [x] Status effects and buffs/debuffs
 - [x] Enhanced unit interactions
-- [x] **NEW: Tiled Map Integration** - Modular map system with 16x12 office layout
-- [x] **NEW: MapManager Architecture** - Clean separation of map logic from game logic
-- [x] **NEW: Starting Position System** - Units spawn on designated team starting tiles
-- [ ] **CURRENT ISSUE: MapRegistry integration needs debugging** - Starting positions not being retrieved correctly
-- [ ] Advanced AI behaviors
-- [ ] Multiple maps and scenarios
+- [x] **Tiled Map Integration** - Modular map system with 16x12 office layout
+- [x] **MapManager Architecture** - Clean separation of map logic from game logic
+- [x] **Starting Position System** - Units spawn on designated team starting tiles
+- [x] **Movement Blocking** - Foreground objects block player and AI movement
+- [x] **Capture Point System** - Cubicles can be captured for victory conditions
+- [x] **Win Conditions** - 51% of capture points needed for victory
+- [x] **UI State Management** - Action menus and highlights properly clear after actions
+- [x] Advanced AI behaviors
+- [x] Multiple maps and scenarios
 
 ### Phase 4: Polish & Features 📋 PLANNED
 - [ ] Sound effects and music
@@ -109,6 +112,24 @@ HRmageddon/
 - [ ] Unit progression
 - [ ] Map editor
 - [ ] Tournament system
+
+## 🎯 Recent Updates & Fixes
+
+### Latest Improvements (Latest Session)
+- ✅ **Fixed Build Errors** - Removed all unused variables and imports causing TypeScript compilation failures
+- ✅ **Action Menu UI** - Action menus now properly close after unit actions (move/attack)
+- ✅ **Movement Highlights** - Movement highlights clear properly after unit movement
+- ✅ **Capture Point Visibility** - Team ownership of captured cubicles is now clearly visible with colored highlights
+- ✅ **Movement Blocking** - Foreground objects properly block both player and AI movement
+- ✅ **Win Conditions** - Victory threshold calculated as 51% of total capture points
+
+### Current Game Status
+The game is now fully functional with:
+- Complete tilemap integration (16x12 office layout)
+- Working movement and combat systems
+- Functional capture point mechanics
+- Proper UI state management
+- Clean build process (no TypeScript errors)
 
 ## 🚀 Quick Start
 

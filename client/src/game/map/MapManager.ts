@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { MapSpec, BoardDim } from "./types";
 import { mapRegistry } from "./MapRegistry";
 
+
 export class MapManager {
   private scene: Phaser.Scene;
   private spec: MapSpec;
@@ -44,6 +45,7 @@ export class MapManager {
     this.scene.cameras.main.setBounds(0, 0, w, h);
     this.scene.cameras.main.centerOn(w / 2, h / 2);
 
+    // Parse blocked tiles from foreground layer
     const blockedSet = new Set(
       foreground.layer.data.flatMap((row, y) =>
         row.filter(t => t && t.index > 0).map(t => `${t.x},${y}`)
@@ -51,9 +53,12 @@ export class MapManager {
     );
     const isBlocked = (tx: number, ty: number) => foreground.hasTileAt(tx, ty);
 
+    // Parse capture points from capture points layer
     const capturePointsData = capturePoints.layer.data.flatMap((row, y) =>
       row.filter(t => t && t.index > 0).map(t => ({ x: t.x, y: y, gid: t.index }))
     );
+    
+    // Parse starting positions from starting positions layer
     const startingPositionsData = startingPositions.layer.data.flatMap((row, y) =>
       row.filter(t => t && t.index > 0).map(t => ({ x: t.x, y: y, gid: t.index }))
     );
@@ -70,6 +75,18 @@ export class MapManager {
     console.log('MapManager: Populated MapRegistry for', s.id, {
       goldTeam: goldTeamPositions.length,
       navyTeam: navyTeamPositions.length
+    });
+
+    // CRITICAL: Store blocked tiles in MapRegistry for movement validation
+    const blockedTiles = Array.from(blockedSet).map(coordStr => {
+      const [x, y] = coordStr.split(',').map(Number);
+      return { x, y };
+    });
+    mapRegistry.setBlockedTiles(s.id, blockedTiles);
+    
+    console.log('MapManager: Stored blocked tiles for movement validation:', {
+      blockedTiles: blockedTiles.length,
+      blockedSet: blockedSet.size
     });
 
     const blockedMatrix: number[][] = Array.from({ length: map.height }, (_, y) =>

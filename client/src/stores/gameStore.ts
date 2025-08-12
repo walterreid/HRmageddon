@@ -17,6 +17,87 @@ import { generateAIDraft } from '../game/systems/aiDraft.ts'
 import { ABILITIES, canUseAbility, getValidTargets } from '../game/systems/abilities.ts'
 import { mapRegistry } from '../game/map/MapRegistry'
 
+// Helper function to create the game board
+function createBoard(): Tile[][] {
+  // Get the actual map dimensions and capture points from the tilemap
+  const startingPositions = mapRegistry.getStartingPositions('OfficeLayout')
+  const capturePoints = mapRegistry.getCapturePoints('OfficeLayout')
+  
+  if (!startingPositions) {
+    console.warn('Starting positions not available, using fallback board')
+    return createFallbackBoard()
+  }
+  
+  // Use the actual tilemap dimensions (16x12)
+  const width = 16
+  const height = 12
+  const board: Tile[][] = []
+  
+  // Initialize all tiles as NORMAL
+  for (let y = 0; y < height; y++) {
+    const row: Tile[] = []
+    for (let x = 0; x < width; x++) {
+      row.push({ x, y, type: TileType.NORMAL })
+    }
+    board.push(row)
+  }
+  
+  // Mark starting positions as HQ tiles
+  startingPositions.goldTeam.forEach((pos: { x: number; y: number }) => {
+    board[pos.y][pos.x].type = TileType.HQ_BLUE
+  })
+  
+  startingPositions.navyTeam.forEach((pos: { x: number; y: number }) => {
+    board[pos.y][pos.x].type = TileType.HQ_RED
+  })
+
+  // Mark capture points as CUBICLE tiles
+  if (capturePoints) {
+    capturePoints.forEach((pos: { x: number; y: number; gid: number }) => {
+      if (pos.gid === 472) { // GID 472 = capture point
+        board[pos.y][pos.x].type = TileType.CUBICLE
+        console.log('Marked capture point at:', { x: pos.x, y: pos.y })
+      }
+    })
+  }
+  
+  console.log('Created board with dimensions:', { width, height, capturePoints: capturePoints?.length || 0 })
+  return board
+}
+
+function createFallbackBoard(): Tile[][] {
+  // Fallback to the old hardcoded board if tilemap data isn't available
+  const width = 8
+  const height = 10
+  const board: Tile[][] = []
+  for (let y = 0; y < height; y++) {
+    const row: Tile[] = []
+    for (let x = 0; x < width; x++) {
+      let type: TileType = TileType.NORMAL
+      if (y === 0 && x <= 1) type = TileType.HQ_BLUE
+      if (y === height - 1 && x >= width - 2) type = TileType.HQ_RED
+      if (y >= 2 && y <= height - 3 && x >= 2 && x <= width - 3) {
+        if ((x + y) % 2 === 0) type = TileType.CUBICLE
+      }
+      if ((x === 3 && y === 5) || (x === 4 && y === 4)) type = TileType.OBSTACLE
+      
+      const tile = { x, y, type }
+      row.push(tile)
+    }
+    board.push(row)
+  }
+  
+  console.log('Created fallback board with dimensions:', { width, height })
+  return board
+}
+
+function createPlayers(): Player[] {
+  return [
+    { id: 'player1', name: 'Blue Team', team: 'blue' as any, budget: 10, income: 0, controlledCubicles: 0 },
+    { id: 'player2', name: 'Red Team', team: 'red' as any, budget: 10, income: 0, controlledCubicles: 0 },
+  ]
+}
+
 type GameMode = 'menu' | 'ai' | 'multiplayer'
 
 type GameStore = SharedGameState & {
@@ -697,70 +778,81 @@ export const useGameStore = create<GameStore>((set, get) => {
       const unit = state.units.find((u) => u.id === unitId)
       if (!unit || !state.isValidMove(unit, to)) return state
 
-      // Calculate movement distance used
-      const movementUsed = Math.abs(to.x - unit.position.x) + Math.abs(to.y - unit.position.y)
-      const remainingMovement = Math.max(0, unit.moveRange - movementUsed)
+      console.log('Moving unit:', {
+        unitId,
+        from: unit.position,
+        to,
+        hasMoved: unit.hasMoved,
+        actionsRemaining: unit.actionsRemaining
+      })
 
       const updatedUnits = state.units.map((u) =>
         u.id === unitId
-          ? { 
-              ...u, 
-              position: to, 
-              actionsRemaining: u.actionsRemaining - 1, 
-              hasMoved: true,
-              movementUsed: movementUsed,
-              remainingMovement: remainingMovement
-            }
+          ? { ...u, position: to, hasMoved: true, actionsRemaining: u.actionsRemaining - 1 }
           : u
       )
 
-      // Check if the unit landed on a cubicle tile
-      const tile = state.board[to.y]?.[to.x]
-      let updatedPendingCaptures = new Map(state.pendingCubicleCaptures)
-      
-      if (tile?.type === TileType.CUBICLE && tile.owner !== unit.playerId) {
-        // Add to pending captures - will be processed at end of turn
-        const captureKey = `${to.x},${to.y}`
-        updatedPendingCaptures.set(captureKey, {
+      // Check if the unit landed on a cubicle for potential capture
+      const targetTile = state.board[to.y]?.[to.x]
+      if (targetTile && targetTile.type === TileType.CUBICLE) {
+        console.log('Unit landed on cubicle:', {
           unitId,
-          coord: to,
-          playerId: unit.playerId
+          unitPlayer: unit.playerId,
+          tilePosition: to,
+          tileOwner: targetTile.owner,
+          tileType: targetTile.type
         })
-        console.log('Unit landed on cubicle, added to pending captures:', {
-          unitId,
-          coord: to,
-          playerId: unit.playerId,
-          captureKey
-        })
+        
+        // If the cubicle is not owned by this unit's player, add to pending captures
+        if (targetTile.owner !== unit.playerId) {
+          const captureKey = `${to.x},${to.y}`
+          const updatedPendingCaptures = new Map(state.pendingCubicleCaptures)
+          updatedPendingCaptures.set(captureKey, {
+            unitId,
+            coord: to,
+            playerId: unit.playerId
+          })
+          
+          console.log('Added to pending captures:', {
+            captureKey,
+            pendingCapturesCount: updatedPendingCaptures.size
+          })
+          
+          // Keep unit selected if it still has actions, but clear action mode
+          const updatedUnit = updatedUnits.find(u => u.id === unitId)!
+          const shouldKeepSelected = updatedUnit.actionsRemaining > 0
+          
+          return {
+            ...state,
+            units: updatedUnits,
+            pendingCubicleCaptures: updatedPendingCaptures,
+            selectedUnit: shouldKeepSelected ? updatedUnit : undefined,
+            possibleMoves: [],
+            possibleTargets: [],
+            highlightedTiles: new Map()
+          }
+        }
       }
 
-      // Get the updated unit to recalculate moves and targets
-      const updatedUnit = updatedUnits.find(u => u.id === unitId)!
-      
-      // Recalculate possible moves and targets for the updated unit
-      const moves = state.calculatePossibleMoves(updatedUnit)
-      const targets = state.calculatePossibleTargets(updatedUnit)
-      
-      const highlights = new Map<string, string>()
-      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
-      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
-
-      // Emit action completed event
+      // Emit action completed event for UI cleanup
       if (typeof window !== 'undefined') {
         const event = new CustomEvent('actionCompleted', {
-          detail: { actionType: 'move', unitId, remainingActions: updatedUnit.actionsRemaining }
+          detail: { actionType: 'move', unitId, remainingActions: updatedUnits.find(u => u.id === unitId)?.actionsRemaining }
         })
         window.dispatchEvent(event)
       }
 
+      // Keep unit selected if it still has actions, but clear action mode
+      const updatedUnit = updatedUnits.find(u => u.id === unitId)!
+      const shouldKeepSelected = updatedUnit.actionsRemaining > 0
+      
       return {
         ...state,
         units: updatedUnits,
-        pendingCubicleCaptures: updatedPendingCaptures,
-        selectedUnit: updatedUnit,
-        possibleMoves: moves,
-        possibleTargets: targets,
-        highlightedTiles: highlights,
+        selectedUnit: shouldKeepSelected ? updatedUnit : undefined,
+        possibleMoves: [],
+        possibleTargets: [],
+        highlightedTiles: new Map()
       }
     })
   },
@@ -1039,6 +1131,26 @@ export const useGameStore = create<GameStore>((set, get) => {
     }, get) // Pass the get function so AI can fetch fresh state
   },
 
+  // Debug function to log current board state
+  logBoardState: () => {
+    const state = get()
+    const cubicles = state.board.flat().filter(t => t.type === TileType.CUBICLE)
+    const ownedCubicles = cubicles.filter(t => t.owner)
+    
+    console.log('Current Board State:', {
+      totalTiles: state.board.length * state.board[0].length,
+      cubicles: cubicles.length,
+      ownedCubicles: ownedCubicles.length,
+      cubicleDetails: cubicles.map(t => ({
+        position: { x: t.x, y: t.y },
+        owner: t.owner,
+        type: t.type
+      })),
+      pendingCaptures: state.pendingCubicleCaptures.size,
+      pendingCaptureDetails: Array.from(state.pendingCubicleCaptures.entries())
+    })
+  },
+
   getUnitAt: (coord) => get().units.find((u) => u.position.x === coord.x && u.position.y === coord.y),
 
   getTileAt: (coord) => {
@@ -1054,6 +1166,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     const visited = new Set<string>()
     const queue: { coord: Coordinate; distance: number }[] = [{ coord: unit.position, distance: 0 }]
 
+    // Get blocked tiles from MapRegistry for additional movement validation
+    const blockedTiles = mapRegistry.getBlockedTiles('OfficeLayout') || []
+    const blockedSet = new Set(blockedTiles.map(t => `${t.x},${t.y}`))
+
     while (queue.length > 0) {
       const { coord, distance } = queue.shift()!
       const key = `${coord.x},${coord.y}`
@@ -1063,7 +1179,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (distance > 0 && distance <= unit.moveRange) {
         const tile = board[coord.y]?.[coord.x]
         const occupant = units.find((u) => u.position.x === coord.x && u.position.y === coord.y)
-        if (tile && tile.type !== TileType.OBSTACLE && !occupant) {
+        const isBlockedByTilemap = blockedSet.has(`${coord.x},${coord.y}`)
+        
+        // Check both board tile type and tilemap blocked status
+        if (tile && tile.type !== TileType.OBSTACLE && !occupant && !isBlockedByTilemap) {
           moves.push(coord)
         }
       }
@@ -1087,6 +1206,16 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
       }
     }
+    
+    console.log('Movement calculation for unit:', {
+      unitId: unit.id,
+      position: unit.position,
+      moveRange: unit.moveRange,
+      totalMoves: moves.length,
+      blockedTilesCount: blockedTiles.length,
+      boardObstacles: board.flat().filter(t => t.type === TileType.OBSTACLE).length
+    })
+    
     return moves
   },
 
@@ -1148,6 +1277,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       return
     }
     
+    // Check elimination victory
     if (p1Units.length === 0) {
       console.log('Player 1 has no units left - Player 2 wins!')
       set({ winner: 'player2', phase: GamePhase.GAME_OVER })
@@ -1159,10 +1289,18 @@ export const useGameStore = create<GameStore>((set, get) => {
       return
     }
 
-    const VICTORY_THRESHOLD = 7
+    // Check capture point victory (51% rule)
+    const totalCapturePoints = state.board.flat().filter(t => t.type === TileType.CUBICLE).length
+    if (totalCapturePoints === 0) {
+      console.log('No capture points found, skipping capture victory check')
+      return
+    }
+
+    const VICTORY_THRESHOLD = Math.ceil(totalCapturePoints * 0.51) // 51% rule
+    
     for (const p of state.players) {
       if (p.controlledCubicles >= VICTORY_THRESHOLD) {
-        console.log(`Player ${p.id} has ${p.controlledCubicles} cubicles (>= ${VICTORY_THRESHOLD}) - ${p.id} wins!`)
+        console.log(`Player ${p.id} has ${p.controlledCubicles}/${totalCapturePoints} capture points (>= ${VICTORY_THRESHOLD}) - ${p.id} wins!`)
         set({ winner: p.id, phase: GamePhase.GAME_OVER })
         return
       }
@@ -1462,96 +1600,8 @@ export const useGameStore = create<GameStore>((set, get) => {
   },
 }})
 
-function createBoard(): Tile[][] {
-  const width = 8
-  const height = 10
-  const board: Tile[][] = []
-  for (let y = 0; y < height; y++) {
-    const row: Tile[] = []
-    for (let x = 0; x < width; x++) {
-      let type: TileType = TileType.NORMAL
-      if (y === 0 && x <= 1) type = TileType.HQ_BLUE
-      if (y === height - 1 && x >= width - 2) type = TileType.HQ_RED
-      if (y >= 2 && y <= height - 3 && x >= 2 && x <= width - 3) {
-        if ((x + y) % 2 === 0) type = TileType.CUBICLE
-      }
-      if ((x === 3 && y === 5) || (x === 4 && y === 4)) type = TileType.OBSTACLE
-      
-      const tile = { x, y, type }
-      if (type === TileType.CUBICLE) {
-        console.log('Created cubicle tile at:', { x, y, type })
-      }
-      row.push(tile)
-    }
-    board.push(row)
-  }
-  
-  // Log all cubicle positions
-  const cubicles = board.flat().filter(t => t.type === TileType.CUBICLE)
-  console.log('Board created with cubicles at:', cubicles.map(t => ({ x: t.x, y: t.y, owner: t.owner })))
-  
-  return board
-}
 
-function createPlayers(): Player[] {
-  return [
-    { id: 'player1', name: 'Blue Team', team: 'blue' as any, budget: 10, income: 0, controlledCubicles: 0 },
-    { id: 'player2', name: 'Red Team', team: 'red' as any, budget: 10, income: 0, controlledCubicles: 0 },
-  ]
-}
 
-function createInitialUnits(): Unit[] {
-  return [
-    { 
-      id: 'blue-intern-1', 
-      playerId: 'player1', 
-      position: { x: 0, y: 1 }, 
-      ...UNIT_STATS[UnitType.INTERN], 
-      actionsRemaining: 2, 
-      status: [], 
-      hasMoved: false, 
-      hasAttacked: false,
-      abilities: UNIT_STATS[UnitType.INTERN].abilities,
-      abilityCooldowns: {}
-    },
-    { 
-      id: 'blue-secretary-1', 
-      playerId: 'player1', 
-      position: { x: 1, y: 1 }, 
-      ...UNIT_STATS[UnitType.SECRETARY], 
-      actionsRemaining: 2, 
-      status: [], 
-      hasMoved: false, 
-      hasAttacked: false,
-      abilities: UNIT_STATS[UnitType.SECRETARY].abilities,
-      abilityCooldowns: {}
-    },
-    { 
-      id: 'red-intern-1', 
-      playerId: 'player2', 
-      position: { x: 7, y: 8 }, 
-      ...UNIT_STATS[UnitType.INTERN], 
-      actionsRemaining: 2, 
-      status: [], 
-      hasMoved: false, 
-      hasAttacked: false,
-      abilities: UNIT_STATS[UnitType.INTERN].abilities,
-      abilityCooldowns: {}
-    },
-    { 
-      id: 'red-secretary-1', 
-      playerId: 'player2', 
-      position: { x: 6, y: 8 }, 
-      ...UNIT_STATS[UnitType.SECRETARY], 
-      actionsRemaining: 2, 
-      status: [], 
-      hasMoved: false, 
-      hasAttacked: false,
-      abilities: UNIT_STATS[UnitType.SECRETARY].abilities,
-      abilityCooldowns: {}
-    },
-  ]
-}
 
 // function isAdjacent(a: Coordinate, b: Coordinate): boolean {
 //   const result = Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1

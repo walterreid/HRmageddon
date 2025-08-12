@@ -101,8 +101,62 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
           total: startingPositionsData.length
         });
       }
+
+      // Parse capture points from the "CapturePoints" layer
+      const capturePointsLayer = tilemapData.layers.find((layer: any) => layer.name === 'CapturePoints');
+      
+      if (capturePointsLayer && capturePointsLayer.data) {
+        const capturePointsData: any[] = [];
+        
+        // Convert 1D array to 2D grid and find non-zero tiles
+        for (let y = 0; y < capturePointsLayer.height; y++) {
+          for (let x = 0; x < capturePointsLayer.width; x++) {
+            const index = y * capturePointsLayer.width + x;
+            const gid = capturePointsLayer.data[index];
+            
+            if (gid > 0) {
+              capturePointsData.push({ x, y, gid });
+            }
+          }
+        }
+        
+        // Store capture points in MapRegistry for later use
+        mapRegistry.setCapturePoints('OfficeLayout', capturePointsData);
+        
+        console.log('LoadingScreen: Pre-populated capture points:', {
+          total: capturePointsData.length,
+          positions: capturePointsData
+        });
+      }
+
+      // Parse blocked tiles from the "Foreground" layer
+      const foregroundLayer = tilemapData.layers.find((layer: any) => layer.name === 'Foreground');
+      
+      if (foregroundLayer && foregroundLayer.data) {
+        const blockedTilesData: any[] = [];
+        
+        // Convert 1D array to 2D grid and find non-zero tiles (these are obstacles)
+        for (let y = 0; y < foregroundLayer.height; y++) {
+          for (let x = 0; x < foregroundLayer.width; x++) {
+            const index = y * foregroundLayer.width + x;
+            const gid = foregroundLayer.data[index];
+            
+            if (gid > 0) {
+              blockedTilesData.push({ x, y, gid });
+            }
+          }
+        }
+        
+        // Store blocked tiles in MapRegistry for movement validation
+        mapRegistry.setBlockedTiles('OfficeLayout', blockedTilesData);
+        
+        console.log('LoadingScreen: Pre-populated blocked tiles:', {
+          total: blockedTilesData.length,
+          positions: blockedTilesData
+        });
+      }
     } catch (error) {
-      console.warn('LoadingScreen: Failed to preload starting positions:', error);
+      console.warn('LoadingScreen: Failed to preload tilemap data:', error);
     }
   };
 

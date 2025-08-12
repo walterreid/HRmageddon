@@ -9,6 +9,8 @@ export class MapRegistry {
   private static instance: MapRegistry
   private maps: Map<string, MapSpec> = new Map()
   private startingPositions: Map<string, MapStartingPositions> = new Map()
+  private capturePoints: Map<string, any[]> = new Map()
+  private blockedTiles: Map<string, { x: number; y: number }[]> = new Map()
   private isLoaded = false
 
   static getInstance(): MapRegistry {
@@ -36,6 +38,26 @@ export class MapRegistry {
   // Get starting positions for a map
   getStartingPositions(mapId: string): MapStartingPositions | undefined {
     return this.startingPositions.get(mapId)
+  }
+
+  // Set capture points for a map
+  setCapturePoints(mapId: string, points: any[]): void {
+    this.capturePoints.set(mapId, points)
+  }
+
+  // Get capture points for a map
+  getCapturePoints(mapId: string): any[] | undefined {
+    return this.capturePoints.get(mapId)
+  }
+
+  // Set blocked tiles for a map
+  setBlockedTiles(mapId: string, tiles: { x: number; y: number }[]): void {
+    this.blockedTiles.set(mapId, tiles)
+  }
+
+  // Get blocked tiles for a map
+  getBlockedTiles(mapId: string): { x: number; y: number }[] | undefined {
+    return this.blockedTiles.get(mapId)
   }
 
   // Check if all maps are loaded

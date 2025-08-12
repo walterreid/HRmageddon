@@ -19,8 +19,8 @@ const VISUAL_CONFIG = {
       HQ_RED: 0x44403c,        // Stone-700 (Darker gray for Player 2 HQ)
     },
     OWNERSHIP: {
-      PLAYER1_CUBICLE: 0xfbbf24, // Amber-400 (Gold for Player 1)
-      PLAYER2_CUBICLE: 0x6b7280, // Stone-500 (Gray for Player 2)
+      PLAYER1_CUBICLE: 0xfbbf24, // Amber-400 (Bright gold for Player 1)
+      PLAYER2_CUBICLE: 0x3b82f6, // Blue-500 (Bright blue for Player 2 - more distinct from gray)
     },
     UNITS: {
       PLAYER1: 0xf59e0b,       // Amber-500 (Corporate gold)
@@ -107,9 +107,7 @@ export class GameScene extends Phaser.Scene {
   private boardRows!: number
   private tileSizePx!: number
   
-  // Starting positions for each team
-  private goldTeamPositions!: { x: number; y: number; gid: number }[]
-  private navyTeamPositions!: { x: number; y: number; gid: number }[]
+
 
   private tileToWorld!: (tx:number, ty:number) => {x:number, y:number}
   private worldToTile!: (px:number, py:number) => {x:number, y:number}
@@ -156,9 +154,7 @@ export class GameScene extends Phaser.Scene {
     this.worldToTile = created.worldToTile
     this._isBlocked   = created.isBlocked
     
-    // Capture starting positions for each team
-    this.goldTeamPositions = created.goldTeamPositions
-    this.navyTeamPositions = created.navyTeamPositions
+
     
     console.log('GameScene: Map setup complete:', {
       cols: this.boardCols,
@@ -292,11 +288,14 @@ export class GameScene extends Phaser.Scene {
         return
       }
       
-      this.tileGraphics.clear()
+      // Don't clear the graphics - we want ownership overlays to persist
+      // this.tileGraphics.clear()
       
       // With Tiled map, we don't need to draw the base tiles anymore
       // The map layers handle the visual representation
       // We only need to draw ownership overlays for cubicles
+      
+      let ownershipOverlaysDrawn = 0
       
       for (let y = 0; y < board.length; y++) {
         for (let x = 0; x < board[y].length; x++) {
@@ -307,11 +306,37 @@ export class GameScene extends Phaser.Scene {
             const { x: wx, y: wy } = this.tileToWorld(x, y)
             const color = tile.owner === 'player1' ? VISUAL_CONFIG.COLORS.OWNERSHIP.PLAYER1_CUBICLE : VISUAL_CONFIG.COLORS.OWNERSHIP.PLAYER2_CUBICLE
             
-            this.tileGraphics.fillStyle(color, 0.3) // Semi-transparent overlay
+            this.tileGraphics.fillStyle(color, 0.8) // Increased opacity to 0.8 for maximum visibility
             this.tileGraphics.fillRect(wx, wy, this.tileSizePx, this.tileSizePx)
+            
+            // Add a bold border to make ownership even clearer
+            this.tileGraphics.lineStyle(3, color, 1.0) // Full opacity border
+            this.tileGraphics.strokeRect(wx, wy, this.tileSizePx, this.tileSizePx)
+            
+            ownershipOverlaysDrawn++
+            
+            // Debug logging for ownership overlays
+            console.log('Drawing ownership overlay:', {
+              position: { x, y },
+              owner: tile.owner,
+              color: color.toString(16),
+              worldPos: { wx, wy }
+            })
           }
         }
       }
+      
+      // Set the highest depth to ensure ownership overlays are on top
+      this.tileGraphics.setDepth(200)
+      
+      console.log('Board drawing complete:', {
+        totalTiles: board.length * board[0].length,
+        cubicles: board.flat().filter(t => t.type === TileType.CUBICLE).length,
+        ownedCubicles: board.flat().filter(t => t.type === TileType.CUBICLE && t.owner).length,
+        ownershipOverlaysDrawn,
+        tileGraphicsDepth: this.tileGraphics.depth
+      })
+      
     } catch (error) {
       console.error('Error drawing board:', error)
     }
@@ -981,8 +1006,12 @@ export class GameScene extends Phaser.Scene {
             }
           }
           
-          // Select the unit (this will show the action menu for player units)
-          store.selectUnit(unit)
+          // Don't re-select the unit if we just completed an action
+          // This prevents the action menu from staying open after a move
+          if (this.actionMode === 'none') {
+            // Select the unit (this will show the action menu for player units)
+            store.selectUnit(unit)
+          }
           return
         }
       }
@@ -1027,6 +1056,9 @@ export class GameScene extends Phaser.Scene {
           // Clear highlights after successful move
           this.highlightGraphics.clear()
           
+          // Clear action mode in GameScene
+          this.clearActionMode()
+          
           // Emit action completed event
           if (typeof window !== 'undefined') {
             const actionEvent = new CustomEvent('actionCompleted', {
@@ -1045,6 +1077,9 @@ export class GameScene extends Phaser.Scene {
           this.actionMode = 'none'
           // Clear highlights after successful attack
           this.highlightGraphics.clear()
+          
+          // Clear action mode in GameScene
+          this.clearActionMode()
           
           // Emit action completed event
           if (typeof window !== 'undefined') {
