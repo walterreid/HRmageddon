@@ -15,6 +15,7 @@ import {
 import { AIController } from '../game/systems/ai.ts'
 import { generateAIDraft } from '../game/systems/aiDraft.ts'
 import { ABILITIES, canUseAbility, getValidTargets } from '../game/systems/abilities.ts'
+import { mapRegistry } from '../game/map/MapRegistry'
 
 type GameMode = 'menu' | 'ai' | 'multiplayer'
 
@@ -150,7 +151,113 @@ export const useGameStore = create<GameStore>((set, get) => {
   initializeGame: () => {
     const board = createBoard()
     const players = createPlayers()
-    const units = createInitialUnits()
+    
+    // Get starting positions from the MapRegistry (same logic as confirmDraft)
+    const getMapStartingPositions = (teamId: string): Coordinate[] => {
+      try {
+        const startingPositions = mapRegistry.getStartingPositions('OfficeLayout')
+        if (!startingPositions) {
+          console.warn('Starting positions not available in MapRegistry, using fallback positions')
+          return getFallbackStartPositions(teamId)
+        }
+        
+        if (teamId === 'player1') {
+          // Gold team uses goldTeamPositions (tile 595)
+          return startingPositions.goldTeam?.map((pos: any) => ({ x: pos.x, y: pos.y })) || []
+        } else {
+          // Navy team uses navyTeamPositions (tile 563)
+          return startingPositions.navyTeam?.map((pos: any) => ({ x: pos.x, y: pos.y })) || []
+        }
+      } catch (error) {
+        console.warn('Error getting map starting positions from MapRegistry, using fallback:', error)
+        return getFallbackStartPositions(teamId)
+      }
+    }
+    
+    // Fallback starting positions if map data isn't available
+    const getFallbackStartPositions = (teamId: string): Coordinate[] => {
+      if (teamId === 'player1') {
+        // Gold team starts in top-left area (16x12 map)
+        return [
+          { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
+          { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 },
+        ]
+      } else {
+        // Navy team starts in bottom-right area (16x12 map)
+        const boardWidth = 16
+        const boardHeight = 12
+        return [
+          { x: boardWidth - 1, y: boardHeight - 1 }, 
+          { x: boardWidth - 2, y: boardHeight - 1 }, 
+          { x: boardWidth - 3, y: boardHeight - 1 },
+          { x: boardWidth - 1, y: boardHeight - 2 }, 
+          { x: boardWidth - 2, y: boardHeight - 2 }, 
+          { x: boardWidth - 3, y: boardHeight - 2 },
+        ]
+      }
+    }
+    
+    // Create units using map starting positions
+    const playerPositions = getMapStartingPositions('player1')
+    const aiPositions = getMapStartingPositions('player2')
+    
+    console.log('GameStore: Quick Start using starting positions:', {
+      playerPositions,
+      aiPositions
+    })
+    
+    const units: Unit[] = [
+      // Player units (Gold team)
+      {
+        id: 'blue-intern-1',
+        playerId: 'player1',
+        position: playerPositions[0] || { x: 0, y: 1 },
+        ...UNIT_STATS[UnitType.INTERN],
+        actionsRemaining: 2,
+        status: [],
+        hasMoved: false,
+        hasAttacked: false,
+        abilities: UNIT_STATS[UnitType.INTERN].abilities,
+        abilityCooldowns: {}
+      },
+      {
+        id: 'blue-secretary-1',
+        playerId: 'player1',
+        position: playerPositions[1] || { x: 1, y: 1 },
+        ...UNIT_STATS[UnitType.SECRETARY],
+        actionsRemaining: 2,
+        status: [],
+        hasMoved: false,
+        hasAttacked: false,
+        abilities: UNIT_STATS[UnitType.SECRETARY].abilities,
+        abilityCooldowns: {}
+      },
+      // AI units (Navy team)
+      {
+        id: 'red-intern-1',
+        playerId: 'player2',
+        position: aiPositions[0] || { x: 7, y: 8 },
+        ...UNIT_STATS[UnitType.INTERN],
+        actionsRemaining: 2,
+        status: [],
+        hasMoved: false,
+        hasAttacked: false,
+        abilities: UNIT_STATS[UnitType.INTERN].abilities,
+        abilityCooldowns: {}
+      },
+      {
+        id: 'red-secretary-1',
+        playerId: 'player2',
+        position: aiPositions[1] || { x: 6, y: 8 },
+        ...UNIT_STATS[UnitType.SECRETARY],
+        actionsRemaining: 2,
+        status: [],
+        hasMoved: false,
+        hasAttacked: false,
+        abilities: UNIT_STATS[UnitType.SECRETARY].abilities,
+        abilityCooldowns: {}
+      },
+    ]
 
     // Debug: Log initial board state
     const cubicleCount = board.flat().filter(t => t.type === TileType.CUBICLE).length
@@ -227,18 +334,40 @@ export const useGameStore = create<GameStore>((set, get) => {
     const state = get()
     if (state.draftState.selectedUnits.length === 0) return
     
-    // Define starting positions for each team
-    const getPlayerStartPositions = (teamId: string): Coordinate[] => {
+    // Get starting positions from the MapRegistry
+    const getMapStartingPositions = (teamId: string): Coordinate[] => {
+      try {
+        const startingPositions = mapRegistry.getStartingPositions('OfficeLayout')
+        if (!startingPositions) {
+          console.warn('Starting positions not available in MapRegistry, using fallback positions')
+          return getFallbackStartPositions(teamId)
+        }
+        
+        if (teamId === 'player1') {
+          // Gold team uses goldTeamPositions (tile 595)
+          return startingPositions.goldTeam?.map((pos: any) => ({ x: pos.x, y: pos.y })) || []
+        } else {
+          // Navy team uses navyTeamPositions (tile 563)
+          return startingPositions.navyTeam?.map((pos: any) => ({ x: pos.x, y: pos.y })) || []
+        }
+      } catch (error) {
+        console.warn('Error getting map starting positions from MapRegistry, using fallback:', error)
+        return getFallbackStartPositions(teamId)
+      }
+    }
+    
+    // Fallback starting positions if map data isn't available
+    const getFallbackStartPositions = (teamId: string): Coordinate[] => {
       if (teamId === 'player1') {
-        // Blue team starts in top-left area
+        // Gold team starts in top-left area (16x12 map)
         return [
           { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
           { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 },
         ]
       } else {
-        // Red team starts in bottom-right area
-        const boardWidth = 8
-        const boardHeight = 10
+        // Navy team starts in bottom-right area (16x12 map)
+        const boardWidth = 16
+        const boardHeight = 12
         return [
           { x: boardWidth - 1, y: boardHeight - 1 }, 
           { x: boardWidth - 2, y: boardHeight - 1 }, 
@@ -251,8 +380,15 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
     
     // Create units from draft selections
-    const playerPositions = getPlayerStartPositions('player1')
-    const aiPositions = getPlayerStartPositions('player2')
+    const playerPositions = getMapStartingPositions('player1')
+    const aiPositions = getMapStartingPositions('player2')
+    
+    console.log('GameStore: Using starting positions:', {
+      playerPositions,
+      aiPositions,
+      playerUnitsCount: state.draftState.selectedUnits.length,
+      aiUnitsCount: state.draftState.aiUnits.length
+    })
     
     const playerUnits: Unit[] = state.draftState.selectedUnits.map((draftUnit, index) => {
       const stats = UNIT_STATS[draftUnit.type]
@@ -307,6 +443,12 @@ export const useGameStore = create<GameStore>((set, get) => {
     // Initialize the game with drafted units
     const board = createBoard()
     const players = createPlayers()
+    
+    // Debug: Log final unit positions
+    console.log('GameStore: Final unit positions:', {
+      playerUnits: playerUnits.map(u => ({ id: u.id, position: u.position })),
+      aiUnits: aiUnits.map(u => ({ id: u.id, position: u.position }))
+    })
     
     // Debug: Log board state after draft
     const cubicleCount = board.flat().filter(t => t.type === TileType.CUBICLE).length

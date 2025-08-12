@@ -39,7 +39,7 @@ export function GameView() {
 
     // Multiple ways to detect when GameScene is ready
     const attachGameScene = (scene: any, method: string) => {
-      if (scene && scene.scene && scene.scene.key === 'GameScene') {
+      if (scene && scene.key === 'GameScene') {
         console.log(`GameScene ready via ${method}, attaching to window.gameScene`)
         ;(window as any).gameScene = scene
         return true

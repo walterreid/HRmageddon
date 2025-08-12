@@ -40,3 +40,6 @@ lerna-debug.log*
 
 # OS files
 Thumbs.db
+
+# Design files
+design/

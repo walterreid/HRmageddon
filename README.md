@@ -89,7 +89,10 @@ HRmageddon/
 - [x] Ability system framework
 - [x] Status effects and buffs/debuffs
 - [x] Enhanced unit interactions
-- [ ] **CURRENT ISSUE: Tile capture mechanics need debugging**
+- [x] **NEW: Tiled Map Integration** - Modular map system with 16x12 office layout
+- [x] **NEW: MapManager Architecture** - Clean separation of map logic from game logic
+- [x] **NEW: Starting Position System** - Units spawn on designated team starting tiles
+- [ ] **CURRENT ISSUE: MapRegistry integration needs debugging** - Starting positions not being retrieved correctly
 - [ ] Advanced AI behaviors
 - [ ] Multiple maps and scenarios
 
@@ -330,6 +333,14 @@ JWT_SECRET=your-secret-key
 - **Strategy:** Balance between expensive powerful units and cost-effective support
 - **AI Drafting:** AI creates balanced teams using strategic unit selection
 
+### **NEW: Tiled Map System**
+- **Modular Architecture:** `MapManager` class handles all map loading and rendering
+- **16x12 Office Layout:** Expanded from 8x10 to provide more strategic space
+- **4-Layer System:** Background (walkable), Foreground (blocking), CapturePoints, StartingPositions
+- **Team Starting Positions:** Gold team (top-left) and Navy team (bottom-right) with distinct tiles
+- **MapRegistry:** Centralized system for managing multiple maps and their starting positions
+- **Debug Tools:** Grid overlay (press 'G') for tile alignment verification
+
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -356,7 +367,7 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 
 ---
 
-**Current Status:** 🚧 Phase 3 Development - Unit Selection Attack System Fixed
+**Current Status:** 🚧 Phase 3 Development - Tiled Map Integration Complete, Starting Position System Needs Debugging
 
 **Last Updated:** January 2025
 
@@ -389,6 +400,7 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 - **Ability System**: Testing special abilities and their targeting mechanics
 
 ### 📋 Next Steps
+- **Debug MapRegistry Integration** - Fix starting position retrieval for proper unit spawning
 - **Test and validate** the fixed unit selection attack system
 - **Verify highlighting systems** for movement, attack, and abilities
 - **Add remaining unit types** (IT Specialist, Accountant, Legal Counsel, Executive)

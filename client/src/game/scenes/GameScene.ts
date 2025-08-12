@@ -2,6 +2,9 @@ import Phaser from 'phaser'
 import { useGameStore } from '../../stores/gameStore'
 import { TileType, type Unit, type Tile, type Coordinate, AbilityTargetingType } from 'shared'
 import { getAbilityById, getValidTargets } from '../systems/abilities.ts'
+import { MAPS } from '../map/registry'
+import { MapManager } from '../map/MapManager'
+import { GridOverlay } from '../debug/GridOverlay'
 
 // ===== GAME SCENE CONFIGURATION =====
 const VISUAL_CONFIG = {
@@ -86,8 +89,41 @@ export class GameScene extends Phaser.Scene {
   private targetingMode: boolean = false
   private abilityTargetGraphics!: Phaser.GameObjects.Graphics
 
+  // Map management
+  private mapMgr!: MapManager
+  // These are loaded from the map but not directly used yet - kept for future features
+  /** @ts-ignore - Intentionally unused, kept for future map features */
+  private _tilemap!: Phaser.Tilemaps.Tilemap
+  /** @ts-ignore - Intentionally unused, kept for future map features */
+  private _backgroundLayer!: Phaser.Tilemaps.TilemapLayer
+  /** @ts-ignore - Intentionally unused, kept for future map features */
+  private _foregroundLayer!: Phaser.Tilemaps.TilemapLayer
+  /** @ts-ignore - Intentionally unused, kept for future map features */
+  private _capturePointsLayer!: Phaser.Tilemaps.TilemapLayer
+  /** @ts-ignore - Intentionally unused, kept for future map features */
+  private _startingPositionsLayer!: Phaser.Tilemaps.TilemapLayer
+
+  private boardCols!: number
+  private boardRows!: number
+  private tileSizePx!: number
+  
+  // Starting positions for each team
+  private goldTeamPositions!: { x: number; y: number; gid: number }[]
+  private navyTeamPositions!: { x: number; y: number; gid: number }[]
+
+  private tileToWorld!: (tx:number, ty:number) => {x:number, y:number}
+  private worldToTile!: (px:number, py:number) => {x:number, y:number}
+  // Blocked helper for future movement validation
+  /** @ts-ignore - Intentionally unused, kept for future movement validation */
+  private _isBlocked!: (tx:number, ty:number) => boolean
+
   constructor() {
     super({ key: 'GameScene' })
+  }
+
+  preload() {
+    this.mapMgr = new MapManager(this, MAPS.OfficeLayout)
+    this.mapMgr.preload()
   }
 
   create() {
@@ -100,6 +136,51 @@ export class GameScene extends Phaser.Scene {
     
     // Ensure ability graphics are drawn on top
     this.abilityTargetGraphics.setDepth(100)
+    
+    // Create the Tiled map
+    console.log('GameScene: Creating Tiled map...');
+    const created = this.mapMgr.create()
+    console.log('GameScene: Map created:', created);
+    
+    this._tilemap    = created.map
+    this._backgroundLayer = created.background
+    this._foregroundLayer = created.foreground
+    this._capturePointsLayer = created.capturePoints
+    this._startingPositionsLayer = created.startingPositions
+
+    this.boardCols = created.board.cols
+    this.boardRows = created.board.rows
+    this.tileSizePx = created.targetTileSizePx
+
+    this.tileToWorld = created.tileToWorld
+    this.worldToTile = created.worldToTile
+    this._isBlocked   = created.isBlocked
+    
+    // Capture starting positions for each team
+    this.goldTeamPositions = created.goldTeamPositions
+    this.navyTeamPositions = created.navyTeamPositions
+    
+    console.log('GameScene: Map setup complete:', {
+      cols: this.boardCols,
+      rows: this.boardRows,
+      tileSize: this.tileSizePx
+    });
+
+    // Keep highlights above map
+    this.highlightGraphics.setDepth(10)
+
+    // Optional: toggle grid with 'G'
+    new GridOverlay(this, this.boardCols, this.boardRows, this.tileSizePx)
+    
+    // Force initial render after map is ready
+    const initialState = useGameStore.getState()
+    if (initialState.board && initialState.units) {
+      this.drawBoard(initialState.board)
+      this.drawUnits(initialState.units)
+    }
+    
+            // MapRegistry is now populated with starting positions
+        console.log('GameScene: MapRegistry populated with starting positions for OfficeLayout')
     
     console.log('Graphics initialized:', {
       tileGraphics: !!this.tileGraphics,
@@ -190,34 +271,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   public getTileSize(): number {
-    // Validate scene state before accessing game config
-    if (!this.game || !this.game.config) {
-      console.warn('Game not initialized, returning default tile size')
-      return 40 // Default fallback tile size
-    }
-    
-    // Calculate tile size based on canvas dimensions
-    // Use 80% of available space for the board, divided by grid dimensions
-    return Math.min(
-      (this.game.config.width as number) * 0.8 / 8,  // 8 columns
-      (this.game.config.height as number) * 0.8 / 10  // 10 rows
-    )
+    // Return the tile size from the loaded map
+    return this.tileSizePx || 48 // Fallback to 48 if not yet loaded
   }
 
   public getBoardOffsetX(): number {
-    const tileSize = this.getTileSize()
-    if (!this.game || !this.game.config) {
-      return 0 // Default fallback offset
-    }
-    return ((this.game.config.width as number) - (8 * tileSize)) / 2
+    // With Tiled map, board starts at (0,0) - no offset needed
+    return 0
   }
 
   public getBoardOffsetY(): number {
-    const tileSize = this.getTileSize()
-    if (!this.game || !this.game.config) {
-      return 0 // Default fallback offset
-    }
-    return ((this.game.config.height as number) - (10 * tileSize)) / 2
+    // With Tiled map, board starts at (0,0) - no offset needed
+    return 0
   }
 
   private drawBoard(board: Tile[][]) {
@@ -228,47 +293,23 @@ export class GameScene extends Phaser.Scene {
       }
       
       this.tileGraphics.clear()
-      const tileSize = this.getTileSize()
-      const boardOffsetX = this.getBoardOffsetX()
-      const boardOffsetY = this.getBoardOffsetY()
+      
+      // With Tiled map, we don't need to draw the base tiles anymore
+      // The map layers handle the visual representation
+      // We only need to draw ownership overlays for cubicles
       
       for (let y = 0; y < board.length; y++) {
         for (let x = 0; x < board[y].length; x++) {
           const tile = board[y][x]
-          const px = boardOffsetX + x * tileSize
-          const py = boardOffsetY + y * tileSize
-
-          let color = 0xcccccc // Default fallback color
-          switch (tile.type) {
-            case TileType.NORMAL:
-              color = VISUAL_CONFIG.COLORS.TILES.NORMAL
-              break
-            case TileType.CUBICLE:
-              color = VISUAL_CONFIG.COLORS.TILES.CUBICLE
-              break
-            case TileType.OBSTACLE:
-              color = VISUAL_CONFIG.COLORS.TILES.OBSTACLE
-              break
-            case TileType.CONFERENCE_ROOM:
-              color = VISUAL_CONFIG.COLORS.TILES.CONFERENCE_ROOM
-              break
-            case TileType.HQ_BLUE:
-              color = VISUAL_CONFIG.COLORS.TILES.HQ_BLUE
-              break
-            case TileType.HQ_RED:
-              color = VISUAL_CONFIG.COLORS.TILES.HQ_RED
-              break
-          }
-
-          // owner tint for cubicles
+          
+          // Only draw ownership overlays for cubicles
           if (tile.type === TileType.CUBICLE && tile.owner) {
-            color = tile.owner === 'player1' ? VISUAL_CONFIG.COLORS.OWNERSHIP.PLAYER1_CUBICLE : VISUAL_CONFIG.COLORS.OWNERSHIP.PLAYER2_CUBICLE
+            const { x: wx, y: wy } = this.tileToWorld(x, y)
+            const color = tile.owner === 'player1' ? VISUAL_CONFIG.COLORS.OWNERSHIP.PLAYER1_CUBICLE : VISUAL_CONFIG.COLORS.OWNERSHIP.PLAYER2_CUBICLE
+            
+            this.tileGraphics.fillStyle(color, 0.3) // Semi-transparent overlay
+            this.tileGraphics.fillRect(wx, wy, this.tileSizePx, this.tileSizePx)
           }
-
-          this.tileGraphics.fillStyle(color, 1)
-          this.tileGraphics.fillRect(px, py, tileSize, tileSize)
-          this.tileGraphics.lineStyle(1, 0x0f172a, VISUAL_CONFIG.HIGHLIGHT.TILE_BORDER_ALPHA)
-          this.tileGraphics.strokeRect(px, py, tileSize, tileSize)
         }
       }
     } catch (error) {
@@ -286,13 +327,10 @@ export class GameScene extends Phaser.Scene {
         }
       })
 
-      const tileSize = this.getTileSize()
-      const boardOffsetX = this.getBoardOffsetX()
-      const boardOffsetY = this.getBoardOffsetY()
-
       for (const unit of units) {
-        const targetX = boardOffsetX + unit.position.x * tileSize + tileSize / 2
-        const targetY = boardOffsetY + unit.position.y * tileSize + tileSize / 2
+        const { x: wx, y: wy } = this.tileToWorld(unit.position.x, unit.position.y)
+        const targetX = wx + this.tileSizePx / 2
+        const targetY = wy + this.tileSizePx / 2
         const existing = this.unitSprites.get(unit.id)
         if (existing) {
           this.tweens.add({ targets: existing, x: targetX, y: targetY, duration: VISUAL_CONFIG.ANIMATION.MOVEMENT_DURATION, ease: 'Power2' })
@@ -315,7 +353,7 @@ export class GameScene extends Phaser.Scene {
           continue
         }
 
-        const container = this.add.container(targetX, targetY)
+        const container = this.add.container(targetX, targetY).setDepth(50)
         const circleColor = unit.playerId === 'player1' ? VISUAL_CONFIG.COLORS.UNITS.PLAYER1 : VISUAL_CONFIG.COLORS.UNITS.PLAYER2 // Gold vs Navy
         const circle = this.add.circle(0, 0, VISUAL_CONFIG.UNIT.CIRCLE_RADIUS, circleColor).setName('circle')
         const label = this.add.text(0, 0, unit.type.charAt(0).toUpperCase(), { color: '#fff', fontSize: VISUAL_CONFIG.UNIT.FONT_SIZE }).setName('label')
@@ -341,11 +379,11 @@ export class GameScene extends Phaser.Scene {
         container.add([circle, label, hpBg, hpFill])
         
         // Make the container interactive with proper hit area
-        container.setSize(tileSize, tileSize)
+        container.setSize(this.tileSizePx, this.tileSizePx)
         container.setData('unitId', unit.id)
         
         // Enhanced interactivity for Safari compatibility
-        container.setInteractive(new Phaser.Geom.Rectangle(-tileSize/2, -tileSize/2, tileSize, tileSize), Phaser.Geom.Rectangle.Contains)
+        container.setInteractive(new Phaser.Geom.Rectangle(-this.tileSizePx/2, -this.tileSizePx/2, this.tileSizePx, this.tileSizePx), Phaser.Geom.Rectangle.Contains)
         
         // Add multiple event listeners for better compatibility
         container.on('pointerdown', () => {
@@ -397,14 +435,10 @@ export class GameScene extends Phaser.Scene {
         highlighted.forEach((type, coordKey) => {
           if (type === 'ability') {
             const [x, y] = coordKey.split(',').map(Number)
-            const tileSize = this.getTileSize()
-            const boardOffsetX = this.getBoardOffsetX()
-            const boardOffsetY = this.getBoardOffsetY()
-            const px = boardOffsetX + x * tileSize
-            const py = boardOffsetY + y * tileSize
+            const { x: px, y: py } = this.tileToWorld(x, y)
             
             // Use DISTINCT purple color for abilities
-            this.drawHighlight(px, py, tileSize, 'ability')
+            this.drawHighlight(px, py, this.tileSizePx, 'ability')
           }
         })
         return // Don't show any other highlights
@@ -434,26 +468,18 @@ export class GameScene extends Phaser.Scene {
       // Draw movement/attack highlights
       highlightMap.forEach((types, coordKey) => {
         const [x, y] = coordKey.split(',').map(Number)
-        const tileSize = this.getTileSize()
-        const boardOffsetX = this.getBoardOffsetX()
-        const boardOffsetY = this.getBoardOffsetY()
-        const px = boardOffsetX + x * tileSize
-        const py = boardOffsetY + y * tileSize
+        const { x: px, y: py } = this.tileToWorld(x, y)
         
         types.forEach(type => {
-          this.drawHighlight(px, py, tileSize, type)
+          this.drawHighlight(px, py, this.tileSizePx, type)
         })
       })
 
       // Always draw selected unit highlight last
       if (selectedUnit) {
-        const tileSize = this.getTileSize()
-        const boardOffsetX = this.getBoardOffsetX()
-        const boardOffsetY = this.getBoardOffsetY()
-        const px = boardOffsetX + selectedUnit.position.x * tileSize
-        const py = boardOffsetY + selectedUnit.position.y * tileSize
+        const { x: px, y: py } = this.tileToWorld(selectedUnit.position.x, selectedUnit.position.y)
         this.highlightGraphics.lineStyle(3, 0xfbbf24, 1) // Gold selection
-        this.highlightGraphics.strokeRect(px - 1, py - 1, tileSize, tileSize)
+        this.highlightGraphics.strokeRect(px - 1, py - 1, this.tileSizePx, this.tileSizePx)
       }
     } catch (error) {
       console.error('Error updating highlights:', error)
@@ -583,11 +609,7 @@ export class GameScene extends Phaser.Scene {
       return
     }
     
-    const tileSize = this.getTileSize()
-    const boardOffsetX = this.getBoardOffsetX()
-    const boardOffsetY = this.getBoardOffsetY()
-    
-    console.log('Tile size:', tileSize, 'Board offset:', { x: boardOffsetX, y: boardOffsetY })
+    console.log('Tile size:', this.tileSizePx, 'Board offset: (0,0) - Tiled map')
     
     // Determine if this is a positive or negative ability based on target type
     const isNegativeAbility = ability.targetType === 'enemy'
@@ -628,18 +650,17 @@ export class GameScene extends Phaser.Scene {
           if (targetX >= 0 && targetX < store.board[0].length && 
               targetY >= 0 && targetY < store.board.length) {
             
-            const px = boardOffsetX + targetX * tileSize
-            const py = boardOffsetY + targetY * tileSize
+            const { x: px, y: py } = this.tileToWorld(targetX, targetY)
             
             console.log(`Highlighting tile at (${targetX}, ${targetY}) -> screen (${px}, ${py})`)
             
             // Draw range highlight
             this.abilityTargetGraphics.fillStyle(rangeColor, rangeAlpha)
-            this.abilityTargetGraphics.fillRect(px, py, tileSize, tileSize)
+            this.abilityTargetGraphics.fillRect(px, py, this.tileSizePx, this.tileSizePx)
             
             // Add subtle border
             this.abilityTargetGraphics.lineStyle(1, rangeColor, rangeAlpha + 0.2)
-            this.abilityTargetGraphics.strokeRect(px, py, tileSize, tileSize)
+            this.abilityTargetGraphics.strokeRect(px, py, this.tileSizePx, this.tileSizePx)
             
             tilesHighlighted++
           }
@@ -655,11 +676,7 @@ export class GameScene extends Phaser.Scene {
     this.validTargets.forEach(target => {
       if ('x' in target) {
         // Target is a coordinate
-        const tileSize = this.getTileSize()
-        const boardOffsetX = this.getBoardOffsetX()
-        const boardOffsetY = this.getBoardOffsetY()
-        const px = boardOffsetX + target.x * tileSize
-        const py = boardOffsetY + target.y * tileSize
+        const { x: px, y: py } = this.tileToWorld(target.x, target.y)
         
         // Determine if this is a positive or negative ability
         const ability = getAbilityById(useGameStore.getState().selectedAbility || '')
@@ -680,16 +697,12 @@ export class GameScene extends Phaser.Scene {
         }
         
         this.abilityTargetGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, targetColor, targetAlpha)
-        this.abilityTargetGraphics.strokeRect(px, py, tileSize, tileSize)
+        this.abilityTargetGraphics.strokeRect(px, py, this.tileSizePx, this.tileSizePx)
         this.abilityTargetGraphics.fillStyle(targetColor, targetAlpha * 0.3)
-        this.abilityTargetGraphics.fillRect(px, py, tileSize, tileSize)
+        this.abilityTargetGraphics.fillRect(px, py, this.tileSizePx, this.tileSizePx)
       } else {
         // Target is a unit
-        const tileSize = this.getTileSize()
-        const boardOffsetX = this.getBoardOffsetX()
-        const boardOffsetY = this.getBoardOffsetY()
-        const px = boardOffsetX + target.position.x * tileSize
-        const py = boardOffsetY + target.position.y * tileSize
+        const { x: px, y: py } = this.tileToWorld(target.position.x, target.position.y)
         
         // Determine if this is a positive or negative ability
         const ability = getAbilityById(useGameStore.getState().selectedAbility || '')
@@ -710,35 +723,33 @@ export class GameScene extends Phaser.Scene {
         }
         
         this.abilityTargetGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, targetColor, targetAlpha)
-        this.abilityTargetGraphics.strokeCircle(px + tileSize/2, py + tileSize/2, tileSize/2 + 2)
+        this.abilityTargetGraphics.strokeCircle(px + this.tileSizePx/2, py + this.tileSizePx/2, this.tileSizePx/2 + 2)
         this.abilityTargetGraphics.fillStyle(targetColor, targetAlpha * 0.3)
-        this.abilityTargetGraphics.fillCircle(px + tileSize/2, py + tileSize/2, tileSize/2)
+        this.abilityTargetGraphics.fillCircle(px + this.tileSizePx/2, py + this.tileSizePx/2, this.tileSizePx/2)
       }
     })
   }
 
   private showConePreview(caster: Unit, ability: any) {
     // For cone abilities, show a preview of the cone area
-    const tileSize = this.getTileSize()
-    const boardOffsetX = this.getBoardOffsetX()
-    const boardOffsetY = this.getBoardOffsetY()
-    const casterX = boardOffsetX + caster.position.x * tileSize + tileSize / 2
-    const casterY = boardOffsetY + caster.position.y * tileSize + tileSize / 2
+    const { x: casterX, y: casterY } = this.tileToWorld(caster.position.x, caster.position.y)
+    const casterCenterX = casterX + this.tileSizePx / 2
+    const casterCenterY = casterY + this.tileSizePx / 2
     
     // Draw cone preview (simplified for now - can be enhanced with mouse tracking)
-    const coneRadius = (ability.aoeRadius || 3) * tileSize
+    const coneRadius = (ability.aoeRadius || 3) * this.tileSizePx
     const coneAngle = (ability.coneAngle || 90) * Math.PI / 180 // Convert to radians
     
     // Draw cone outline
     this.abilityTargetGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
     this.abilityTargetGraphics.beginPath()
-    this.abilityTargetGraphics.moveTo(casterX, casterY)
+    this.abilityTargetGraphics.moveTo(casterCenterX, casterCenterY)
     
     // Draw cone arc (facing right for now)
     const startAngle = -coneAngle / 2
     const endAngle = coneAngle / 2
-    this.abilityTargetGraphics.arc(casterX, casterY, coneRadius, startAngle, endAngle)
-    this.abilityTargetGraphics.lineTo(casterX, casterY)
+    this.abilityTargetGraphics.arc(casterCenterX, casterCenterY, coneRadius, startAngle, endAngle)
+    this.abilityTargetGraphics.lineTo(casterCenterX, casterCenterY)
     this.abilityTargetGraphics.strokePath()
     
     // Fill cone area
@@ -748,17 +759,15 @@ export class GameScene extends Phaser.Scene {
 
   private showCirclePreview(caster: Unit, ability: any) {
     // For circle AOE abilities, show the area of effect
-    const tileSize = this.getTileSize()
-    const boardOffsetX = this.getBoardOffsetX()
-    const boardOffsetY = this.getBoardOffsetY()
-    const casterX = boardOffsetX + caster.position.x * tileSize + tileSize / 2
-    const casterY = boardOffsetY + caster.position.y * tileSize + tileSize / 2
+    const { x: casterX, y: casterY } = this.tileToWorld(caster.position.x, caster.position.y)
+    const casterCenterX = casterX + this.tileSizePx / 2
+    const casterCenterY = casterY + this.tileSizePx / 2
     
-    const aoeRadius = (ability.aoeRadius || 2) * tileSize
+    const aoeRadius = (ability.aoeRadius || 2) * this.tileSizePx
     
     // Draw circle outline
     this.abilityTargetGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
-    this.abilityTargetGraphics.strokeCircle(casterX, casterY, aoeRadius)
+    this.abilityTargetGraphics.strokeCircle(casterCenterX, casterCenterY, aoeRadius)
     
     // Fill circle area
     this.abilityTargetGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.AOE_ALPHA)
@@ -776,11 +785,7 @@ export class GameScene extends Phaser.Scene {
     
     // If we're in ability targeting mode, handle ability target selection
     if (this.targetingMode && store.selectedAbility) {
-      const tileSize = this.getTileSize()
-      const boardOffsetX = this.getBoardOffsetX()
-      const boardOffsetY = this.getBoardOffsetY()
-      const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
-      const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
+      const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
       
       // Check if clicked on a valid target
       const clickedTarget = this.validTargets.find(target => {
@@ -826,11 +831,7 @@ export class GameScene extends Phaser.Scene {
       
       // If the action wasn't completed, check if we clicked outside valid tiles
       if (this.actionMode === previousActionMode) {
-        const tileSize = this.getTileSize()
-        const boardOffsetX = this.getBoardOffsetX()
-        const boardOffsetY = this.getBoardOffsetY()
-        const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
-        const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
+        const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
         
         // Check if clicked outside the board or on an invalid tile
         const board = store.board
@@ -990,11 +991,7 @@ export class GameScene extends Phaser.Scene {
     // Fall back to tile selection - emit event for GameHUD to handle
     // This should only happen when not in action mode to avoid conflicts
     if (this.actionMode === 'none') {
-      const tileSize = this.getTileSize()
-      const boardOffsetX = this.getBoardOffsetX()
-      const boardOffsetY = this.getBoardOffsetY()
-      const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
-      const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
+      const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
       const board = store.board
       
       if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {
@@ -1012,11 +1009,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleActionModeClick(unit: Unit, pointer: Phaser.Input.Pointer) {
     const store = useGameStore.getState()
-    const tileSize = this.getTileSize()
-    const boardOffsetX = this.getBoardOffsetX()
-    const boardOffsetY = this.getBoardOffsetY()
-    const tileX = Math.floor((pointer.x - boardOffsetX) / tileSize)
-    const tileY = Math.floor((pointer.y - boardOffsetY) / tileSize)
+    const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
     
     // Emit tile click event for GameHUD to handle
     const event = new CustomEvent('gameTileClick', {
@@ -1088,17 +1081,13 @@ export class GameScene extends Phaser.Scene {
       if (store.selectedUnit) {
         // Show move highlights
         store.possibleMoves.forEach(move => {
-          const tileSize = this.getTileSize()
-          const boardOffsetX = this.getBoardOffsetX()
-          const boardOffsetY = this.getBoardOffsetY()
-          const px = boardOffsetX + move.x * tileSize
-          const py = boardOffsetY + move.y * tileSize
+          const { x: px, y: py } = this.tileToWorld(move.x, move.y)
           
           // Draw blue highlight for move targets
-                  this.highlightGraphics.fillStyle(VISUAL_CONFIG.COLORS.TILES.HQ_BLUE, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
-        this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
-        this.highlightGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, 0x1d4ed8, 1)
-          this.highlightGraphics.strokeRect(px, py, tileSize, tileSize)
+          this.highlightGraphics.fillStyle(VISUAL_CONFIG.COLORS.TILES.HQ_BLUE, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
+          this.highlightGraphics.fillRect(px, py, this.tileSizePx, this.tileSizePx)
+          this.highlightGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, 0x1d4ed8, 1)
+          this.highlightGraphics.strokeRect(px, py, this.tileSizePx, this.tileSizePx)
         })
       }
     } else if (mode === 'attack') {
@@ -1143,17 +1132,13 @@ export class GameScene extends Phaser.Scene {
     
     // Highlight each enemy position with red
     enemies.forEach(enemy => {
-      const tileSize = this.getTileSize()
-      const boardOffsetX = this.getBoardOffsetX()
-      const boardOffsetY = this.getBoardOffsetY()
-      const px = boardOffsetX + enemy.position.x * tileSize
-      const py = boardOffsetY + enemy.position.y * tileSize
+      const { x: px, y: py } = this.tileToWorld(enemy.position.x, enemy.position.y)
       
       // Draw red highlight for enemy targets
-              this.highlightGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK, VISUAL_CONFIG.HIGHLIGHT.ATTACK_ALPHA)
-      this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
-              this.highlightGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_RANGE, 1)
-      this.highlightGraphics.strokeRect(px, py, tileSize, tileSize)
+      this.highlightGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK, VISUAL_CONFIG.HIGHLIGHT.ATTACK_ALPHA)
+      this.highlightGraphics.fillRect(px, py, this.tileSizePx, this.tileSizePx)
+      this.highlightGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, VISUAL_CONFIG.COLORS.HIGHLIGHTS.ATTACK_RANGE, 1)
+      this.highlightGraphics.strokeRect(px, py, this.tileSizePx, this.tileSizePx)
     })
   }
 
@@ -1170,26 +1155,24 @@ export class GameScene extends Phaser.Scene {
     
     // Highlight each valid target with purple
     validTargets.forEach(target => {
-      const tileSize = this.getTileSize()
-      const boardOffsetX = this.getBoardOffsetX()
-      const boardOffsetY = this.getBoardOffsetY()
-      
       let px: number, py: number
       if ('x' in target) {
         // Coordinate target
-        px = boardOffsetX + target.x * tileSize
-        py = boardOffsetY + target.y * tileSize
+        const { x: wx, y: wy } = this.tileToWorld(target.x, target.y)
+        px = wx
+        py = wy
       } else {
         // Unit target
-        px = boardOffsetX + target.position.x * tileSize
-        py = boardOffsetY + target.position.y * tileSize
+        const { x: wx, y: wy } = this.tileToWorld(target.position.x, target.position.y)
+        px = wx
+        py = wy
       }
       
       // Draw purple highlight for ability targets
-              this.highlightGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
-      this.highlightGraphics.fillRect(px, py, tileSize, tileSize)
-              this.highlightGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, 0x7c3aed, 1)
-      this.highlightGraphics.strokeRect(px, py, tileSize, tileSize)
+      this.highlightGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY, VISUAL_CONFIG.HIGHLIGHT.ABILITY_ALPHA)
+      this.highlightGraphics.fillRect(px, py, this.tileSizePx, this.tileSizePx)
+      this.highlightGraphics.lineStyle(VISUAL_CONFIG.HIGHLIGHT.BORDER_WIDTH, 0x7c3aed, 1)
+      this.highlightGraphics.strokeRect(px, py, this.tileSizePx, this.tileSizePx)
     })
   }
 
@@ -1385,21 +1368,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getTargetPosition(target: Unit | Coordinate): { x: number, y: number } | null {
-    const tileSize = this.getTileSize()
-    const boardOffsetX = this.getBoardOffsetX()
-    const boardOffsetY = this.getBoardOffsetY()
-    
     if ('x' in target) {
       // Target is a coordinate
+      const { x: wx, y: wy } = this.tileToWorld(target.x, target.y)
       return {
-        x: boardOffsetX + target.x * tileSize + tileSize / 2,
-        y: boardOffsetY + target.y * tileSize + tileSize / 2
+        x: wx + this.tileSizePx / 2,
+        y: wy + this.tileSizePx / 2
       }
     } else {
       // Target is a unit
+      const { x: wx, y: wy } = this.tileToWorld(target.position.x, target.position.y)
       return {
-        x: boardOffsetX + target.position.x * tileSize + tileSize / 2,
-        y: boardOffsetY + target.position.y * tileSize + tileSize / 2
+        x: wx + this.tileSizePx / 2,
+        y: wy + this.tileSizePx / 2
       }
     }
   }
