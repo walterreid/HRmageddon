@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { initializeMapRegistry } from '../game/map/registry';
+import { mapRegistry } from '../game/map/MapRegistry';
 
 interface LoadingScreenProps {
   onLoadingComplete: () => void;
@@ -12,9 +13,14 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
   const [isFadingOut, setIsFadingOut] = useState(false);
 
   useEffect(() => {
-    // Initialize the MapRegistry early during loading
+    // Initialize the MapRegistry with all available maps
     initializeMapRegistry();
-    console.log('LoadingScreen: MapRegistry initialized');
+    
+    // CRITICAL: Pre-populate starting positions from tilemap JSON
+    // This eliminates the race condition between LoadingScreen and GameScene
+    preloadStartingPositions();
+    
+    console.log('LoadingScreen: MapRegistry initialized with starting positions');
 
     // Simulate loading progress
     const interval = setInterval(() => {
@@ -53,6 +59,52 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
       }, 500);
     }
   }, [progress, isComplete, onLoadingComplete]);
+
+  // Function to pre-parse starting positions from tilemap JSON
+  const preloadStartingPositions = async () => {
+    try {
+      // Fetch the tilemap JSON directly
+      const response = await fetch('/assets/tilemaps/OfficeLayout16x12.json');
+      const tilemapData = await response.json();
+      
+      // Parse starting positions from the "StartingPoints" layer
+      const startingPointsLayer = tilemapData.layers.find((layer: any) => layer.name === 'StartingPoints');
+      
+      if (startingPointsLayer && startingPointsLayer.data) {
+        const startingPositionsData: any[] = [];
+        
+        // Convert 1D array to 2D grid and find non-zero tiles
+        for (let y = 0; y < startingPointsLayer.height; y++) {
+          for (let x = 0; x < startingPointsLayer.width; x++) {
+            const index = y * startingPointsLayer.width + x;
+            const gid = startingPointsLayer.data[index];
+            
+            if (gid > 0) {
+              startingPositionsData.push({ x, y, gid });
+            }
+          }
+        }
+        
+        // Separate by team based on GID
+        const goldTeamPositions = startingPositionsData.filter(pos => pos.gid === 595);
+        const navyTeamPositions = startingPositionsData.filter(pos => pos.gid === 563);
+        
+        // Populate MapRegistry immediately
+        mapRegistry.setStartingPositions('OfficeLayout', {
+          goldTeam: goldTeamPositions,
+          navyTeam: navyTeamPositions
+        });
+        
+        console.log('LoadingScreen: Pre-populated starting positions:', {
+          goldTeam: goldTeamPositions.length,
+          navyTeam: navyTeamPositions.length,
+          total: startingPositionsData.length
+        });
+      }
+    } catch (error) {
+      console.warn('LoadingScreen: Failed to preload starting positions:', error);
+    }
+  };
 
   return (
     <div className={`fixed inset-0 z-50 bg-slate-900 flex items-center justify-center transition-opacity duration-500 ${isFadingOut ? 'opacity-0' : 'opacity-100'}`}>
