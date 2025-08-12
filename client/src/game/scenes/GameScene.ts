@@ -265,7 +265,7 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerout', this.handlePointerOut, this)
     
     // Prevent zoom on mobile devices
-    this.input.on('wheel', (pointer: Phaser.Input.Pointer, gameObjects: any[], deltaX: number, deltaY: number, deltaZ: number) => {
+    this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _gameObjects: any[], _deltaX: number, deltaY: number, _deltaZ: number) => {
       // Prevent zoom/scroll on mobile
       if (Math.abs(deltaY) > 0) {
         return false
@@ -822,14 +822,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Mobile touch event handlers
-  private handlePointerOver(pointer: Phaser.Input.Pointer) {
+  private handlePointerOver(_pointer: Phaser.Input.Pointer) {
     // Add hover effects for desktop (optional for mobile)
     if (!this.isMobileDevice()) {
       // Desktop hover effects can go here
     }
   }
 
-  private handlePointerOut(pointer: Phaser.Input.Pointer) {
+  private handlePointerOut(_pointer: Phaser.Input.Pointer) {
     // Clear hover effects for desktop (optional for mobile)
     if (!this.isMobileDevice()) {
       // Desktop hover cleanup can go here
