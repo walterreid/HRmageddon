@@ -37,30 +37,32 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
-      <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">HRmageddon</h1>
-        <div className="flex items-center gap-4">
-          <div className="text-sm opacity-75">
+      {/* Header - Responsive with mobile optimizations */}
+      <header className="px-4 py-3 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl font-semibold text-center sm:text-left">HRmageddon</h1>
+        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
+          <div className="text-sm opacity-75 text-center sm:text-left">
             {gameMode === 'ai' ? 'Player vs AI' : 'Multiplayer'}
           </div>
           <button
             onClick={returnToMenu}
-            className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors w-full sm:w-auto"
           >
             Main Menu
           </button>
         </div>
       </header>
-      <main className="p-4 flex justify-center">
+
+      <main className="p-2 sm:p-4">
         {phase === GamePhase.DRAFT ? (
           <DraftScreen />
         ) : phase === GamePhase.GAME_OVER ? (
           <div className="w-full max-w-2xl mx-auto text-center">
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-8">
-              <h2 className="text-3xl font-bold mb-4">
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6 sm:p-8">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-4">
                 Game Over!
               </h2>
-              <div className="text-xl mb-6">
+              <div className="text-lg sm:text-xl mb-6">
                 {winner === 'player1' ? (
                   <span className="text-blue-400">Blue Team Wins! 🎉</span>
                 ) : winner === 'player2' ? (
@@ -71,22 +73,37 @@ export default function App() {
               </div>
               <button
                 onClick={returnToMenu}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-lg font-semibold transition-colors"
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-lg font-semibold transition-colors w-full sm:w-auto"
               >
                 Return to Main Menu
               </button>
             </div>
           </div>
         ) : (
-          <div className="w-full max-w-8xl">
-            <div className="flex flex-col lg:flex-row gap-8 justify-center items-center lg:items-start">
+          /* Game Layout - Mobile-first responsive design */
+          <div className="w-full">
+            {/* Mobile Layout: Stacked (Game Board on top, UI below) */}
+            <div className="flex flex-col lg:hidden gap-4">
+              {/* Game Board - Full width on mobile */}
+              <div className="w-full flex justify-center">
+                <GameView />
+              </div>
+              
+              {/* Mobile GameHUD - Will be converted to bottom sheet */}
+              <div className="w-full bg-slate-800 rounded-lg border border-slate-700 p-4">
+                <GameHUD />
+              </div>
+            </div>
+
+            {/* Desktop Layout: Side-by-side (preserve current experience) */}
+            <div className="hidden lg:flex flex-row gap-8 justify-center items-start">
               {/* Left side - Game Board */}
-              <div className="flex-shrink-0 order-2 lg:order-1">
+              <div className="flex-shrink-0">
                 <GameView />
               </div>
               
               {/* Right side - Game Information Panel */}
-              <div className="w-full lg:w-96 bg-slate-800 rounded-lg border border-slate-700 p-6 flex-shrink-0 order-1 lg:order-2">
+              <div className="w-96 bg-slate-800 rounded-lg border border-slate-700 p-6 flex-shrink-0">
                 <GameHUD />
               </div>
             </div>

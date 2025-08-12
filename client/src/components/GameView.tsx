@@ -11,12 +11,27 @@ export function GameView() {
   useEffect(() => {
     if (!containerRef.current || gameRef.current) return
 
-    // Use more balanced dimensions - 50% of screen width, 70% of screen height
-    // This gives more space for the game info panel
+    // Mobile-first responsive game dimensions
     const getGameDimensions = () => {
-      const width = Math.min(window.innerWidth * 0.5, 800) // Cap at 800px for very large screens
-      const height = Math.min(window.innerHeight * 0.7, 600) // Cap at 600px for very large screens
-      return { width, height }
+      const isMobile = window.innerWidth < 768 // md breakpoint
+      const isTablet = window.innerWidth >= 768 && window.innerWidth < 1024 // lg breakpoint
+      
+      if (isMobile) {
+        // Mobile: Use 90% of screen width, maintain 16:12 aspect ratio
+        const width = Math.min(window.innerWidth * 0.9, 400) // Cap at 400px for very small screens
+        const height = width * (12 / 16) // Maintain 16:12 aspect ratio
+        return { width, height }
+      } else if (isTablet) {
+        // Tablet: Use 70% of screen width, maintain aspect ratio
+        const width = Math.min(window.innerWidth * 0.7, 600)
+        const height = width * (12 / 16)
+        return { width, height }
+      } else {
+        // Desktop: Use 50% of screen width, 70% of screen height (preserve current experience)
+        const width = Math.min(window.innerWidth * 0.5, 800)
+        const height = Math.min(window.innerHeight * 0.7, 600)
+        return { width, height }
+      }
     }
 
     const { width, height } = getGameDimensions()
@@ -29,7 +44,16 @@ export function GameView() {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
         width,
-        height
+        height,
+        // Mobile-specific scale settings
+        min: {
+          width: 320,  // Minimum width for very small screens
+          height: 240  // Minimum height for very small screens
+        },
+        max: {
+          width: 1200, // Maximum width for very large screens
+          height: 900  // Maximum height for very large screens
+        }
       },
       scene: [GameScene],
       physics: { default: 'arcade' },
@@ -85,15 +109,36 @@ export function GameView() {
     // Start the fallback check
     setTimeout(checkScene, 100)
 
-    // Handle window resize for responsive canvas
+    // Enhanced responsive resize handler
     const handleResize = () => {
       if (game && game.scale) {
         const { width: newWidth, height: newHeight } = getGameDimensions()
-        game.scale.resize(newWidth, newHeight)
+        
+        // Only resize if dimensions actually changed significantly
+        const currentWidth = game.scale.width
+        const currentHeight = game.scale.height
+        const widthDiff = Math.abs(newWidth - currentWidth)
+        const heightDiff = Math.abs(newHeight - currentHeight)
+        
+        if (widthDiff > 10 || heightDiff > 10) {
+          console.log('Resizing game:', { 
+            from: { width: currentWidth, height: currentHeight }, 
+            to: { width: newWidth, height: newHeight },
+            screen: { width: window.innerWidth, height: window.innerHeight }
+          })
+          game.scale.resize(newWidth, newHeight)
+        }
       }
     }
 
-    window.addEventListener('resize', handleResize)
+    // Debounced resize handler for better performance
+    let resizeTimeout: NodeJS.Timeout
+    const debouncedResize = () => {
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(handleResize, 100)
+    }
+
+    window.addEventListener('resize', debouncedResize)
 
     // Handle keyboard events for pause
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -106,7 +151,8 @@ export function GameView() {
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('resize', debouncedResize)
+      clearTimeout(resizeTimeout)
       game.destroy(true)
       gameRef.current = null
     }
@@ -122,8 +168,19 @@ export function GameView() {
   }
 
   return (
-    <div className="flex justify-center items-center rounded-md border border-slate-800 p-2 bg-slate-950 min-h-[500px] max-w-full">
-      <div ref={containerRef} className="w-full h-full" />
+    <div className="flex justify-center items-center rounded-md border border-slate-800 p-2 bg-slate-950 w-full">
+      {/* Mobile-first responsive container */}
+      <div 
+        ref={containerRef} 
+        className="w-full h-full"
+        style={{
+          // Ensure minimum height for mobile
+          minHeight: '300px',
+          // Responsive max dimensions
+          maxWidth: '100%',
+          maxHeight: '100vh'
+        }}
+      />
       <PauseMenu 
         isPaused={isPaused}
         onResume={handleResume}

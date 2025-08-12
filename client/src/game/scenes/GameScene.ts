@@ -257,8 +257,30 @@ export class GameScene extends Phaser.Scene {
       }
     })
     
-    // Set up input handling
+    // Set up input handling with mobile touch optimizations
     this.input.on('pointerdown', this.handleClick, this)
+    
+    // Mobile touch optimizations
+    this.input.on('pointerover', this.handlePointerOver, this)
+    this.input.on('pointerout', this.handlePointerOut, this)
+    
+    // Prevent zoom on mobile devices
+    this.input.on('wheel', (pointer: Phaser.Input.Pointer, gameObjects: any[], deltaX: number, deltaY: number, deltaZ: number) => {
+      // Prevent zoom/scroll on mobile
+      if (Math.abs(deltaY) > 0) {
+        return false
+      }
+    })
+    
+    // Touch event optimizations for mobile
+    this.input.setDefaultCursor('pointer')
+    
+    // Disable right-click context menu on mobile
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (pointer.rightButtonDown()) {
+        return false
+      }
+    })
     
     // Initial render
     const store = useGameStore.getState()
@@ -797,6 +819,27 @@ export class GameScene extends Phaser.Scene {
     // Fill circle area
     this.abilityTargetGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.AOE_ALPHA)
     this.abilityTargetGraphics.fill()
+  }
+
+  // Mobile touch event handlers
+  private handlePointerOver(pointer: Phaser.Input.Pointer) {
+    // Add hover effects for desktop (optional for mobile)
+    if (!this.isMobileDevice()) {
+      // Desktop hover effects can go here
+    }
+  }
+
+  private handlePointerOut(pointer: Phaser.Input.Pointer) {
+    // Clear hover effects for desktop (optional for mobile)
+    if (!this.isMobileDevice()) {
+      // Desktop hover cleanup can go here
+    }
+  }
+
+  // Helper to detect mobile devices
+  private isMobileDevice(): boolean {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           window.innerWidth < 768
   }
 
   private handleClick(pointer: Phaser.Input.Pointer) {
