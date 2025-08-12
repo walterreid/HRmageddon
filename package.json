@@ -4,13 +4,13 @@
   "description": "A modern web remake of the 2009 Adult Swim Flash tactics game where rival departments wage cubicle warfare for control of the office floor.",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently -k -n client,server -c green,blue \"npm --workspace client run dev\" \"npm --workspace server run dev\"",
+    "dev": "concurrently -k -n client,server -c green,blue \"npm --workspace client run dev\" \"npm --workspace client run dev\" \"npm --workspace server run dev\"",
     "build": "npm -w client run build && npm -w server run build",
     "start": "npm -w server run start",
     "test": "echo \"Error: no test specified\" && exit 1",
     "typecheck": "npm -w client run build",
     "lint": "npm -w client run lint",
-    "prepare": "husky"
+    "prepare": "node -e \"if (process.env.NODE_ENV !== 'production') require('child_process').execSync('npx husky', {stdio: 'inherit'})\""
   },
   "repository": {
     "type": "git",
