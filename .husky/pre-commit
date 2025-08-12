@@ -1,0 +1,5 @@
+# Fast pass: fix staged issues
+npx lint-staged
+
+# Block commit on remaining type or lint errors
+npm run typecheck && npm run lint

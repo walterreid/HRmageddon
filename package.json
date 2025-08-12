@@ -7,7 +7,10 @@
     "dev": "concurrently -k -n client,server -c green,blue \"npm --workspace client run dev\" \"npm --workspace server run dev\"",
     "build": "npm -w client run build && npm -w server run build",
     "start": "npm -w server run start",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "typecheck": "npm -w client run build",
+    "lint": "npm -w client run lint",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -28,6 +31,11 @@
   ],
   "devDependencies": {
     "concurrently": "^8.2.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.5",
     "tsx": "^4.20.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": "npm -w client run lint --fix"
   }
 }
