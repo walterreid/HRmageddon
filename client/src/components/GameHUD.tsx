@@ -1,40 +1,37 @@
-import { useEffect, useState, useMemo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useGameStore } from '../stores/gameStore'
 import { ActionMenu } from './ActionMenu'
 import { BottomSheet } from './BottomSheet'
-import { getUnitAbilities, canUseAbility } from '../game/systems/abilities.ts'
 
-// Import UI config from ActionMenu for shared constants
-import { UI_CONFIG } from '../config/uiConfig'
+// Type definitions for window extensions
+interface GameScene {
+  getTileSize?: () => number
+  getBoardOffsetX?: () => number
+  getBoardOffsetY?: () => number
+  clearActionMode?: () => void
+  setActionMode?: (mode: string, ability?: string) => void
+  getActionMode?: () => string
+}
+
+interface ExtendedWindow extends Window {
+  gameScene?: GameScene
+}
+
+declare const window: ExtendedWindow
 
 import { HUD_CONFIG } from '../config/hudConfig'
 
-// Helper function to get action mode styles with fallback
-function getActionModeStyles(actionMode: string) {
-  const upperActionMode = actionMode.toUpperCase() as keyof typeof HUD_CONFIG.COLORS.ACTION_MODES
-  
-  // Check if the action mode exists in our config
-  if (HUD_CONFIG.COLORS.ACTION_MODES[upperActionMode]) {
-    return HUD_CONFIG.COLORS.ACTION_MODES[upperActionMode]
-  }
-  
-  // Fallback to ability mode for unknown action modes (like ability names)
-  console.warn(`Unknown action mode: ${actionMode}, falling back to ability mode`)
-  return HUD_CONFIG.COLORS.ACTION_MODES.ABILITY
-}
-
 export function GameHUD() {
   const {
-    players,
     selectedUnit,
-    endTurn,
     currentPlayerId,
+    players,
+    endTurn,
     turnNumber,
     possibleMoves,
     possibleTargets,
     moveUnit,
     attackTarget,
-    useAbility,
     getAbilityTargets,
     selectAbility,
     canUnitMove,
@@ -46,13 +43,14 @@ export function GameHUD() {
   const [actionMode, setActionMode] = useState<'none' | 'move' | 'attack' | 'ability'>('none')
   const [selectedAbility, setSelectedAbility] = useState<string | null>(null)
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
-  const [unitSelectionBlocked, setUnitSelectionBlocked] = useState(false)
-  const [showDebugInfo, setShowDebugInfo] = useState(false)
   
   // Mobile bottom sheet state
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<'game-status' | 'unit-info' | 'help'>('game-status')
   
+  // Desktop unified control panel state
+  const [activeTab, setActiveTab] = useState<'status' | 'unit' | 'actions'>('status')
+
   // Mobile: Auto-open bottom sheet when unit is selected
   useEffect(() => {
     if (selectedUnit) {
@@ -67,9 +65,13 @@ export function GameHUD() {
   const canControl = selectedUnit && selectedUnit.playerId === 'player1' && selectedUnit.actionsRemaining > 0
   const isPlayerTurn = currentPlayerId === 'player1'
 
+  // Get player references
+  const player1 = players.find(p => p.id === 'player1')
+  const player2 = players.find(p => p.id === 'player2')
+
   // Show action menu when a player unit is selected and can be controlled
   // Hide it when we're in an action mode OR when the unit has no actions remaining
-  const showActionMenu = useMemo(() => {
+  const showActionMenu = useCallback(() => {
     if (!selectedUnit) return false
     
     // Hide action menu when in action mode
@@ -96,14 +98,11 @@ export function GameHUD() {
     return shouldShow
   }, [selectedUnit, isPlayerUnit, canControl, actionMode])
   
-  const player1 = players.find((p) => p.id === 'player1')
-  const player2 = players.find((p) => p.id === 'player2')
-
   // Update action menu position when unit is selected
   useEffect(() => {
     if (selectedUnit && isPlayerUnit) {
       // Get the actual tile size and board offset from the game scene
-      const gameScene = (window as any).gameScene
+      const gameScene = (window as ExtendedWindow).gameScene
       if (gameScene && gameScene.getTileSize && gameScene.getBoardOffsetX && gameScene.getBoardOffsetY) {
         const tileSize = gameScene.getTileSize()
         const boardOffsetX = gameScene.getBoardOffsetX()
@@ -139,12 +138,12 @@ export function GameHUD() {
       setSelectedAbility(null)
       
       // Clear action mode in GameScene if available
-      const gameScene = (window as any).gameScene
+      const gameScene = (window as ExtendedWindow).gameScene
       if (gameScene && gameScene.clearActionMode) {
         gameScene.clearActionMode()
       }
     }
-  }, [selectedUnit?.id, selectedUnit?.actionsRemaining])
+  }, [selectedUnit])
 
   // Listen for action completion events from the game store
   useEffect(() => {
@@ -154,7 +153,7 @@ export function GameHUD() {
       setSelectedAbility(null)
       
       // Clear action mode in GameScene if available
-      const gameScene = (window as any).gameScene
+      const gameScene = (window as ExtendedWindow).gameScene
       if (gameScene && gameScene.clearActionMode) {
         gameScene.clearActionMode()
       }
@@ -217,7 +216,7 @@ export function GameHUD() {
     }
 
     // Set GameScene action mode
-    const gameScene = (window as any).gameScene
+    const gameScene = (window as ExtendedWindow).gameScene
     if (gameScene && gameScene.setActionMode) {
       if (action !== 'move' && action !== 'attack') {
         gameScene.setActionMode('ability', action)
@@ -230,13 +229,13 @@ export function GameHUD() {
   }
 
   // Handle tile clicks for actions
-  const handleTileClick = (coord: { x: number, y: number }) => {
+  const handleTileClick = useCallback((coord: { x: number, y: number }) => {
     if (!selectedUnit || !canControl) return
 
     console.log('Tile clicked:', coord, 'Action mode:', actionMode)
 
     switch (actionMode) {
-      case 'move':
+      case 'move': {
         // Check if this is a valid move
         const isValidMove = possibleMoves.some(move => move.x === coord.x && move.y === coord.y)
         if (isValidMove) {
@@ -246,7 +245,7 @@ export function GameHUD() {
           setSelectedAbility(null)
           
           // Clear action mode in game scene
-          const gameScene = (window as any).gameScene
+          const gameScene = (window as ExtendedWindow).gameScene
           if (gameScene && gameScene.clearActionMode) {
             gameScene.clearActionMode()
           }
@@ -258,8 +257,9 @@ export function GameHUD() {
           setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
         }
         break
+      }
 
-      case 'attack':
+      case 'attack': {
         // Check if this tile has a valid attack target
         const isValidTarget = possibleTargets.some(target => target.x === coord.x && target.y === coord.y)
         const targetUnit = useGameStore.getState().units.find(u => 
@@ -275,7 +275,7 @@ export function GameHUD() {
           setSelectedAbility(null)
           
           // Clear action mode in game scene
-          const gameScene = (window as any).gameScene
+          const gameScene = (window as ExtendedWindow).gameScene
           if (gameScene && gameScene.clearActionMode) {
             gameScene.clearActionMode()
           }
@@ -287,8 +287,9 @@ export function GameHUD() {
           setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
         }
         break
+      }
 
-      case 'ability':
+      case 'ability': {
         if (selectedAbility) {
           // Get valid targets for this ability
           const validTargets = getAbilityTargets(selectedUnit.id, selectedAbility)
@@ -302,12 +303,15 @@ export function GameHUD() {
 
           if (clickedTarget) {
             console.log('Executing ability:', selectedAbility, 'on target:', clickedTarget)
-            useAbility(selectedUnit.id, selectedAbility, clickedTarget)
+            const store = useGameStore.getState()
+            if (store.useAbility) {
+              store.useAbility(selectedUnit.id, selectedAbility, clickedTarget)
+            }
             setActionMode('none')
             setSelectedAbility(null)
             
             // Clear action mode in game scene
-            const gameScene = (window as any).gameScene
+            const gameScene = (window as ExtendedWindow).gameScene
             if (gameScene && gameScene.clearActionMode) {
               gameScene.clearActionMode()
             }
@@ -317,11 +321,12 @@ export function GameHUD() {
           } else {
             setActionFeedback({ type: 'error', message: 'Invalid target for this ability' })
             setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
-        }
+          }
         }
         break
+      }
     }
-  }
+  }, [selectedUnit, canControl, actionMode, possibleMoves, possibleTargets, moveUnit, attackTarget, selectedAbility, getAbilityTargets])
 
   // Listen for tile clicks from the game scene
   useEffect(() => {
@@ -355,18 +360,16 @@ export function GameHUD() {
       window.removeEventListener('abilityUsed', handleAbilityUsed as EventListener)
       window.removeEventListener('abilityCancelled', handleAbilityCancelled as EventListener)
     }
-  }, [selectedUnit, actionMode, selectedAbility, canControl])
+  }, [selectedUnit, actionMode, selectedAbility, canControl, handleTileClick])
 
   // Listen for unit selection blocked events
   useEffect(() => {
     const handleUnitSelectionBlocked = () => {
-      setUnitSelectionBlocked(true)
       setActionFeedback({ 
         type: 'error', 
         message: 'Complete or cancel current action before selecting other units' 
       })
       setTimeout(() => {
-        setUnitSelectionBlocked(false)
         setActionFeedback(null)
       }, HUD_CONFIG.FEEDBACK.DURATION * 1.5)
     }
@@ -380,7 +383,7 @@ export function GameHUD() {
   // Sync action mode with GameScene when it becomes available
   useEffect(() => {
     const checkGameScene = () => {
-      const gameScene = (window as any).gameScene
+      const gameScene = (window as ExtendedWindow).gameScene
       if (gameScene && gameScene.getActionMode) {
               const sceneActionMode = gameScene.getActionMode()
       // Validate the action mode from the scene
@@ -395,7 +398,9 @@ export function GameHUD() {
         console.warn('Invalid action mode from GameScene:', sceneActionMode, '- resetting to none')
         setActionMode('none')
         setSelectedAbility(null)
-        gameScene.clearActionMode()
+        if (gameScene?.clearActionMode) {
+          gameScene.clearActionMode()
+        }
       }
       }
     }
@@ -619,290 +624,264 @@ export function GameHUD() {
         </BottomSheet>
       </div>
 
-      {/* Desktop Layout: Sidebar (preserve current experience) */}
+      {/* Desktop Layout: Flash Game Unified Control Panel */}
       <div className="hidden lg:block">
-              <div className={`${HUD_CONFIG.PANELS.STATUS.POSITION} ${HUD_CONFIG.PANELS.STATUS.WIDTH} ${HUD_CONFIG.PANELS.STATUS.MAX_HEIGHT} ${HUD_CONFIG.COLORS.PANELS.BACKGROUND} ${HUD_CONFIG.COLORS.PANELS.BORDER} rounded-lg p-4 ${HUD_CONFIG.COLORS.TEXT.PRIMARY} space-y-4`}>
-        <h2 className="text-lg font-bold text-center">Game Status</h2>
-        <div className="text-center">
-          <div className="text-2xl font-bold mb-2">Turn {turnNumber}</div>
-          <div className={`px-4 py-2 rounded-lg text-white font-semibold ${isPlayerTurn ? 'bg-amber-600' : 'bg-stone-600'}`}>
-            {isPlayerTurn ? HUD_CONFIG.TEXT.TURN_INDICATOR.YOUR_TURN : HUD_CONFIG.TEXT.TURN_INDICATOR.AI_TURN}
-          </div>
-        </div>
-
-        {/* Player Resources */}
-        <div className="space-y-3">
-          <h3 className="text-md font-semibold text-center">Resources</h3>
-          
-          {/* Player 1 (Gold) */}
-          <div className={`${HUD_CONFIG.COLORS.TEAMS.PLAYER1.BACKGROUND} border ${HUD_CONFIG.COLORS.TEAMS.PLAYER1.BORDER} rounded-lg p-3`}>
-            <div className={`${HUD_CONFIG.COLORS.TEAMS.PLAYER1.TEXT} font-semibold text-sm`}>Gold Team (You)</div>
-            <div className="text-xs space-y-1 mt-2">
-              <div>Budget: ${player1?.budget || 0}</div>
-              <div>Income: +${player1?.income || 0}/turn</div>
-              <div>Cubicles: {player1?.controlledCubicles || 0}</div>
-            </div>
-          </div>
-
-          {/* Player 2 (Navy) */}
-          <div className={`${HUD_CONFIG.COLORS.TEAMS.PLAYER2.BACKGROUND} border ${HUD_CONFIG.COLORS.TEAMS.PLAYER2.BORDER} rounded-lg p-3`}>
-            <div className={`${HUD_CONFIG.COLORS.TEAMS.PLAYER2.TEXT} font-semibold text-sm`}>Navy Team (AI)</div>
-            <div className="text-xs space-y-1 mt-2">
-              <div>Budget: ${player2?.budget || 0}</div>
-              <div>Income: +${player2?.income || 0}/turn</div>
-              <div>Cubicles: {player2?.controlledCubicles || 0}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* End Turn Button */}
-        {isPlayerTurn && (
-          <div className="text-center">
-            <button
-              onClick={endTurn}
-              className={`w-full px-6 py-3 ${HUD_CONFIG.COLORS.BUTTONS.END_TURN} text-white font-semibold rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl`}
+        <div className="h-full bg-slate-800 border-l-2 border-slate-700 flex flex-col">
+          {/* Tab Navigation */}
+          <div className="flex border-b border-slate-700 bg-slate-900">
+            <button 
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors cursor-pointer border-r border-slate-700 hover:bg-slate-800 ${
+                activeTab === 'status' ? 'bg-slate-700 text-blue-400 border-b-2 border-blue-400' : 'text-slate-300'
+              }`}
+              onClick={() => setActiveTab('status')}
             >
-              End Turn
+              Game Status
             </button>
-            <p className="text-xs text-slate-400 mt-2">
-              Pass control to the AI opponent
-            </p>
+            <button 
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors cursor-pointer border-r border-slate-700 hover:bg-slate-800 ${
+                activeTab === 'unit' ? 'bg-slate-700 text-blue-400 border-b-2 border-blue-400' : 'text-slate-300'
+              }`}
+              onClick={() => setActiveTab('unit')}
+            >
+              Unit Info
+            </button>
+            <button 
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors cursor-pointer hover:bg-slate-800 ${
+                activeTab === 'actions' ? 'bg-slate-700 text-blue-400 border-b-2 border-blue-400' : 'text-slate-300'
+              }`}
+              onClick={() => setActiveTab('actions')}
+            >
+              Actions
+            </button>
           </div>
-        )}
-      </div>
+          
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {/* Game Status Tab */}
+            {activeTab === 'status' && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold text-center text-slate-100">Game Status</h2>
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-2 text-slate-100">Turn {turnNumber}</div>
+                  <div className={`px-4 py-2 rounded-lg text-white font-semibold ${isPlayerTurn ? 'bg-amber-600' : 'bg-stone-600'}`}>
+                    {isPlayerTurn ? 'Your Turn (Gold)' : 'AI Turn (Navy)'}
+                  </div>
+                </div>
 
-      {/* Unit Info - Top Right (Simplified) */}
-      {selectedUnit && (
-        <div className={`${HUD_CONFIG.PANELS.UNIT_INFO.POSITION} ${HUD_CONFIG.PANELS.UNIT_INFO.WIDTH} ${HUD_CONFIG.PANELS.UNIT_INFO.MAX_HEIGHT} ${HUD_CONFIG.COLORS.PANELS.BACKGROUND} ${HUD_CONFIG.COLORS.PANELS.BORDER} rounded-lg p-4 ${HUD_CONFIG.COLORS.TEXT.PRIMARY} space-y-4 max-h-[calc(100vh-2rem)] overflow-y-auto`}>
-          {/* Unit Info Header */}
-          <div className={`border-b ${HUD_CONFIG.COLORS.PANELS.BORDER} pb-3`}>
-            <div className="flex items-center justify-between">
-              <h3 className={`text-lg font-bold ${HUD_CONFIG.COLORS.TEXT.ACCENT} capitalize`}>
-                {selectedUnit.type.replace('_', ' ')}
-              </h3>
-              <div className="flex items-center space-x-2">
-                {/* Player indicator */}
-                <div className={`w-3 h-3 rounded-full ${isPlayerUnit ? 'bg-amber-500' : 'bg-stone-500'}`} />
-                <span className={`text-xs ${HUD_CONFIG.COLORS.TEXT.SECONDARY}`}>
-                  {isPlayerUnit ? 'Player' : 'Enemy'}
-                </span>
-              </div>
-            </div>
-            
-            {/* Control indicator */}
-            {canControl ? (
-              <div className={`text-xs ${HUD_CONFIG.COLORS.TEXT.SUCCESS} mt-1`}>
-                {HUD_CONFIG.TEXT.UNIT_STATUS.CONTROLLING} - {selectedUnit.actionsRemaining} action{selectedUnit.actionsRemaining !== 1 ? 's' : ''} remaining
-              </div>
-            ) : (
-              <div className={`text-xs ${HUD_CONFIG.COLORS.TEXT.SECONDARY} mt-1`}>
-                {HUD_CONFIG.TEXT.UNIT_STATUS.VIEWING}
+                {/* Player Resources */}
+                <div className="space-y-3">
+                  <h3 className="text-md font-semibold text-center text-slate-200">Resources</h3>
+                  
+                  {/* Player 1 (Gold) */}
+                  <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3">
+                    <div className="text-blue-300 font-semibold text-sm">Gold Team (You)</div>
+                    <div className="text-xs space-y-1 mt-2 text-slate-300">
+                      <div>Budget: ${player1?.budget || 0}</div>
+                      <div>Income: +${player1?.income || 0}/turn</div>
+                      <div>Cubicles: {player1?.controlledCubicles || 0}</div>
+                    </div>
+                  </div>
+
+                  {/* Player 2 (Navy) */}
+                  <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-3">
+                    <div className="text-red-300 font-semibold text-sm">Navy Team (AI)</div>
+                    <div className="text-xs space-y-1 mt-2 text-slate-300">
+                      <div>Budget: ${player2?.budget || 0}</div>
+                      <div>Income: +${player2?.income || 0}/turn</div>
+                      <div>Cubicles: {player2?.controlledCubicles || 0}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* End Turn Button */}
+                {isPlayerTurn && (
+                  <div className="text-center">
+                    <button
+                      onClick={endTurn}
+                      className="w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
+                    >
+                      End Turn
+                    </button>
+                    <p className="text-xs text-slate-400 mt-2">
+                      Pass control to the AI opponent
+                    </p>
+                  </div>
+                )}
               </div>
             )}
-          </div>
 
-          {/* Unit Stats */}
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>HP:</span>
-              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.hp}/{selectedUnit.maxHp}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>Actions:</span>
-              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.actionsRemaining}/{selectedUnit.maxActions}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>Move Range:</span>
-              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.moveRange}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>Attack Range:</span>
-              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.attackRange}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>Attack Damage:</span>
-              <span className={HUD_CONFIG.COLORS.TEXT.PRIMARY}>{selectedUnit.attackDamage}</span>
-            </div>
-          </div>
-
-          {/* Available Actions (only for player units) */}
-          {canControl && (
-            <div className="space-y-2">
-              <h4 className={`text-sm font-semibold ${HUD_CONFIG.COLORS.TEXT.ACCENT}`}>Available Actions</h4>
-              <div className="text-xs space-y-1">
-                <div className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>
-                  Moves: {possibleMoves.length} available
-                </div>
-                <div className={HUD_CONFIG.COLORS.TEXT.SECONDARY}>
-                  Targets: {possibleTargets.length} available
-                </div>
-              </div>
-              
-              {/* Move Mode Instructions */}
-              {actionMode === 'move' && possibleMoves.length > 0 && (
-                <div className={`${HUD_CONFIG.COLORS.ACTION_MODES.MOVE.BACKGROUND} border ${HUD_CONFIG.COLORS.ACTION_MODES.MOVE.BORDER} rounded-lg p-2 mt-2`}>
-                  <div className={`${HUD_CONFIG.COLORS.ACTION_MODES.MOVE.TEXT} text-xs font-semibold`}>
-                    {HUD_CONFIG.TEXT.ACTION_MODES.MOVE}
-                  </div>
-                  <div className="text-blue-200 text-xs mt-1">
-                    Click on highlighted tiles to move
-                  </div>
-                  <div className="text-blue-200 text-xs">
-                    {possibleMoves.length} move{possibleMoves.length !== 1 ? 's' : ''} available
-                  </div>
-                </div>
-              )}
-
-              {/* Attack Mode Instructions */}
-              {actionMode === 'attack' && possibleTargets.length > 0 && (
-                <div className={`${HUD_CONFIG.COLORS.ACTION_MODES.ATTACK.BACKGROUND} border ${HUD_CONFIG.COLORS.ACTION_MODES.ATTACK.BORDER} rounded-lg p-2 mt-2`}>
-                  <div className={`${HUD_CONFIG.COLORS.ACTION_MODES.ATTACK.TEXT} text-xs font-semibold`}>
-                    {HUD_CONFIG.TEXT.ACTION_MODES.ATTACK}
-                  </div>
-                  <div className="text-red-200 text-xs mt-1">
-                    Click on enemy units to attack them
-                  </div>
-                  <div className="text-red-200 text-xs">
-                    {possibleTargets.length} target{possibleTargets.length !== 1 ? 's' : ''} available
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Current Action Mode Display */}
-          {actionMode !== 'none' && (
-            <div className={`${getActionModeStyles(actionMode).BACKGROUND} border ${getActionModeStyles(actionMode).BORDER} rounded-lg p-3`}>
-              <div className={`${getActionModeStyles(actionMode).TEXT} font-semibold text-sm`}>
-                Current Mode: {actionMode.toUpperCase()}
-                {selectedAbility && ` - ${selectedAbility.replace('_', ' ')}`}
-              </div>
-              <div className="text-xs text-yellow-200 mt-1">
-                {actionMode === 'move' && 'Click a highlighted tile to move'}
-                {actionMode === 'attack' && 'Click an enemy to attack'}
-                {actionMode === 'ability' && selectedAbility && `Select a target for ${selectedAbility.replace('_', ' ')}`}
-              </div>
-              <button
-                onClick={() => {
-                  setActionMode('none')
-                  setSelectedAbility(null)
-                  const gameScene = (window as any).gameScene
-                  if (gameScene && gameScene.clearActionMode) {
-                    gameScene.clearActionMode()
-                  }
-                }}
-                className={`mt-2 px-3 py-1 ${HUD_CONFIG.COLORS.BUTTONS.CANCEL} text-white text-xs rounded transition-colors`}
-              >
-                Cancel Action
-              </button>
-            </div>
-          )}
-
-          {/* Unit Selection Blocked Warning */}
-          {unitSelectionBlocked && (
-            <div className="bg-red-900/20 border border-red-700 rounded-lg p-3">
-              <div className="text-red-300 font-semibold text-sm">
-                ⚠️ Unit Selection Blocked
-              </div>
-              <div className="text-xs text-red-200 mt-1">
-                Complete or cancel your current action before selecting other units
-              </div>
-            </div>
-          )}
-
-          {/* Debug Info Panel (Collapsible) */}
-          <div className="mt-4">
-            <button
-              onClick={() => setShowDebugInfo(!showDebugInfo)}
-              className={`w-full text-left px-2 py-1 ${HUD_CONFIG.COLORS.BUTTONS.CANCEL} text-white text-xs rounded transition-colors`}
-            >
-              {showDebugInfo ? '▼ Hide Debug Info' : '▶ Show Debug Info'}
-            </button>
-            
-            {showDebugInfo && selectedUnit && (
-              <div className={`${HUD_CONFIG.COLORS.PANELS.BACKGROUND} border ${HUD_CONFIG.COLORS.PANELS.BORDER} rounded-lg p-3 mt-2 text-xs`}>
-                <div className={`${HUD_CONFIG.COLORS.TEXT.ACCENT} font-semibold mb-2`}>
-                  Debug: {selectedUnit.type} Details
-                </div>
-                
-                {/* Unit Stats */}
-                <div className="space-y-1 mb-3">
-                  <div>HP: {selectedUnit.hp}/{selectedUnit.maxHp}</div>
-                  <div>Actions: {selectedUnit.actionsRemaining}</div>
-                  <div>Move Range: {selectedUnit.moveRange}</div>
-                  <div>Attack Range: {selectedUnit.attackRange}</div>
-                  <div>Attack Damage: {selectedUnit.attackDamage}</div>
-                  {selectedUnit.hasMoved && (
-                    <div className="text-amber-400">Movement used: {selectedUnit.movementUsed || 0}/{selectedUnit.moveRange}</div>
-                  )}
-                  {selectedUnit.hasAttacked && (
-                    <div className="text-red-400">Already attacked this turn</div>
-                  )}
-                </div>
-                
-                {/* Action Availability */}
-                <div className="space-y-1 mb-3">
-                  <div className="font-semibold">Action Status:</div>
-                  <div>Can Move: {canUnitMove(selectedUnit) ? '✅' : '❌'}</div>
-                  <div>Can Attack: {canUnitAttack(selectedUnit) ? '✅' : '❌'}</div>
-                  <div>Enemies in Range: {getEnemiesInRange(selectedUnit).length}</div>
-                </div>
-                
-                {/* Abilities */}
-                <div className="space-y-1">
-                  <div className="font-semibold">Abilities:</div>
-                  {getUnitAbilities(selectedUnit.type).map((ability) => {
-                    const canUse = canUseAbility(selectedUnit, ability.id)
-                    const cooldownRemaining = selectedUnit.abilityCooldowns?.[ability.id] || 0
+            {/* Unit Info Tab */}
+            {activeTab === 'unit' && (
+              <div className="space-y-4">
+                {selectedUnit ? (
+                  <>
+                    <h2 className="text-lg font-bold text-center text-slate-100">Unit Information</h2>
                     
-                    return (
-                      <div key={ability.id} className="ml-2">
-                        <div className={canUse ? 'text-green-400' : 'text-red-400'}>
-                          {ability.name}: {canUse ? '✅' : '❌'}
+                    {/* Unit Header */}
+                    <div className="border-b border-slate-600 pb-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-blue-400 capitalize">
+                          {selectedUnit.type.replace('_', ' ')}
+                        </h3>
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-3 h-3 rounded-full ${isPlayerUnit ? 'bg-amber-500' : 'bg-stone-500'}`} />
+                          <span className="text-xs text-slate-400">
+                            {isPlayerUnit ? 'Player' : 'Enemy'}
+                          </span>
                         </div>
-                        {canUse && (
-                          <div className="ml-2 text-xs text-gray-300">
-                            Cost: {ability.cost} AP • Range: {ability.range}
-                            {ability.description && ` • ${ability.description}`}
-                          </div>
+                      </div>
+                      
+                      {/* Control indicator */}
+                      {canControl ? (
+                        <div className="text-xs text-green-400 mt-1">
+                          Controlling - {selectedUnit.actionsRemaining} action{selectedUnit.actionsRemaining !== 1 ? 's' : ''} remaining
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-400 mt-1">
+                          Viewing
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Unit Stats */}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">HP:</span>
+                        <span className="text-white">{selectedUnit.hp}/{selectedUnit.maxHp}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Actions:</span>
+                        <span className="text-white">{selectedUnit.actionsRemaining}/{selectedUnit.maxActions}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Move Range:</span>
+                        <span className="text-white">{selectedUnit.moveRange}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Attack Range:</span>
+                        <span className="text-white">{selectedUnit.attackRange}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Attack Damage:</span>
+                        <span className="text-white">{selectedUnit.attackDamage}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center text-slate-400 py-8">
+                    <p>No unit selected</p>
+                    <p className="text-sm mt-2">Click on a unit to view its information</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Actions Tab */}
+            {activeTab === 'actions' && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold text-center text-slate-100">Available Actions</h2>
+                
+                {selectedUnit && canControl ? (
+                  <div className="space-y-3">
+                    {/* Basic Actions */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold text-blue-400 border-b border-slate-600 pb-1">
+                        Basic Actions
+                      </h4>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        {canUnitMove(selectedUnit) && (
+                          <button
+                            onClick={() => handleActionSelect('move')}
+                            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
+                          >
+                            Move
+                          </button>
                         )}
-                        {!canUse && (
-                          <div className="ml-2 text-xs text-gray-300">
-                            {selectedUnit.actionsRemaining < ability.cost ? 'Not enough AP' : 'Out of range or on cooldown'}
-                          </div>
-                        )}
-                        {ability.cooldown > 0 && (
-                          <div className="ml-2 text-xs text-gray-300">
-                            Cooldown: {cooldownRemaining > 0 ? `${cooldownRemaining} turns remaining` : `${ability.cooldown} turns`}
-                          </div>
+                        
+                        {canUnitAttack(selectedUnit) && getEnemiesInRange(selectedUnit).length > 0 && (
+                          <button
+                            onClick={() => handleActionSelect('attack')}
+                            className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded transition-colors"
+                          >
+                            Attack
+                          </button>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+                    </div>
 
-          {/* Help Text */}
-          <div className={`text-xs ${HUD_CONFIG.COLORS.TEXT.SECONDARY} space-y-1 pt-2 border-t ${HUD_CONFIG.COLORS.PANELS.BORDER}`}>
-            <div>• Click any unit to view their stats</div>
-            <div>• Click player units (gold) to control them</div>
-            <div>• Click highlighted tiles to move/attack</div>
-            <div>• Select abilities to use them on targets</div>
-            <div>• Capture cubicles to increase income</div>
-            <div>• End turn when you're done</div>
-            {actionMode !== 'none' && (
-              <div className={`${HUD_CONFIG.COLORS.TEXT.WARNING} font-semibold`}>
-                {UI_CONFIG.TEXT.HEADERS.ACTION_MODE_WARNING}
+                    {/* Action Menu Instructions */}
+                    <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3">
+                      <div className="text-blue-300 font-semibold text-sm mb-2">
+                        Action Menu Available
+                      </div>
+                      <div className="text-xs text-blue-200">
+                        The action menu will appear when you select an action above, or you can use the floating action menu that appears on the game board.
+                      </div>
+                    </div>
+
+                    {/* Action Menu Instructions */}
+                    <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3">
+                      <div className="text-blue-300 font-semibold text-sm mb-2">
+                        Action Menu Available
+                      </div>
+                      <div className="text-xs text-blue-200">
+                        The action menu will appear when you select an action above, or you can use the floating action menu that appears on the game board.
+                      </div>
+                    </div>
+
+                    {/* Action Mode Display */}
+                    {actionMode !== 'none' && (
+                      <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-3">
+                        <div className="text-yellow-300 font-semibold text-sm">
+                          Current Mode: {actionMode.toUpperCase()}
+                          {selectedAbility && ` - ${selectedAbility.replace('_', ' ')}`}
+                        </div>
+                        <div className="text-xs text-slate-300 mt-1">
+                          {actionMode === 'move' && 'Click a highlighted tile to move'}
+                          {actionMode === 'attack' && 'Click an enemy to attack'}
+                          {actionMode === 'ability' && selectedAbility && `Select a target for ${selectedAbility.replace('_', ' ')}`}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setActionMode('none')
+                            setSelectedAbility(null)
+                            const gameScene = (window as ExtendedWindow).gameScene
+                            if (gameScene && gameScene.clearActionMode) {
+                              gameScene.clearActionMode()
+                            }
+                          }}
+                          className="mt-2 px-3 py-1 bg-slate-600 hover:bg-slate-700 text-white text-xs rounded transition-colors"
+                        >
+                          Cancel Action
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Help Text */}
+                    <div className="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-600">
+                      <div>• Click any unit to view their stats</div>
+                      <div>• Click player units (gold) to control them</div>
+                      <div>• Click highlighted tiles to move/attack</div>
+                      <div>• Select abilities to use them on targets</div>
+                      <div>• Capture cubicles to increase income</div>
+                      <div>• End turn when you're done</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center text-slate-400 py-8">
+                    <p>No unit selected or unit cannot be controlled</p>
+                    <p className="text-sm mt-2">Select a player unit to see available actions</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
-      )}
-      </div> {/* close the desktop wrapper */}
-      {/* Action Menu Modal */}
-      {showActionMenu && selectedUnit && (
+      </div>
+
+      {/* Action Menu Modal - Show on both mobile and desktop when needed */}
+      {showActionMenu() && selectedUnit && (
         <>
           {console.log('Rendering ActionMenu with:', { showActionMenu, selectedUnit, position: actionMenuPosition })}
           <ActionMenu

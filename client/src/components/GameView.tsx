@@ -1,7 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
-import { GameScene } from '../game/scenes/GameScene.ts'
+import { GameScene } from '../game/scenes/GameScene'
 import { PauseMenu } from './PauseMenu'
+
+// Type definitions for Phaser extensions
+interface ExtendedGameScene extends Phaser.Scene {
+  key: string
+}
+
+interface ExtendedWindow extends Window {
+  gameScene?: ExtendedGameScene
+}
+
+declare const window: ExtendedWindow
 
 export function GameView() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -13,23 +24,36 @@ export function GameView() {
 
     // Mobile-first responsive game dimensions
     const getGameDimensions = () => {
-      const isMobile = window.innerWidth < 768 // md breakpoint
-      const isTablet = window.innerWidth >= 768 && window.innerWidth < 1024 // lg breakpoint
+      const isMobile = window.innerWidth < 1024 // lg breakpoint
       
       if (isMobile) {
-        // Mobile: Use 90% of screen width, maintain 16:12 aspect ratio
-        const width = Math.min(window.innerWidth * 0.9, 400) // Cap at 400px for very small screens
-        const height = width * (12 / 16) // Maintain 16:12 aspect ratio
-        return { width, height }
-      } else if (isTablet) {
-        // Tablet: Use 70% of screen width, maintain aspect ratio
-        const width = Math.min(window.innerWidth * 0.7, 600)
+        // Mobile: Keep existing mobile logic
+        const width = Math.min(window.innerWidth * 0.9, 400)
         const height = width * (12 / 16)
         return { width, height }
       } else {
-        // Desktop: Use 50% of screen width, 70% of screen height (preserve current experience)
-        const width = Math.min(window.innerWidth * 0.5, 800)
-        const height = Math.min(window.innerHeight * 0.7, 600)
+        // Desktop: Use available space more effectively for Flash game aesthetic
+        const panelWidth = window.innerWidth >= 1280 ? 384 : 320 // xl:w-96 vs w-80
+        const availableWidth = window.innerWidth - panelWidth - 64 // Account for padding and borders
+        const availableHeight = window.innerHeight - 120 // Account for header and padding
+        
+        // Target aspect ratio for the office grid (16:12 ratio works well)
+        const targetAspectRatio = 16 / 12
+        
+        // Calculate optimal size maintaining aspect ratio
+        let optimalWidth = availableWidth * 0.95 // Use 95% of available space
+        let optimalHeight = optimalWidth / targetAspectRatio
+        
+        // If height exceeds available space, scale down
+        if (optimalHeight > availableHeight * 0.95) {
+          optimalHeight = availableHeight * 0.95
+          optimalWidth = optimalHeight * targetAspectRatio
+        }
+        
+        // Set reasonable bounds for Flash game aesthetic
+        const width = Math.max(600, Math.min(optimalWidth, 1400)) // Min 600px, Max 1400px
+        const height = Math.max(450, Math.min(optimalHeight, 1050)) // Min 450px, Max 1050px
+        
         return { width, height }
       }
     }
@@ -45,14 +69,13 @@ export function GameView() {
         autoCenter: Phaser.Scale.CENTER_BOTH,
         width,
         height,
-        // Mobile-specific scale settings
         min: {
-          width: 320,  // Minimum width for very small screens
-          height: 240  // Minimum height for very small screens
+          width: 400,
+          height: 300
         },
         max: {
-          width: 1200, // Maximum width for very large screens
-          height: 900  // Maximum height for very large screens
+          width: 1600,
+          height: 1200
         }
       },
       scene: [GameScene],
@@ -62,10 +85,10 @@ export function GameView() {
     gameRef.current = game
 
     // Multiple ways to detect when GameScene is ready
-    const attachGameScene = (scene: any, method: string) => {
+    const attachGameScene = (scene: ExtendedGameScene, method: string) => {
       if (scene && scene.key === 'GameScene') {
         console.log(`GameScene ready via ${method}, attaching to window.gameScene`)
-        ;(window as any).gameScene = scene
+        window.gameScene = scene
         return true
       }
       return false
@@ -73,16 +96,16 @@ export function GameView() {
 
     // Method 1: Listen for scene start
     game.events.once('scene-start', (scene: Phaser.Scene) => {
-      attachGameScene(scene, 'scene-start event')
+      attachGameScene(scene as ExtendedGameScene, 'scene-start event')
     })
 
     // Method 2: Listen for scene wake
     game.events.once('scene-wake', (scene: Phaser.Scene) => {
-      attachGameScene(scene, 'scene-wake event')
+      attachGameScene(scene as ExtendedGameScene, 'scene-wake event')
     })
 
     // Method 3: Try immediate access
-    const immediateScene = game.scene.getScene('GameScene') as any
+    const immediateScene = game.scene.getScene('GameScene') as ExtendedGameScene
     if (immediateScene) {
       attachGameScene(immediateScene, 'immediate access')
     }
@@ -92,8 +115,8 @@ export function GameView() {
     const maxAttempts = 50
     const checkScene = () => {
       attempts++
-      const scene = game.scene.getScene('GameScene') as any
-      if (scene && !(window as any).gameScene) {
+      const scene = game.scene.getScene('GameScene') as ExtendedGameScene
+      if (scene && !window.gameScene) {
         if (attachGameScene(scene, `fallback timer (attempt ${attempts})`)) {
           return // Success!
         }
@@ -168,17 +191,14 @@ export function GameView() {
   }
 
   return (
-    <div className="flex justify-center items-center rounded-md border border-slate-800 p-2 bg-slate-950 w-full">
-      {/* Mobile-first responsive container */}
+    <div className="flex justify-center items-center rounded-md border border-slate-800 p-2 bg-slate-950 w-full h-full">
       <div 
         ref={containerRef} 
         className="w-full h-full"
         style={{
-          // Ensure minimum height for mobile
           minHeight: '300px',
-          // Responsive max dimensions
           maxWidth: '100%',
-          maxHeight: '100vh'
+          maxHeight: '100%'
         }}
       />
       <PauseMenu 

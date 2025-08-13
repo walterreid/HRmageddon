@@ -94,16 +94,16 @@ export default function App() {
                 <GameHUD />
               </div>
             </div>
-
-            {/* Desktop Layout: Side-by-side (preserve current experience) */}
-            <div className="hidden lg:flex flex-row gap-8 justify-center items-start">
-              {/* Left side - Game Board */}
-              <div className="flex-shrink-0">
+            
+            {/* Desktop Layout: Flash Game Style (Game Board prioritized, integrated control panel) */}
+            <div className="hidden lg:flex h-[calc(100vh-120px)] bg-slate-900 rounded-lg border-2 border-slate-700 overflow-hidden">
+              {/* Left: Expanded Game Board - Scales with available space */}
+              <div className="flex-1 p-4 flex items-center justify-center min-w-0">
                 <GameView />
               </div>
               
-              {/* Right side - Game Information Panel */}
-              <div className="w-96 bg-slate-800 rounded-lg border border-slate-700 p-6 flex-shrink-0">
+              {/* Right: Unified Control Panel - Flash Game Style */}
+              <div className="w-80 xl:w-96 bg-slate-800 border-l-2 border-slate-700 flex flex-col">
                 <GameHUD />
               </div>
             </div>
