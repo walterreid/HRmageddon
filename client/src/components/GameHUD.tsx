@@ -53,6 +53,16 @@ export function GameHUD() {
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<'game-status' | 'unit-info' | 'help'>('game-status')
   
+  // Mobile: Auto-open bottom sheet when unit is selected
+  useEffect(() => {
+    if (selectedUnit) {
+      setIsBottomSheetOpen(true)
+      setActiveSection('unit-info')
+    } else {
+      setIsBottomSheetOpen(false)
+    }
+  }, [selectedUnit])
+  
   const isPlayerUnit = selectedUnit && selectedUnit.playerId === 'player1'
   const canControl = selectedUnit && selectedUnit.playerId === 'player1' && selectedUnit.actionsRemaining > 0
   const isPlayerTurn = currentPlayerId === 'player1'
@@ -452,6 +462,14 @@ export function GameHUD() {
                 End Turn
               </button>
             )}
+            
+            {/* Toggle Bottom Sheet Button */}
+            <button
+              onClick={() => setIsBottomSheetOpen(!isBottomSheetOpen)}
+              className="px-3 py-1 bg-slate-600 hover:bg-slate-700 text-white text-xs font-medium rounded transition-colors"
+            >
+              {isBottomSheetOpen ? 'Hide' : 'Show'} Info
+            </button>
           </div>
         </div>
 
