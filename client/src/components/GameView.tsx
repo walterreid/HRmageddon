@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Phaser from 'phaser'
 import { GameScene } from '../game/scenes/GameScene'
 import { PauseMenu } from './PauseMenu'
