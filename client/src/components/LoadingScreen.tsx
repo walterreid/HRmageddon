@@ -176,7 +176,7 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
         {/* Content */}
         <div className="relative z-10 flex flex-col items-center justify-center h-full">
           {/* ID Badge Container */}
-          <div className="mb-8 transform scale-75 sm:scale-100 animate-slide-in">
+          <div className="mb-6 sm:mb-8 transform scale-50 sm:scale-75 lg:scale-100 animate-slide-in">
             <div className="relative">
               {/* Lanyard */}
               <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
@@ -186,23 +186,23 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
               
               {/* ID Badge */}
               <div className="bg-blue-800 rounded-xl p-1 shadow-2xl">
-                <div className="bg-white rounded-lg p-4 w-64 h-32 flex items-center">
+                <div className="bg-white rounded-lg p-2 sm:p-4 w-48 sm:w-64 h-24 sm:h-32 flex items-center">
                   {/* Profile Placeholder */}
-                  <div className="flex-shrink-0 mr-4">
-                    <div className="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center">
-                      <svg className="w-8 h-8 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                  <div className="flex-shrink-0 mr-2 sm:mr-4">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-300 rounded-full flex items-center justify-center">
+                      <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                       </svg>
                     </div>
-                    <div className="mt-2 space-y-1">
-                      <div className="h-2 bg-gray-300 rounded w-16"></div>
-                      <div className="h-2 bg-gray-300 rounded w-12"></div>
+                    <div className="mt-1 sm:mt-2 space-y-1">
+                      <div className="h-1.5 sm:h-2 bg-gray-300 rounded w-12 sm:w-16"></div>
+                      <div className="h-1.5 sm:h-2 bg-gray-300 rounded w-8 sm:w-12"></div>
                     </div>
                   </div>
                   
                   {/* HRMAGEDDON Text */}
                   <div className="flex-1 text-center">
-                    <div className="text-2xl font-bold">
+                    <div className="text-lg sm:text-2xl font-bold">
                       <span className="text-orange-500">HR</span>
                       <span className="text-orange-600">MAGEDDON</span>
                     </div>
@@ -213,12 +213,12 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
           </div>
 
           {/* Loading Text */}
-          <div className="text-3xl font-bold text-white mb-6 tracking-wider animate-fade-in">
+          <div className="text-2xl sm:text-3xl font-bold text-white mb-4 sm:mb-6 tracking-wider animate-fade-in px-4">
             LOADING
           </div>
 
           {/* Loading Bar */}
-          <div className="w-80 bg-slate-700 rounded-full h-3 mb-8 overflow-hidden shadow-lg animate-fade-in">
+          <div className="w-64 sm:w-80 bg-slate-700 rounded-full h-2 sm:h-3 mb-6 sm:mb-8 overflow-hidden shadow-lg animate-fade-in mx-4">
             <div 
               className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-300 ease-out shadow-lg shimmer-effect"
               style={{ width: `${progress}%` }}
@@ -226,12 +226,12 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
           </div>
 
           {/* Progress Percentage */}
-          <div className="text-lg text-slate-300 font-mono animate-fade-in">
+          <div className="text-base sm:text-lg text-slate-300 font-mono animate-fade-in">
             {Math.round(progress)}%
           </div>
 
           {/* Loading Dots */}
-          <div className="flex space-x-2 mt-6 animate-fade-in">
+          <div className="flex space-x-2 mt-4 sm:mt-6 animate-fade-in">
             <div className={`w-2 h-2 rounded-full transition-all duration-300 ${progress > 25 ? 'bg-blue-400 animate-pulse-slow' : 'bg-slate-600'}`} />
             <div className={`w-2 h-2 rounded-full transition-all duration-300 ${progress > 50 ? 'bg-blue-400 animate-pulse-slow' : 'bg-slate-600'}`} />
             <div className={`w-2 h-2 rounded-full transition-all duration-300 ${progress > 75 ? 'bg-blue-400 animate-pulse-slow' : 'bg-slate-600'}`} />
