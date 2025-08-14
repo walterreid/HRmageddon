@@ -986,7 +986,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       // Process pending cubicle captures before ending turn
       let updatedBoard = state.board
       let updatedPlayers = state.players
-      let updatedPendingCaptures = new Map(state.pendingCubicleCaptures)
+      const updatedPendingCaptures = new Map(state.pendingCubicleCaptures)
       
       console.log('Processing pending cubicle captures:', {
         count: state.pendingCubicleCaptures.size,
