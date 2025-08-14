@@ -1462,6 +1462,88 @@ export class GameScene extends Phaser.Scene {
       }
     }
   }
+
+  // ===== RESPONSIVE TILE SIZING =====
+  
+  /**
+   * Updates tile sprites and positioning when tile size changes
+   * Called by ResponsiveGameManager when viewport resizes
+   */
+  public updateTileSprites(newTileSize: number): void {
+    if (this.isDestroyed) return;
+    
+    console.log(`GameScene: Updating tile size from ${this.tileSizePx} to ${newTileSize}`);
+    
+    // Update the tile size
+    this.tileSizePx = newTileSize;
+    
+    // Clear existing graphics
+    this.tileGraphics.clear();
+    this.highlightGraphics.clear();
+    this.abilityTargetGraphics.clear();
+    
+    // Redraw the board with new tile size
+    const currentBoard = useGameStore.getState().board;
+    if (currentBoard) {
+      this.drawBoard(currentBoard);
+    }
+    
+    // Update unit positions and sizes
+    this.updateUnitSprites();
+    
+    // Clear any existing highlights (using existing clear methods)
+    this.highlightGraphics.clear();
+    this.abilityTargetGraphics.clear();
+    
+    console.log(`GameScene: Tile size update complete. New dimensions: ${16 * newTileSize}x${12 * newTileSize}`);
+  }
+  
+  private updateUnitSprites(): void {
+    // Update all unit sprites with new tile size
+    this.unitSprites.forEach((container, unitId) => {
+      const unit = useGameStore.getState().units.find(u => u.id === unitId);
+      if (unit) {
+        // Update container size
+        container.setSize(this.tileSizePx, this.tileSizePx);
+        
+        // Update interactive area
+        container.setInteractive(new Phaser.Geom.Rectangle(
+          -this.tileSizePx/2, 
+          -this.tileSizePx/2, 
+          this.tileSizePx, 
+          this.tileSizePx
+        ), Phaser.Geom.Rectangle.Contains);
+        
+        // Update position
+        const { x: wx, y: wy } = this.tileToWorld(unit.position.x, unit.position.y);
+        container.setPosition(wx + this.tileSizePx / 2, wy + this.tileSizePx / 2);
+        
+        // Update unit circle radius proportionally
+        const unitCircle = container.getByName('circle') as Phaser.GameObjects.Graphics;
+        if (unitCircle && unitCircle.clear && typeof unitCircle.clear === 'function') {
+          const newRadius = Math.max(12, this.tileSizePx * 0.4); // Proportional radius with minimum
+          unitCircle.clear();
+          // Use existing color logic from VISUAL_CONFIG
+          const circleColor = unit.playerId === 'player1' ? VISUAL_CONFIG.COLORS.UNITS.PLAYER1 : VISUAL_CONFIG.COLORS.UNITS.PLAYER2;
+          unitCircle.fillStyle(circleColor, 1);
+          unitCircle.fillCircle(0, 0, newRadius);
+        } else {
+          console.warn(`GameScene: unitCircle not found or invalid for unit ${unitId}`);
+        }
+        
+        // Update HP bar positioning
+        const hpBar = container.getByName('hpBg') as Phaser.GameObjects.Rectangle;
+        if (hpBar) {
+          const hpBarWidth = Math.max(30, this.tileSizePx * 0.8);
+          const hpBarHeight = Math.max(4, this.tileSizePx * 0.1);
+          const hpBarOffsetY = -this.tileSizePx / 2 - 8;
+          
+          // HP bar will be redrawn when needed, just update positioning
+          container.setData('hpBarConfig', { width: hpBarWidth, height: hpBarHeight, offsetY: hpBarOffsetY });
+        }
+      }
+    });
+  }
 }
 
 
