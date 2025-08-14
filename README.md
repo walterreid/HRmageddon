@@ -79,6 +79,14 @@ HRmageddon/
 - [x] Basic AI opponent
 - [x] Modern React + Phaser 3 architecture
 
+### Phase 4: Responsive Tile Sizing System ✅ COMPLETE
+- [x] **ResponsiveGameManager Class** - Centralized responsive system management
+- [x] **Dynamic Tile Calculation** - Smart algorithm for optimal tile sizing
+- [x] **Canvas Resizing** - Direct canvas manipulation for Phaser Scale.NONE compatibility
+- [x] **Full Board Visibility** - 16x12 board always completely visible regardless of screen size
+- [x] **Performance Optimization** - Debounced resize handling and efficient updates
+- [x] **Cross-Platform Support** - Seamless experience across all device sizes
+
 ### Phase 2: Team Drafting & AI ✅ COMPLETE
 - [x] Team building system with budget constraints
 - [x] Unit selection and cost management
@@ -273,6 +281,29 @@ npm install
 npm run dev
 ```
 
+**Responsive System Issues:**
+```bash
+# If tiles aren't scaling properly:
+# 1. Check browser console for ResponsiveGameManager logs
+# 2. Verify GameScene is fully initialized before responsive updates
+# 3. Check that Phaser is using Scale.NONE mode in GameView.tsx
+# 4. Ensure ResponsiveGameManager is initialized after game.events.once('ready')
+```
+
+### Responsive System Debugging
+
+The responsive tile sizing system includes comprehensive logging:
+
+1. **Check Console Logs**: Look for `ResponsiveGameManager:` prefixed messages
+2. **Verify Initialization**: Should see "Game ready, initializing ResponsiveGameManager"
+3. **Monitor Tile Changes**: Logs show tile size calculations and updates
+4. **Debug Panel**: GameView includes debug info showing current tile size and board dimensions
+
+**Common Issues & Solutions:**
+- **Tiles not scaling**: Check that ResponsiveGameManager is properly initialized
+- **Canvas margin issues**: Ensure GameView uses flexbox centering instead of manual margins
+- **Performance issues**: Verify debounced resize handling is working (100ms delay)
+
 ### Development Workflow
 
 1. **Start Development:** `npm run dev` from root
@@ -346,6 +377,37 @@ HRmageddon/
 
 ## 🔧 Configuration
 
+### Responsive Tile Sizing System
+
+The game features an advanced responsive system that automatically adjusts tile sizes to ensure the complete 16x12 game board is always visible:
+
+#### **Key Components**
+- **`ResponsiveGameManager`**: Manages tile sizing calculations and canvas resizing
+- **`GameScene.updateTileSprites()`**: Redraws game elements with new tile sizes
+- **Dynamic Calculation**: Considers viewport dimensions, control panel width, and board aspect ratio
+
+#### **Tile Size Ranges**
+- **Minimum**: 28px (ensures board fits on small mobile screens)
+- **Maximum**: 64px (optimal size for large desktop displays)
+- **Steps**: 28px, 32px, 40px, 48px, 56px, 64px (for visual consistency)
+
+#### **Smart Scaling Logic**
+```typescript
+// Available space calculation
+const availableWidth = viewportWidth - controlPanelWidth - padding
+const availableHeight = viewportHeight - headerHeight - padding
+
+// Optimal tile size based on space constraints
+const maxTileByWidth = availableWidth / boardWidth
+const maxTileByHeight = availableHeight / boardHeight
+const optimalTileSize = Math.min(maxTileByWidth, maxTileByHeight)
+```
+
+#### **Performance Features**
+- **Debounced Resize**: 100ms delay to prevent excessive updates during window resizing
+- **Canvas Direct Updates**: Bypasses Phaser's scale manager for better compatibility
+- **Efficient Redraws**: Only updates when tile size actually changes
+
 ### Environment Variables
 ```env
 # Frontend (.env)
@@ -395,6 +457,14 @@ JWT_SECRET=your-secret-key
 - **Breakpoint Strategy:** Mobile (portrait), mobile (landscape), tablet, and desktop layouts
 - **Touch-First Design:** Larger touch targets, swipe gestures, and mobile-optimized interactions
 
+### **NEW: Responsive Tile Sizing System**
+- **Dynamic Tile Scaling:** Automatically adjusts tile size based on viewport dimensions
+- **Full Board Visibility:** Ensures the complete 16x12 game board is always visible
+- **ResponsiveGameManager:** Centralized system for managing tile sizing and canvas resizing
+- **Smart Calculation:** Calculates optimal tile size considering available space and board dimensions
+- **Performance Optimized:** Debounced resize handling and efficient canvas updates
+- **Cross-Platform:** Works seamlessly across desktop, tablet, and mobile devices
+
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -421,7 +491,7 @@ All game mechanics and concepts are based on the original 2009 Flash game.
 
 ---
 
-**Current Status:** ✅ Phase 4 Complete - Mobile Responsiveness Foundation & Deployment Infrastructure Ready
+**Current Status:** ✅ Phase 4 Complete - Mobile Responsiveness Foundation, Responsive Tile Sizing System & Deployment Infrastructure Ready
 
 **Last Updated:** January 2025
 
