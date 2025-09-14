@@ -58,8 +58,11 @@ export var GamePhase;
 (function (GamePhase) {
     GamePhase["SETUP"] = "setup";
     GamePhase["DRAFT"] = "draft";
+    GamePhase["DRAFTING"] = "drafting";
     GamePhase["PLAYING"] = "playing";
+    GamePhase["PAUSED"] = "paused";
     GamePhase["GAME_OVER"] = "game_over";
+    GamePhase["WAITING_FOR_PLAYERS"] = "waiting_for_players";
 })(GamePhase || (GamePhase = {}));
 export var ActionType;
 (function (ActionType) {

@@ -109,8 +109,11 @@ export type PlayerId = string;
 export declare enum GamePhase {
     SETUP = "setup",
     DRAFT = "draft",
+    DRAFTING = "drafting",
     PLAYING = "playing",
-    GAME_OVER = "game_over"
+    PAUSED = "paused",
+    GAME_OVER = "game_over",
+    WAITING_FOR_PLAYERS = "waiting_for_players"
 }
 export interface DraftState {
     playerBudget: number;

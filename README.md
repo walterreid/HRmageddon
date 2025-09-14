@@ -1,669 +1,175 @@
-# HRmageddon - Web Implementation
+HRmageddon
+A modern web remake of the 2009 Adult Swim Flash game where rival departments wage cubicle warfare. This project is a turn-based tactical strategy game built with a modern tech stack, featuring a sophisticated responsive engine, a data-driven map system, and a complete single-player experience against AI.
 
-A modern web remake of the 2009 Adult Swim Flash tactics game where rival departments wage cubicle warfare for control of the office floor.
+✨ Core Features
+Tactical Grid-Based Combat: Classic turn-based strategy on a 16x12 (configurable) grid with office-themed units.
 
-## 🎮 Game Overview
+Team Drafting System: Strategically build your team within budget and headcount limits before each battle.
 
-**Genre:** Turn-based tactical strategy  
-**Players:** 1-2 (vs AI or online multiplayer)  
-**Session Length:** 5-15 minutes  
-**Platform:** Web browser (HTML5/JavaScript)
+Dynamic AI Opponent: Face an AI that builds its own team and makes strategic decisions based on the game state.
 
-### Core Features
-- **Team Drafting System** - Build your dream team before battle with budget constraints
-- Grid-based tactical combat with office-themed units
-- Resource management through cubicle capture
-- Satirical office abilities (Write-ups, Pink Slips, Coffee Runs)
-- Quick matches with clear win conditions
-- Both single-player (vs AI) and multiplayer modes
+Tiled Map Integration: Game levels are built using the Tiled Map Editor, allowing for easy creation of new layouts with distinct layers for floors, obstacles, and objectives.
 
-## 🏗️ Technology Stack
+Advanced Responsive Engine: A custom ResponsiveGameManager ensures the entire 16x12 game board is always perfectly visible and playable on any device, from small mobile phones to large desktops.
 
-### Frontend
-- **Framework:** React 19 with TypeScript
-- **Game Engine:** Phaser 3 (for game rendering and animations)
-- **State Management:** Zustand (lightweight, perfect for game state)
-- **Styling:** Tailwind CSS (UI elements)
-- **Build Tool:** Vite 7
+Capture Point System: Gain strategic advantage and income by capturing and controlling cubicles on the map.
 
-### Backend
-- **Runtime:** Node.js with Express 5
-- **Real-time:** Socket.io (for multiplayer)
-- **Database:** PostgreSQL (player stats, match history)
-- **ORM:** Prisma
-- **Hosting:** Render.com (auto-scaling, WebSocket support)
+Satirical Ability System: Unleash office-themed special attacks like "Pink Slip," "Fetch Coffee," and "Legal Threat."
 
-## 📁 Project Structure
+💻 Technology Stack
+Frontend: React 19, TypeScript, Phaser 3, Zustand, Tailwind CSS
 
-```
-HRmageddon/
-├── client/                 # React frontend + Phaser game
-│   ├── src/
-│   │   ├── components/     # React UI components
-│   │   │   ├── DraftScreen.tsx  # Team drafting interface
-│   │   │   ├── GameView.tsx     # Main game view
-│   │   │   ├── GameHUD.tsx      # Game heads-up display
-│   │   │   └── MainMenu.tsx     # Main menu
-│   │   ├── game/          # Phaser game scenes and logic
-│   │   │   ├── scenes/    # Game scenes (GameScene.ts)
-│   │   │   └── systems/   # Game systems
-│   │   │       ├── ai.ts      # AI opponent logic
-│   │   │       └── aiDraft.ts # AI team building
-│   │   ├── stores/        # Zustand state management
-│   │   └── types/         # TypeScript type definitions
-│   └── package.json
-├── server/                 # Express backend + Socket.io
-│   ├── src/
-│   │   └── index.ts       # Main server file
-│   └── package.json
-├── shared/                 # Common types and utilities
-│   └── src/
-│       └── index.ts       # Shared interfaces and enums
-└── package.json            # Workspace root configuration
-```
+Backend: Node.js, Express 5, Socket.io
 
-### Development Tools
-- **Version Control:** Git/GitHub with pre-commit hooks (husky + lint-staged)
-- **CI/CD:** GitHub Actions → Render auto-deploy
-- **Testing:** Vitest (unit), Playwright (e2e)
-- **Linting:** ESLint + Prettier
-- **Code Quality:** Pre-commit hooks block commits with TypeScript/ESLint errors
+Database: PostgreSQL with Prisma ORM
 
-## 🚀 Implementation Phases
+Build & Test: Vite 7, Vitest, Playwright, ESLint, Prettier
 
-### Phase 1: Core Game Engine ✅ COMPLETE
-- [x] Basic game board and tile system
-- [x] Unit movement and combat mechanics
-- [x] Turn-based gameplay loop
-- [x] Victory conditions and game state management
-- [x] Basic AI opponent
-- [x] Modern React + Phaser 3 architecture
+🚀 Getting Started
+Prerequisites: Node.js v18+
 
-### Phase 4: Responsive Tile Sizing System ✅ COMPLETE
-- [x] **ResponsiveGameManager Class** - Centralized responsive system management
-- [x] **Dynamic Tile Calculation** - Smart algorithm for optimal tile sizing
-- [x] **Canvas Resizing** - Direct canvas manipulation for Phaser Scale.NONE compatibility
-- [x] **Full Board Visibility** - 16x12 board always completely visible regardless of screen size
-- [x] **Performance Optimization** - Debounced resize handling and efficient updates
-- [x] **Cross-Platform Support** - Seamless experience across all device sizes
-
-### Phase 2: Team Drafting & AI ✅ COMPLETE
-- [x] Team building system with budget constraints
-- [x] Unit selection and cost management
-- [x] AI team building with strategic unit selection
-- [x] Enhanced AI decision making and tactics
-- [x] Draft-to-battle game flow
-
-### Phase 3: Advanced Gameplay ✅ COMPLETE
-- [x] Ability system framework
-- [x] Status effects and buffs/debuffs
-- [x] Enhanced unit interactions
-- [x] **Tiled Map Integration** - Modular map system with 16x12 office layout
-- [x] **MapManager Architecture** - Clean separation of map logic from game logic
-- [x] **Starting Position System** - Units spawn on designated team starting tiles
-- [x] **Movement Blocking** - Foreground objects block player and AI movement
-- [x] **Capture Point System** - Cubicles can be captured for victory conditions
-- [x] **Win Conditions** - 51% of capture points needed for victory
-- [x] **UI State Management** - Action menus and highlights properly clear after actions
-- [x] Advanced AI behaviors
-- [x] Multiple maps and scenarios
-
-### Phase 4: Mobile Responsiveness & Deployment ✅ COMPLETE
-- [x] **Pre-commit Hook System** - husky + lint-staged for code quality protection
-- [x] **Mobile-First Design Foundation** - Responsive breakpoints and mobile layouts
-- [x] **Touch Interaction Optimization** - Mobile touch events and gesture handling
-- [x] **Responsive Game Board** - Phaser 3 scaling for mobile devices
-- [x] **BottomSheet Component** - Reusable mobile UI component
-- [x] **Modal Infrastructure** - Reusable modal system with accessibility features
-- [x] **Mobile-Optimized Components** - MainMenu, LoadingScreen, DraftScreen, GameHUD
-- [x] **Render.com Deployment Fixes** - Production environment compatibility
-- [x] **Code Quality Gates** - Automatic blocking of commits with errors
-
-### Phase 4: Polish & Features 📋 PLANNED
-- [ ] Sound effects and music
-- [ ] Particle effects and animations
-- [ ] Mobile responsiveness
-- [ ] Game balance tuning
-- [ ] Additional unit types
-
-### Phase 5: Multiplayer & Expansion 📋 FUTURE
-- [ ] Real-time multiplayer
-- [ ] Campaign mode
-- [ ] Unit progression
-- [ ] Map editor
-- [ ] Tournament system
-
-## 🎯 Recent Updates & Fixes
-
-### Latest Improvements (Latest Session)
-- ✅ **Complete Mobile Responsiveness** - All components now mobile-optimized with responsive design
-- ✅ **Modal Infrastructure** - Reusable modal system with accessibility and mobile-friendly features
-- ✅ **Mobile-Optimized Components** - MainMenu, LoadingScreen, DraftScreen, and GameHUD fully responsive
-- ✅ **GameHUD Mobile Integration** - BottomSheet automatically opens for unit selection on mobile
-- ✅ **Touch-Friendly Design** - Proper touch targets (44px+) and mobile-optimized layouts
-- ✅ **Pre-commit Hook System** - Added husky + lint-staged for automatic code quality protection
-- ✅ **Render.com Deployment Fixes** - Resolved production environment compatibility issues
-- ✅ **Code Quality Gates** - Commits now automatically blocked if TypeScript/ESLint errors exist
-- ✅ **Fixed Build Errors** - Resolved unused variable warnings causing TypeScript compilation failures
-- ✅ **Action Menu UI** - Action menus now properly close after unit actions (move/attack)
-- ✅ **Movement Highlights** - Movement highlights clear properly after unit movement
-- ✅ **Capture Point Visibility** - Team ownership of captured cubicles is now clearly visible with colored highlights
-- ✅ **Movement Blocking** - Foreground objects properly block both player and AI movement
-- ✅ **Win Conditions** - Victory threshold calculated as 51% of total capture points
-
-### Current Game Status
-The game is now fully functional with:
-- Complete tilemap integration (16x12 office layout)
-- Working movement and combat systems
-- Functional capture point mechanics
-- Proper UI state management
-- Clean build process (no TypeScript errors)
-- **Pre-commit code quality protection** (husky + lint-staged)
-- **Complete mobile responsiveness** across all components
-- **Production deployment** working on Render.com
-
-## 🚀 Quick Start
-
-```bash
-# Clone repository
+Bash
+# 1. Clone the repository
 git clone https://github.com/walterreid/HRmageddon.git
 cd HRmageddon
 
-# Install dependencies (workspace setup)
+# 2. Install dependencies for the entire workspace
 npm install
 
-# Start development environment (both client and server)
+# 3. Start the client and server concurrently
 npm run dev
+Client (Game) will be available at http://localhost:5178
 
-# Or start individually:
-# Client only: npm --workspace client run dev
-# Server only: npm --workspace server run dev
-```
+Server (API) will be available at http://localhost:4001
 
-## 🖥️ Getting Started (Development)
+# 4. Run tests (optional)
+npm run test:all          # Run all tests and validation
+npm run test:strict       # Run strict TypeScript validation only
 
-### Prerequisites
-- Node.js 18+ and npm
-- Git
+📂 Project Structure
+This project is a monorepo containing three main packages:
 
-### Installation
-```bash
-# Clone and setup
-git clone https://github.com/walterreid/HRmageddon.git
-cd HRmageddon
-npm install
-```
-
-### Starting the Development Environment
-
-#### Option 1: Start Both Together (Recommended)
-```bash
-# From the root directory
-npm run dev
-```
-This starts both client and server concurrently using the workspace configuration.
-
-#### Option 2: Start Individually
-
-**Start the Server First:**
-```bash
-# From the root directory
-npm --workspace server run dev
-
-# Or navigate to server directory
-cd server
-npm run dev
-```
-
-**Start the Client:**
-```bash
-# From the root directory (in a new terminal)
-npm --workspace client run dev
-
-# Or navigate to client directory
-cd client
-npm run dev
-```
-
-### Development URLs
-
-Once both are running, you can access:
-
-- **Client (Game):** http://localhost:5177 (or next available port)
-- **Server (API):** http://localhost:4001
-- **Health Check:** http://localhost:4001/api/health
-
-### Port Configuration
-
-The system uses fixed ports for consistency:
-- **Client:** Port 5178 (configured in `client/vite.config.ts`)
-- **Server:** Port 4001 (configured in `server/src/index.ts`)
-
-### Troubleshooting
-
-**Port Already in Use:**
-```bash
-# Kill processes using specific ports
-lsof -ti:5178 | xargs kill -9  # Client port
-lsof -ti:4001 | xargs kill -9  # Server port
-```
-
-**Server Won't Start:**
-```bash
-# Check if dependencies are installed
-cd server
-npm install
-
-# Check for missing modules
-npm list express
-
-# Server now uses tsx for ESM support
-npm list tsx
-```
-
-**Client Won't Start:**
-```bash
-# Check if dependencies are installed
-cd client
-npm install
-
-# Clear Vite cache
-rm -rf node_modules/.vite
-
-# Check port availability (client uses port 5178)
-lsof -i :5178
-```
-
-**Workspace Issues:**
-```bash
-# Reinstall from root
-npm install
-npm run dev
-```
-
-**Responsive System Issues:**
-```bash
-# If tiles aren't scaling properly:
-# 1. Check browser console for ResponsiveGameManager logs
-# 2. Verify GameScene is fully initialized before responsive updates
-# 3. Check that Phaser is using Scale.NONE mode in GameView.tsx
-# 4. Ensure ResponsiveGameManager is initialized after game.events.once('ready')
-```
-
-### Responsive System Debugging
-
-The responsive tile sizing system includes comprehensive logging:
-
-1. **Check Console Logs**: Look for `ResponsiveGameManager:` prefixed messages
-2. **Verify Initialization**: Should see "Game ready, initializing ResponsiveGameManager"
-3. **Monitor Tile Changes**: Logs show tile size calculations and updates
-4. **Debug Panel**: GameView includes debug info showing current tile size and board dimensions
-
-**Common Issues & Solutions:**
-- **Tiles not scaling**: Check that ResponsiveGameManager is properly initialized
-- **Canvas margin issues**: Ensure GameView uses flexbox centering instead of manual margins
-- **Performance issues**: Verify debounced resize handling is working (100ms delay)
-
-### Development Workflow
-
-1. **Start Development:** `npm run dev` from root
-2. **Make Changes:** Edit files in `client/src/` or `server/src/`
-3. **Auto-reload:** Both client and server will restart automatically
-4. **Test:** Visit http://localhost:5178 to see your changes
-5. **API Testing:** Use http://localhost:4001/api/health to verify server
-6. **Code Quality:** Pre-commit hooks automatically check TypeScript and ESLint before commits
-7. **Quality Gates:** Commits blocked if code quality standards not met
-
-### File Structure for Development
-
-```
 HRmageddon/
-├── client/src/           # Frontend React components
-│   ├── components/       # UI components (GameView, GameHUD, DraftScreen, etc.)
-│   ├── stores/          # Zustand state management
-│   ├── game/            # Phaser game logic
-│   └── App.tsx          # Main app component
-├── server/src/           # Backend Express server
-│   └── index.ts         # Server entry point
-└── shared/src/           # Shared types and utilities
-```
+├── client/         # React frontend and Phaser game engine
+│   └── src/game/   # Organized game architecture
+│       ├── ai/     # AI decision-making logic
+│       ├── core/   # Pure game engine rules
+│       ├── visuals/# Rendering and effects
+│       ├── map/    # Map management system
+│       ├── responsive/ # Responsive scaling
+│       └── scenes/ # Phaser game scenes
+├── server/         # Node.js backend for API and multiplayer
+├── shared/         # TypeScript types and enums shared between client/server
+└── package.json    # Workspace root
+🏛️ Architectural Overview
+This project uses a decoupled architecture where the user interface, game state logic, and rendering engine operate independently. This makes the system easier to debug, test, and extend.
 
-## 🌐 Development URLs
+1. State Management (Zustand)
 
-- **Client (Game):** http://localhost:5178
-- **Server (API):** http://localhost:4001
-- **Health Check:** http://localhost:4001/api/health
+The core of the game is the gameStore.ts file. It acts as the single source of truth for the entire game state.
 
-## 🎯 Development Milestones
+What it does: It's a "god object" that holds the logical representation of the board, all unit data, player resources, and the current turn.
 
-### MVP Features (Phase 1) ✅ COMPLETED
-- ✅ Grid-based movement
-- ✅ Turn-based combat
-- ✅ 4 basic units (Intern, Secretary, Sales Rep, HR Manager)
-- ✅ Cubicle capture mechanics
-- ✅ Resource management (budget, income, controlled cubicles)
-- ✅ Status effects system
-- ✅ Turn management with action points
-- ✅ Basic game loop and win conditions
-- ✅ **NEW: Team Drafting System** - Build teams before battle
-- ✅ **NEW: AI Team Building** - AI creates balanced teams
-- ✅ **NEW: Enhanced AI Decision Making** - Smarter opponent behavior
+How it works: It contains all the core game logic as methods (e.g., moveUnit, attackTarget, endTurn). All UI components (React) and the game engine (Phaser) subscribe to this store and react to its changes.
 
-### Phase 3: Advanced Gameplay 🚧 IN PROGRESS
-- ✅ **Unit Selection Attack System** - Fixed critical attack mode interference
-- ✅ **Attack Highlighting** - Only shows enemies in range (red highlights)
-- ✅ **Action Menu Integration** - Proper positioning and close functionality
-- ✅ **Movement System** - Blue tile highlighting for valid moves
-- ✅ **State Synchronization** - GameHUD and GameScene properly synced
-- ✅ **Server ESM Configuration** - Modern ES modules with tsx support
+2. Rendering Engine (Phaser 3)
 
-### Full Release (Phase 3)
-- ✅ 8 unique units with abilities
-- ✅ **Unit Selection Attack System** - Complete and tested
-- ✅ **Action Menu System** - Fully functional with proper state management
-- [ ] **Advanced Abilities** - Cooldowns and complex targeting
-- [ ] 4 diverse maps
-- [ ] Online multiplayer
-- [ ] Matchmaking
-- [ ] Persistent stats
-- [ ] Mobile-responsive
+Visuals are handled entirely by Phaser.
 
-## 🎨 Art Style Guide
+What it does: The GameScene.ts class is responsible for rendering the tilemap, units, highlights, and visual effects onto an HTML <canvas>.
 
-- **Visual:** Bright, cartoony with thick outlines
-- **Colors:** Corporate blues/grays with vibrant team colors
-- **Animations:** Exaggerated, comedic (paper flying, coffee splashing)
-- **UI:** Clean, minimal, business-document themed
+How it works: It subscribes to the gameStore. When the state changes (e.g., a unit moves), GameScene receives the update and visually tweens the unit's sprite to its new position. It does not contain any game logic itself; it only reflects the current state.
 
-## 🔧 Configuration
+3. User Interface (React)
 
-### Responsive Tile Sizing System
+The UI, including the Heads-Up Display (HUD), menus, and modals, is built with React and styled with Tailwind CSS.
 
-The game features an advanced responsive system that automatically adjusts tile sizes to ensure the complete 16x12 game board is always visible:
+What it does: Components like GameHUD.tsx and ActionMenu.tsx display information and provide controls to the player.
 
-#### **Key Components**
-- **`ResponsiveGameManager`**: Manages tile sizing calculations and canvas resizing
-- **`GameScene.updateTileSprites()`**: Redraws game elements with new tile sizes
-- **Dynamic Calculation**: Considers viewport dimensions, control panel width, and board aspect ratio
+How it works: UI components also subscribe to the gameStore to display data. When a player clicks a button (e.g., "End Turn"), the component calls the corresponding method in the gameStore, which updates the state and triggers changes in both the UI and the Phaser canvas.
 
-#### **Tile Size Ranges**
-- **Minimum**: 28px (ensures board fits on small mobile screens)
-- **Maximum**: 64px (optimal size for large desktop displays)
-- **Steps**: 28px, 32px, 40px, 48px, 56px, 64px (for visual consistency)
+4. Map System (Tiled Integration)
 
-#### **Smart Scaling Logic**
-```typescript
-// Available space calculation
-const availableWidth = viewportWidth - controlPanelWidth - padding
-const availableHeight = viewportHeight - headerHeight - padding
+The game uses maps created in the Tiled Map Editor and exported as JSON.
 
-// Optimal tile size based on space constraints
-const maxTileByWidth = availableWidth / boardWidth
-const maxTileByHeight = availableHeight / boardHeight
-const optimalTileSize = Math.min(maxTileByWidth, maxTileByHeight)
-```
+MapManager.ts: This class loads the Tiled JSON file, creates the visual layers in Phaser, and parses crucial data.
 
-#### **Performance Features**
-- **Debounced Resize**: 100ms delay to prevent excessive updates during window resizing
-- **Canvas Direct Updates**: Bypasses Phaser's scale manager for better compatibility
-- **Efficient Redraws**: Only updates when tile size actually changes
+MapRegistry.ts: This is a global singleton that caches parsed map data, such as team starting positions, obstacle locations, and capture points. This is critical because it allows the gameStore to create a logically accurate board before the Phaser scene has even started rendering.
 
-### Environment Variables
-```env
-# Frontend (.env)
-VITE_API_URL=http://localhost:4001
-VITE_SOCKET_URL=ws://localhost:4001
+5. Responsive Tile Sizing System
 
-# Backend (.env)
-DATABASE_URL=postgresql://user:pass@localhost:5432/hrmageddon
-PORT=4001
-JWT_SECRET=your-secret-key
-```
+A key feature is the custom-built responsive engine that ensures a perfect gameplay experience on any screen.
 
-## 📝 Game Design Notes
+ResponsiveGameManager.ts: This class runs alongside Phaser. It continuously monitors the browser's viewport size.
 
-### Balance Targets
-- **TTK (Time to Kill):** 2-3 hits average
-- **Match Length:** 8-12 turns
-- **Income Rate:** +1 per cubicle/round
-- **Unit Costs:** 2-6 credits
+It calculates the largest possible tile size (between 28px and 64px) that allows the entire 16x12 board to fit perfectly within the available space.
 
-### Unit Counter System
-- Secretary → High mobility units (Filed status)
-- Legal → Executives/HR (Stun)
-- IT → Clustered enemies (Hazards)
-- Sales → Capture-focused units (Harass)
+When the optimal size changes, it directly resizes the Phaser canvas and instructs GameScene to redraw all units and elements at the new scale.
 
-### **NEW: Team Drafting System**
-- **Budget:** $200k starting budget
-- **Headcount:** Maximum 6 units per team
-- **Unit Costs:** Interns ($20k) to Executives ($60k)
-- **Strategy:** Balance between expensive powerful units and cost-effective support
-- **AI Drafting:** AI creates balanced teams using strategic unit selection
+6. AI System
 
-### **NEW: Tiled Map System**
-- **Modular Architecture:** `MapManager` class handles all map loading and rendering
-- **16x12 Office Layout:** Expanded from 8x10 to provide more strategic space
-- **4-Layer System:** Background (walkable), Foreground (blocking), CapturePoints, StartingPositions
-- **Team Starting Positions:** Gold team (top-left) and Navy team (bottom-right) with distinct tiles
-- **MapRegistry:** Centralized system for managing multiple maps and their starting positions
-- **Debug Tools:** Grid overlay (press 'G') for tile alignment verification
+The AI logic is self-contained and follows a clear, prioritized decision-making process.
 
-### **NEW: Mobile Responsiveness Foundation**
-- **Responsive Layout System:** Mobile-first design with breakpoint-based layouts
-- **Touch Interaction:** Optimized touch events, gesture handling, and mobile UX patterns
-- **Game Board Scaling:** Phaser 3 responsive sizing for mobile devices (portrait priority)
-- **BottomSheet Component:** Reusable mobile UI component for collapsible interfaces
-- **Breakpoint Strategy:** Mobile (portrait), mobile (landscape), tablet, and desktop layouts
-- **Touch-First Design:** Larger touch targets, swipe gestures, and mobile-optimized interactions
+AIController.ts: This class contains the AI's "brain." During its turn, it evaluates all possible actions for each of its units in a specific order of priority:
 
-### **NEW: Responsive Tile Sizing System**
-- **Dynamic Tile Scaling:** Automatically adjusts tile size based on viewport dimensions
-- **Full Board Visibility:** Ensures the complete 16x12 game board is always visible
-- **ResponsiveGameManager:** Centralized system for managing tile sizing and canvas resizing
-- **Smart Calculation:** Calculates optimal tile size considering available space and board dimensions
-- **Performance Optimized:** Debounced resize handling and efficient canvas updates
-- **Cross-Platform:** Works seamlessly across desktop, tablet, and mobile devices
+Use a high-value ability (e.g., execute a weak enemy).
 
-## 🤝 Contributing
+Attack the weakest enemy in range.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Move to capture a nearby objective (a cubicle).
 
-## 📜 License
+Move towards the closest enemy if no other actions are available.
 
-This is a fan remake of the original HRmageddon by THUP Games/Adult Swim Games. 
-All game mechanics and concepts are based on the original 2009 Flash game.
+🧪 Testing
+The project includes a comprehensive test suite using Vitest for unit tests, Playwright for end-to-end tests, and strict TypeScript validation.
 
-## 🙏 Acknowledgments
+## **Quick Start Testing**
 
-- Original game by THUP Games & Adult Swim Games (2009)
-- Inspired by tactical games like Advance Wars and Into the Breach
-- Built with modern web technologies for preservation
-
-## 📞 Contact
-
-- GitHub Issues: [Report bugs or request features](https://github.com/walterreid/HRmageddon/issues)
-- Discord: [Join our community](#)
-
----
-
-**Current Status:** ✅ Phase 4 Complete - Mobile Responsiveness Foundation, Responsive Tile Sizing System & Deployment Infrastructure Ready
-
-**Last Updated:** January 2025
-
-## 🎯 What's Currently Working
-
-### ✅ Implemented Features
-- **Game Board**: 8x10 grid with different tile types (cubicles, obstacles, conference rooms, HQs)
-- **Units**: 4 unit types with unique stats and abilities
-- **Turn System**: Player turns with action points and movement/attack phases
-- **Combat**: Attack mechanics with damage calculation and status effects
-- **Resource Management**: Budget, income per turn, and cubicle control
-- **Game Loop**: Complete turn-based gameplay with win conditions
-- **Modern UI**: React + Tailwind CSS with Phaser 3 game rendering
-- **NEW: Team Drafting**: Build your team before battle with budget constraints
-- **NEW: AI Team Building**: AI creates balanced teams using strategic unit selection
-- **NEW: Enhanced AI**: Improved decision making and tactical behavior
-- **Action Menu**: UI for selecting unit actions (Move, Attack, Abilities) with proper positioning
-
-### ✅ Recently Fixed
-- **Unit Selection Attack System**: Fixed critical issue where unit selection was overriding attack mode
-- **Attack Highlighting**: Now only shows enemies within attack range (red highlights)
-- **Action Menu Close Button**: Fixed functionality to properly close menu and deselect units
-- **Server ESM Configuration**: Resolved import issues by switching to ESM + tsx
-- **Port Conflicts**: Updated client port from 5177 to 5178 to resolve conflicts
-- **State Synchronization**: Improved action mode sync between GameHUD and GameScene
-
-### 🔄 Currently Testing
-- **Attack System**: Verifying attack targeting works correctly without unit selection interference
-- **Movement System**: Testing movement tile highlighting and execution
-- **Ability System**: Testing special abilities and their targeting mechanics
-
-### 📋 Next Steps
-- **Debug MapRegistry Integration** - Fix starting position retrieval for proper unit spawning
-- **Test and validate** the fixed unit selection attack system
-- **Verify highlighting systems** for movement, attack, and abilities
-- **Add remaining unit types** (IT Specialist, Accountant, Legal Counsel, Executive)
-- **Implement advanced abilities** and cooldowns
-- **Add multiple maps** and scenarios
-- **Polish UI** and add animations
-
-## 🔧 Recent Fixes & Improvements
-
-### ✅ Unit Selection Attack System (January 2025)
-The core combat system has been completely overhauled to fix critical issues:
-
-#### **What Was Fixed:**
-- **Unit Selection Overriding Attack Mode**: Previously, clicking enemy units in attack mode would select them instead of attacking
-- **Attack Highlighting**: Now only shows enemies within attack range (red highlights) instead of all enemies
-- **Action Menu Close Button**: Fixed functionality to properly close menu and deselect units
-- **State Synchronization**: Improved action mode sync between GameHUD and GameScene components
-
-#### **Technical Implementation:**
-- **GameScene.ts**: Reordered `handleClick` logic to prioritize action execution over unit selection
-- **GameHUD.tsx**: Added proper action completion cleanup and state synchronization
-- **ActionMenu.tsx**: Fixed close button with proper `onClose` prop handling
-- **Server**: Migrated to ESM configuration with `tsx` for better TypeScript support
-
-#### **Expected Behavior:**
-1. **Click "Attack"** → Only enemies in range get red highlights
-2. **Click red-highlighted enemy** → Attack executes (no unit selection)
-3. **Click non-highlighted enemy** → Nothing happens (out of range)
-4. **Click empty space** → Deselects unit normally
-
-### 🚀 Performance Improvements
-- **Port Configuration**: Fixed to use consistent ports (Client: 5178, Server: 4001)
-- **Server Architecture**: Upgraded to modern ES modules with better TypeScript support
-- **State Management**: Optimized React-Phaser communication for smoother gameplay
-
-## 🧪 Testing
-
-The project uses **Vitest** for unit testing and **Playwright** for end-to-end testing.
-
-#### Unit Tests
 ```bash
-# Run all tests
+# Run all tests (unit + strict validation)
+npm run test:all
+
+# Run strict TypeScript validation only
+npm run test:strict
+
+# Run unit tests only
 npm test
-
-# Run tests in watch mode (recommended for development)
-npm run test:watch
-
-# Run specific test files
-npm test -- src/stores/gameStore.test.ts
-npm test -- src/game/systems/ai.test.ts
-
-# Run tests with coverage
-npm run test:coverage
 ```
 
-#### E2E Tests
+## **Available Test Commands**
+
 ```bash
-# Install Playwright browsers (first time only)
-npx playwright install
+# Unit Tests
+npm test                    # Run all unit tests
+npm run test:watch         # Run unit tests in watch mode
+npm run test:run           # Run unit tests once and exit
+npm run test:ui            # Run unit tests with UI interface
 
-# Run E2E tests
-npm run test:e2e
+# Strict Validation
+npm run test:strict        # Run comprehensive TypeScript validation
+npm run test:all          # Run both strict validation and unit tests
 
-# Run E2E tests in headed mode
-npm run test:e2e:headed
+# End-to-End Tests
+npm run test:e2e          # Run Playwright end-to-end tests
 ```
 
-### Important Test Files
+## **Strict Testing Features**
 
-#### Core Game Logic Tests
-- **`client/src/stores/gameStore.test.ts`** - Main game state management tests
-  - Game initialization and setup
-  - Unit movement and combat
-  - Turn management and victory conditions
-  - Player actions and gameplay mechanics
-  - Edge cases and error handling
+The `npm run test:strict` command runs comprehensive validation including:
 
-#### AI System Tests
-- **`client/src/game/systems/ai.test.ts`** - AI decision making and behavior tests
-  - AI movement and positioning
-  - Target selection and attack prioritization
-  - Ability usage and cooldown management
-  - Strategic decision making
+- **TypeScript Strict Mode**: Full type checking with strict settings
+- **ESLint Validation**: Code quality and style enforcement
+- **Import/Export Validation**: Module dependency checking
+- **Build Testing**: Production build verification
+- **Type Safety**: Comprehensive type checking across all files
 
-#### Ability System Tests
-- **`client/src/game/systems/abilities.test.ts`** - Special abilities and effects tests
-  - Ability definitions and properties
-  - Unit ability mappings
-  - Ability usage validation
-  - Target selection and range limits
-  - Status effects and damage application
+## **Key Test Files**
 
-#### Test Helpers
-- **`client/src/game/test/helpers.ts`** - Mock data and test utilities
-  - `createMockUnit()` - Create test units with custom properties
-  - `createMockGameState()` - Create test game states
-  - `createMockUnitWithAbilities()` - Create units with specific abilities
-  - `createMockUnitWithStatus()` - Create units with status effects
+- **`client/src/stores/gameStore.test.ts`**: Covers all core game mechanics
+- **`client/src/game/systems/ai.test.ts`**: Validates the AI's decision-making logic
+- **`client/src/game/systems/abilities.test.ts`**: Ensures all special abilities function correctly
+- **`client/scripts/test-strict.js`**: Comprehensive validation script
 
-### Test Configuration
+## **Pre-commit Validation**
 
-The test setup is configured in:
-- **`client/vitest.config.ts`** - Vitest configuration with React testing environment
-- **`client/src/test/setup.ts`** - Test environment setup and global mocks
-
-### Debugging Tests
-
-If tests are failing or timing out:
-
-1. **Check test timeouts**: Tests are configured with 30-second timeouts
-2. **Verify mock data**: Ensure test helpers create valid game states
-3. **Check console output**: Tests log detailed information about game state
-4. **Run individual tests**: Use `npm test -- --run <test-file>` to isolate issues
-
-### Test Coverage
-
-The test suite covers:
-- ✅ **Game State Management** - Complete coverage of gameStore functionality
-- ✅ **AI Decision Making** - AI movement, targeting, and strategy
-- ✅ **Ability System** - Special abilities, targeting, and effects
-- ✅ **Player Actions** - Unit selection, movement, and combat
-- ✅ **Edge Cases** - Error handling and boundary conditions
-
-### Browser Testing
-
-To test the actual game functionality:
-
-1. **Start the development server**: `npm run dev` from the root directory
-2. **Open the game**: Navigate to http://localhost:5178
-3. **Test the fixed unit selection attack system**:
-   - **Select a unit** → Action menu should appear
-   - **Click "Attack"** → Only enemies in range should get red highlights
-   - **Click red-highlighted enemy** → Attack should execute (no unit selection)
-   - **Click "Move"** → Valid move tiles should get blue highlights
-   - **Click blue tile** → Unit should move to that location
-   - **Click "Close" button** → Menu should close and unit should deselect
-
-4. **Test other interactions**:
-   - Select units and verify ability panel appears
-   - Check that abilities show correct costs and descriptions
-   - Verify targeting works for different ability types
-   - Test unit movement and combat mechanics
+The project includes a pre-commit hook that automatically runs strict validation before each commit, ensuring code quality and preventing broken builds.
