@@ -12,6 +12,8 @@ export type MapSpec = {
   capturePointsLayerName: string; // strategic locations
   startingPositionsLayerName: string; // team spawn points
   targetTileSizePx: number; // 48 (game logic grid)
+  width: number;            // map width in tiles
+  height: number;           // map height in tiles
 };
 
 export type BoardDim = { cols: number; rows: number };

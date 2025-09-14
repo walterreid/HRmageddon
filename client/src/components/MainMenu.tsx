@@ -4,7 +4,10 @@ import Hero from "./layout/Hero"
 import { HowItWorksModal } from './HowItWorksModal'
 
 export function MainMenu() {
-  const { initializeDraft, setGameMode, initializeGame } = useGameStore()
+  // Actions don't need selectors as they don't cause re-renders
+  const initializeDraft = useGameStore(state => state.initializeDraft)
+  const setGameMode = useGameStore(state => state.setGameMode)
+  const initializeGame = useGameStore(state => state.initializeGame)
   const [showHowItWorks, setShowHowItWorks] = useState(false)
 
   const handleStartGame = (mode: 'ai' | 'multiplayer') => {
@@ -61,6 +64,15 @@ export function MainMenu() {
               >
                 <div className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">Player vs Player</div>
                 <div className="text-xs sm:text-sm">Multiplayer (Coming Soon)</div>
+              </button>
+
+              {/* Test Mode */}
+              <button
+                onClick={() => useGameStore.getState().enterTestMode()}
+                className="px-6 sm:px-10 py-4 sm:py-6 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-purple-500/30 min-h-[60px] sm:min-h-[80px]"
+              >
+                <div className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">🧪 Test Mode</div>
+                <div className="text-xs sm:text-sm">Debug Tile Sizing System</div>
               </button>
             </div>
           </div>

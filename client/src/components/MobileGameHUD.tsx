@@ -3,13 +3,14 @@ import { useGameStore } from '../stores/gameStore'
 import { BottomSheet } from './BottomSheet'
 
 export function MobileGameHUD() {
-  const {
-    players,
-    selectedUnit,
-    endTurn,
-    currentPlayerId,
-    turnNumber
-  } = useGameStore()
+  // Use selectors to prevent unnecessary re-renders
+  const players = useGameStore(state => state.players)
+  const selectedUnit = useGameStore(state => state.selectedUnit)
+  const currentPlayerId = useGameStore(state => state.currentPlayerId)
+  const turnNumber = useGameStore(state => state.turnNumber)
+  
+  // Actions don't need selectors as they don't cause re-renders
+  const endTurn = useGameStore(state => state.endTurn)
 
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<'game-status' | 'unit-info' | 'help'>('game-status')

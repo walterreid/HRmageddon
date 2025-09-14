@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useGameStore } from '../stores/gameStore'
 import { ActionMenu } from './ActionMenu'
 import { BottomSheet } from './BottomSheet'
+import { ABILITIES } from '../game/core/abilities'
 
 // Type definitions for window extensions
 interface GameScene {
@@ -22,22 +23,23 @@ declare const window: ExtendedWindow
 import { HUD_CONFIG } from '../config/hudConfig'
 
 export function GameHUD() {
-  const {
-    selectedUnit,
-    currentPlayerId,
-    players,
-    endTurn,
-    turnNumber,
-    possibleMoves,
-    possibleTargets,
-    moveUnit,
-    attackTarget,
-    getAbilityTargets,
-    selectAbility,
-    canUnitMove,
-    canUnitAttack,
-    getEnemiesInRange
-  } = useGameStore()
+  // Use selectors to prevent unnecessary re-renders
+  const selectedUnit = useGameStore(state => state.selectedUnit)
+  const currentPlayerId = useGameStore(state => state.currentPlayerId)
+  const players = useGameStore(state => state.players)
+  const turnNumber = useGameStore(state => state.turnNumber)
+  const possibleMoves = useGameStore(state => state.possibleMoves)
+  const possibleTargets = useGameStore(state => state.possibleTargets)
+  
+  // Actions don't need selectors as they don't cause re-renders
+  const endTurn = useGameStore(state => state.endTurn)
+  const moveUnit = useGameStore(state => state.moveUnit)
+  const attackTarget = useGameStore(state => state.attackTarget)
+  const getAbilityTargets = useGameStore(state => state.getAbilityTargets)
+  const selectAbility = useGameStore(state => state.selectAbility)
+  const canUnitMove = useGameStore(state => state.canUnitMove)
+  const canUnitAttack = useGameStore(state => state.canUnitAttack)
+  const getEnemiesInRange = useGameStore(state => state.getEnemiesInRange)
 
   const [actionMenuPosition, setActionMenuPosition] = useState({ x: 0, y: 0 })
   const [actionMode, setActionMode] = useState<'none' | 'move' | 'attack' | 'ability'>('none')
@@ -207,6 +209,16 @@ export function GameHUD() {
       setSelectedAbility(null)
     } else {
       // This is an ability
+      const ability = ABILITIES[action]
+      if (ability && ability.requiresDirection) {
+        // Set the state to wait for a direction click
+        useGameStore.setState({ abilityAwaitingDirection: action })
+        console.log(`Directional ability selected: ${action}, waiting for direction input`)
+      } else {
+        // Handle normal single-target abilities
+        console.log(`Normal ability selected: ${action}`)
+      }
+      
       setActionMode('ability')
       setSelectedAbility(action)
       

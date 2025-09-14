@@ -14,6 +14,8 @@ export const MAPS: Record<string, MapSpec> = {
     capturePointsLayerName: "CapturePoints",
     startingPositionsLayerName: "StartingPoints", // Fixed from "StartingPositions"
     targetTileSizePx: 48,
+    width: 16,
+    height: 12,
   }
 }
 

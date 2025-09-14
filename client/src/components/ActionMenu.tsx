@@ -1,5 +1,5 @@
 import { useGameStore } from '../stores/gameStore'
-import { getUnitAbilities, canUseAbility } from '../game/systems/abilities.ts'
+import { getUnitAbilities, canUseAbility } from '../game/core/abilities.ts'
 import { type Unit } from 'shared'
 
 // ===== TOOLTIP ACTION MENU CONFIG =====
@@ -32,7 +32,10 @@ interface ActionMenuProps {
 }
 
 export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMenuProps) {
-  const { canUnitMove, canUnitAttack, getEnemiesInRange } = useGameStore()
+  // Actions don't need selectors as they don't cause re-renders
+  const canUnitMove = useGameStore(state => state.canUnitMove)
+  const canUnitAttack = useGameStore(state => state.canUnitAttack)
+  const getEnemiesInRange = useGameStore(state => state.getEnemiesInRange)
   const abilities = getUnitAbilities(unit.type)
 
   // Smart positioning logic - position tooltip to avoid screen edges

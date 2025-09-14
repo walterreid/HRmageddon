@@ -12,10 +12,47 @@ import {
   UNIT_COSTS,
   type DraftState,
 } from 'shared'
-import { AIController } from '../game/systems/ai.ts'
-import { generateAIDraft } from '../game/systems/aiDraft.ts'
-import { ABILITIES, canUseAbility, getValidTargets } from '../game/systems/abilities.ts'
+import { AIController } from '../game/ai/ai.ts'
+import { generateAIDraft } from '../game/ai/aiDraft.ts'
+import { ABILITIES, canUseAbility, getValidTargets } from '../game/core/abilities.ts'
 import { mapRegistry } from '../game/map/MapRegistry'
+import { MAPS } from '../game/map/registry'
+import { calculatePossibleMoves as calcMoves, isValidMove as isValidMoveUtil } from '../game/core/movement'
+import { calculatePossibleTargets as calcTargets, isValidAttack as isValidAttackUtil, calculateDamage } from '../game/core/combat'
+import { checkVictoryConditions as checkVictory, getCubicleData as getCubicleDataUtil } from '../game/core/victory'
+
+// Helper functions for memoization
+
+
+function getCachedPossibleMoves(unit: Unit, cache: MemoizationCache, calculateFn: () => Coordinate[]): Coordinate[] {
+  const key = `${unit.id}-${unit.position.x}-${unit.position.y}-${unit.actionsRemaining}-${unit.hasMoved}`
+  
+  if (!cache.possibleMoves.has(key)) {
+    const moves = calculateFn()
+    cache.possibleMoves.set(key, moves)
+  }
+  
+  return cache.possibleMoves.get(key)!
+}
+
+function getCachedPossibleTargets(unit: Unit, cache: MemoizationCache, calculateFn: () => Coordinate[]): Coordinate[] {
+  const key = `${unit.id}-${unit.position.x}-${unit.position.y}-${unit.actionsRemaining}-${unit.hasAttacked}`
+  
+  if (!cache.possibleTargets.has(key)) {
+    const targets = calculateFn()
+    cache.possibleTargets.set(key, targets)
+  }
+  
+  return cache.possibleTargets.get(key)!
+}
+
+function clearMemoizationCache(cache: MemoizationCache) {
+  cache.possibleMoves.clear()
+  cache.possibleTargets.clear()
+  cache.cubicleCount = null
+  cache.cubiclePositions = null
+  cache.lastBoardHash = null
+}
 
 // Helper function to create the game board
 function createBoard(): Tile[][] {
@@ -28,9 +65,11 @@ function createBoard(): Tile[][] {
     return createFallbackBoard()
   }
   
-  // Use the actual tilemap dimensions (16x12)
-  const width = 16
-  const height = 12
+  // Get map dimensions from configuration
+  const mapId = 'OfficeLayout'
+  const mapSpec = MAPS[mapId]
+  const width = mapSpec.width
+  const height = mapSpec.height
   const board: Tile[][] = []
   
   // Initialize all tiles as NORMAL
@@ -66,9 +105,11 @@ function createBoard(): Tile[][] {
 }
 
 function createFallbackBoard(): Tile[][] {
-  // Fallback to the old hardcoded board if tilemap data isn't available
-  const width = 8
-  const height = 10
+  // Fallback board using config dimensions if tilemap data isn't available
+  const mapId = 'OfficeLayout'
+  const mapSpec = MAPS[mapId]
+  const width = mapSpec.width
+  const height = mapSpec.height
   const board: Tile[][] = []
   for (let y = 0; y < height; y++) {
     const row: Tile[] = []
@@ -98,7 +139,16 @@ function createPlayers(): Player[] {
   ]
 }
 
-type GameMode = 'menu' | 'ai' | 'multiplayer'
+type GameMode = 'menu' | 'ai' | 'multiplayer' | 'test'
+
+// Memoization cache for expensive calculations
+interface MemoizationCache {
+  possibleMoves: Map<string, Coordinate[]>
+  possibleTargets: Map<string, Coordinate[]>
+  cubicleCount: number | null
+  cubiclePositions: Coordinate[] | null
+  lastBoardHash: string | null
+}
 
 type GameStore = SharedGameState & {
   gameMode: GameMode
@@ -111,13 +161,16 @@ type GameStore = SharedGameState & {
   selectedAbility?: string
   targetingMode: boolean
   validTargets: (Unit | Coordinate)[]
+  abilityAwaitingDirection: string | null // ID of the ability awaiting direction input
   
   // Track units that landed on cubicles for end-of-turn capture
   pendingCubicleCaptures: Map<string, { unitId: string; coord: Coordinate; playerId: string }>
   
-
+  // Memoization cache
+  memoCache: MemoizationCache
 
   setGameMode: (mode: GameMode) => void
+  enterTestMode: () => void
   setCurrentPlayerId: (playerId: string) => void
   setUnits: (units: Unit[]) => void
   initializeGame: () => void
@@ -182,9 +235,19 @@ export const useGameStore = create<GameStore>((set, get) => {
   selectedAbility: undefined,
   targetingMode: false,
   validTargets: [],
+  abilityAwaitingDirection: null,
   
   // Track units that landed on cubicles for end-of-turn capture
   pendingCubicleCaptures: new Map(),
+
+  // Initialize memoization cache
+  memoCache: {
+    possibleMoves: new Map(),
+    possibleTargets: new Map(),
+    cubicleCount: null,
+    cubiclePositions: null,
+    lastBoardHash: null
+  },
 
   draftState: {
     playerBudget: 200,
@@ -195,6 +258,10 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   setGameMode: (mode) => {
     set({ gameMode: mode })
+  },
+
+  enterTestMode: () => {
+    set({ gameMode: 'test' })
   },
 
   setCurrentPlayerId: (playerId) => {
@@ -257,16 +324,18 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     // Fallback starting positions if map data isn't available
     const getFallbackStartPositions = (teamId: string): Coordinate[] => {
+      const mapSpec = MAPS['OfficeLayout']
+      const boardWidth = mapSpec.width
+      const boardHeight = mapSpec.height
+      
       if (teamId === 'player1') {
-        // Gold team starts in top-left area (16x12 map)
+        // Gold team starts in top-left area
         return [
           { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
           { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 },
         ]
       } else {
-        // Navy team starts in bottom-right area (16x12 map)
-        const boardWidth = 16
-        const boardHeight = 12
+        // Navy team starts in bottom-right area
         return [
           { x: boardWidth - 1, y: boardHeight - 1 }, 
           { x: boardWidth - 2, y: boardHeight - 1 }, 
@@ -341,14 +410,12 @@ export const useGameStore = create<GameStore>((set, get) => {
     ]
 
     // Debug: Log initial board state
-    const cubicleCount = board.flat().filter(t => t.type === TileType.CUBICLE).length
+    const cubicleData = getCubicleDataUtil(board)
     console.log('Initializing game with board:', {
       width: board[0].length,
       height: board.length,
-      totalCubicles: cubicleCount,
-      cubiclePositions: board.flat()
-        .filter(t => t.type === TileType.CUBICLE)
-        .map(t => ({ x: t.x, y: t.y }))
+      totalCubicles: cubicleData.count,
+      cubiclePositions: cubicleData.positions
     })
 
     set({
@@ -369,6 +436,14 @@ export const useGameStore = create<GameStore>((set, get) => {
         maxHeadcount: 6,
         selectedUnits: [],
         aiUnits: [],
+      },
+      // Clear memoization cache when board changes
+      memoCache: {
+        possibleMoves: new Map(),
+        possibleTargets: new Map(),
+        cubicleCount: null,
+        cubiclePositions: null,
+        lastBoardHash: null
       },
     })
   },
@@ -439,16 +514,18 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     // Fallback starting positions if map data isn't available
     const getFallbackStartPositions = (teamId: string): Coordinate[] => {
+      const mapSpec = MAPS['OfficeLayout']
+      const boardWidth = mapSpec.width
+      const boardHeight = mapSpec.height
+      
       if (teamId === 'player1') {
-        // Gold team starts in top-left area (16x12 map)
+        // Gold team starts in top-left area
         return [
           { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
           { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 },
         ]
       } else {
-        // Navy team starts in bottom-right area (16x12 map)
-        const boardWidth = 16
-        const boardHeight = 12
+        // Navy team starts in bottom-right area
         return [
           { x: boardWidth - 1, y: boardHeight - 1 }, 
           { x: boardWidth - 2, y: boardHeight - 1 }, 
@@ -792,6 +869,9 @@ export const useGameStore = create<GameStore>((set, get) => {
           : u
       )
 
+      // Clear memoization cache when units move
+      clearMemoizationCache(state.memoCache)
+
       // Check if the unit landed on a cubicle for potential capture
       const targetTile = state.board[to.y]?.[to.x]
       if (targetTile && targetTile.type === TileType.CUBICLE) {
@@ -877,6 +957,9 @@ export const useGameStore = create<GameStore>((set, get) => {
           return u
         })
         .filter(Boolean) as Unit[]
+
+      // Clear memoization cache when units are attacked
+      clearMemoizationCache(state.memoCache)
 
       // Get the updated attacker to recalculate moves and targets
       const updatedAttacker = updatedUnits.find(u => u.id === attackerId)!
@@ -1161,149 +1244,49 @@ export const useGameStore = create<GameStore>((set, get) => {
   calculatePossibleMoves: (unit) => {
     if (unit.hasMoved || unit.actionsRemaining === 0) return []
 
-    const { board, units } = get()
-    const moves: Coordinate[] = []
-    const visited = new Set<string>()
-    const queue: { coord: Coordinate; distance: number }[] = [{ coord: unit.position, distance: 0 }]
-
-    // Get blocked tiles from MapRegistry for additional movement validation
-    const blockedTiles = mapRegistry.getBlockedTiles('OfficeLayout') || []
-    const blockedSet = new Set(blockedTiles.map(t => `${t.x},${t.y}`))
-
-    while (queue.length > 0) {
-      const { coord, distance } = queue.shift()!
-      const key = `${coord.x},${coord.y}`
-      if (visited.has(key)) continue
-      visited.add(key)
-
-      if (distance > 0 && distance <= unit.moveRange) {
-        const tile = board[coord.y]?.[coord.x]
-        const occupant = units.find((u) => u.position.x === coord.x && u.position.y === coord.y)
-        const isBlockedByTilemap = blockedSet.has(`${coord.x},${coord.y}`)
-        
-        // Check both board tile type and tilemap blocked status
-        if (tile && tile.type !== TileType.OBSTACLE && !occupant && !isBlockedByTilemap) {
-          moves.push(coord)
-        }
-      }
-
-      if (distance < unit.moveRange) {
-        const neighbors = [
-          { x: coord.x + 1, y: coord.y },
-          { x: coord.x - 1, y: coord.y },
-          { x: coord.x, y: coord.y + 1 },
-          { x: coord.x, y: coord.y - 1 },
-        ]
-        for (const neighbor of neighbors) {
-          if (
-            neighbor.x >= 0 &&
-            neighbor.x < board[0].length &&
-            neighbor.y >= 0 &&
-            neighbor.y < board.length
-          ) {
-            queue.push({ coord: neighbor, distance: distance + 1 })
-          }
-        }
-      }
-    }
-    
-    console.log('Movement calculation for unit:', {
-      unitId: unit.id,
-      position: unit.position,
-      moveRange: unit.moveRange,
-      totalMoves: moves.length,
-      blockedTilesCount: blockedTiles.length,
-      boardObstacles: board.flat().filter(t => t.type === TileType.OBSTACLE).length
+    const state = get()
+    return getCachedPossibleMoves(unit, state.memoCache, () => {
+      return calcMoves(unit, { board: state.board, units: state.units })
     })
-    
-    return moves
   },
 
   calculatePossibleTargets: (unit) => {
     if (unit.hasAttacked || unit.actionsRemaining === 0) return []
-    const { units } = get()
-    const targets: Coordinate[] = []
     
-    for (const enemy of units) {
-      if (enemy.playerId === unit.playerId) continue
-      const distance = Math.abs(enemy.position.x - unit.position.x) + Math.abs(enemy.position.y - unit.position.y)
-      if (distance <= unit.attackRange) {
-        targets.push(enemy.position)
-        console.log('Valid attack target found:', {
-          targetId: enemy.id,
-          targetType: enemy.type,
-          distance,
-          attackRange: unit.attackRange,
-          targetPosition: enemy.position
-        })
-      }
-    }
-    
-    console.log('Calculated possible targets for unit:', {
-      unitId: unit.id,
-      unitType: unit.type,
-      attackRange: unit.attackRange,
-      targetCount: targets.length,
-      targets
+    const state = get()
+    return getCachedPossibleTargets(unit, state.memoCache, () => {
+      return calcTargets(unit, { units: state.units })
     })
-    
-    return targets
   },
 
-  isValidMove: (unit, to) => get().calculatePossibleMoves(unit).some((m) => m.x === to.x && m.y === to.y),
-  isValidAttack: (attacker, target) =>
-    get()
-      .calculatePossibleTargets(attacker)
-      .some((t) => t.x === target.position.x && t.y === target.position.y),
+  isValidMove: (unit, to) => {
+    const state = get()
+    return isValidMoveUtil(unit, to, { board: state.board, units: state.units })
+  },
+  isValidAttack: (attacker, target) => {
+    const state = get()
+    return isValidAttackUtil(attacker, target, { units: state.units })
+  },
 
   checkVictoryConditions: () => {
     const state = get()
-    const p1Units = state.units.filter((u) => u.playerId === 'player1' && u.hp > 0)
-    const p2Units = state.units.filter((u) => u.playerId === 'player2' && u.hp > 0)
-    
-    console.log('Checking victory conditions:', {
-      p1Units: p1Units.length,
-      p2Units: p2Units.length,
-      p1ControlledCubicles: state.players.find(p => p.id === 'player1')?.controlledCubicles,
-      p2ControlledCubicles: state.players.find(p => p.id === 'player2')?.controlledCubicles,
-      totalCubicles: state.board.flat().filter(t => t.type === TileType.CUBICLE).length,
-      currentPhase: state.phase,
-      winner: state.winner
-    })
     
     // Check if game is already over
     if (state.phase === GamePhase.GAME_OVER) {
       console.log('Game is already over, skipping victory check')
       return
     }
-    
-    // Check elimination victory
-    if (p1Units.length === 0) {
-      console.log('Player 1 has no units left - Player 2 wins!')
-      set({ winner: 'player2', phase: GamePhase.GAME_OVER })
-      return
-    }
-    if (p2Units.length === 0) {
-      console.log('Player 2 has no units left - Player 1 wins!')
-      set({ winner: 'player1', phase: GamePhase.GAME_OVER })
-      return
-    }
 
-    // Check capture point victory (51% rule)
-    const totalCapturePoints = state.board.flat().filter(t => t.type === TileType.CUBICLE).length
-    if (totalCapturePoints === 0) {
-      console.log('No capture points found, skipping capture victory check')
-      return
-    }
+    const victoryResult = checkVictory({
+      units: state.units,
+      board: state.board,
+      players: state.players,
+      phase: state.phase
+    })
 
-    const VICTORY_THRESHOLD = Math.ceil(totalCapturePoints * 0.51) // 51% rule
-    
-    for (const p of state.players) {
-      if (p.controlledCubicles >= VICTORY_THRESHOLD) {
-        console.log(`Player ${p.id} has ${p.controlledCubicles}/${totalCapturePoints} capture points (>= ${VICTORY_THRESHOLD}) - ${p.id} wins!`)
-        set({ winner: p.id, phase: GamePhase.GAME_OVER })
-        return
-      }
+    if (victoryResult.hasWinner) {
+      console.log(victoryResult.reason)
+      set({ winner: victoryResult.winner, phase: GamePhase.GAME_OVER })
     }
   },
 
@@ -1609,14 +1592,6 @@ export const useGameStore = create<GameStore>((set, get) => {
 //   return result
 // }
 
-function calculateDamage(attacker: Unit, _target: Unit): number {
-  // Base damage is the attacker's attack damage
-  const baseDamage = attacker.attackDamage
-  
-  // Simple damage calculation - can be enhanced later
-  // For now, just return the base damage, ensuring it's at least 1
-  return Math.max(1, baseDamage)
-}
 
 // Test helper function to create a new game store instance
 export function createGameStore() {

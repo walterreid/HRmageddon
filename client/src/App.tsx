@@ -5,6 +5,7 @@ import { GameHUD } from './components/GameHUD'
 import { MainMenu } from './components/MainMenu'
 import { DraftScreen } from './components/DraftScreen'
 import { LoadingScreen } from './components/LoadingScreen'
+import { TileSizeTestPage } from './components/test/TileSizeTestPage'
 import { useGameStore } from './stores/gameStore'
 import { GamePhase } from 'shared'
 
@@ -33,6 +34,11 @@ export default function App() {
   // Show main menu if not in a game
   if (gameMode === 'menu') {
     return <MainMenu />
+  }
+
+  // Show test page if in test mode
+  if (gameMode === 'test') {
+    return <TileSizeTestPage />
   }
 
   return (

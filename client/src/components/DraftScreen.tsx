@@ -2,7 +2,13 @@ import { useGameStore } from '../stores/gameStore'
 import { UnitType, UNIT_STATS, UNIT_COSTS } from 'shared'
 
 export function DraftScreen() {
-  const { draftState, addUnitToDraft, removeUnitFromDraft, confirmDraft } = useGameStore()
+  // Use selectors for state that causes re-renders
+  const draftState = useGameStore(state => state.draftState)
+  
+  // Actions don't need selectors as they don't cause re-renders
+  const addUnitToDraft = useGameStore(state => state.addUnitToDraft)
+  const removeUnitFromDraft = useGameStore(state => state.removeUnitFromDraft)
+  const confirmDraft = useGameStore(state => state.confirmDraft)
   
   const totalCost = draftState.selectedUnits.reduce((sum, unit) => 
     sum + UNIT_COSTS[unit.type], 0
