@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { useGameStore } from '../../stores/gameStore';
+import { MAPS } from '../map/registry';
 
 export interface ResponsiveMapConfig {
   minTileSize: number;    // 28px - mobile minimum (touch-friendly)
@@ -10,18 +12,18 @@ export interface ResponsiveMapConfig {
 export const DEFAULT_CONFIG: ResponsiveMapConfig = {
   minTileSize: 28,
   maxTileSize: 64,
-  targetBoardScale: 0.9,
+  targetBoardScale: 0.95, // Increased from 0.9 to 0.95 for better space utilization
   tileSizeSteps: [28, 32, 40, 48, 56, 64]
 };
 
 export function calculateOptimalTileSize(
   viewportWidth: number,
   viewportHeight: number,
-  mapWidth: number = 16,
-  mapHeight: number = 12,
+  mapWidth: number = MAPS['OfficeLayout'].width, // Use config dimensions
+  mapHeight: number = MAPS['OfficeLayout'].height,
   config: ResponsiveMapConfig = DEFAULT_CONFIG
 ): number {
-  // Calculate available space for board
+  // Calculate available space for board (more aggressive space usage)
   const availableWidth = viewportWidth * config.targetBoardScale;
   const availableHeight = viewportHeight * config.targetBoardScale;
   
@@ -31,6 +33,9 @@ export function calculateOptimalTileSize(
   
   // Use the smaller to ensure full board visibility
   let optimalTileSize = Math.min(widthBasedTileSize, heightBasedTileSize);
+  
+  // Add a small buffer to ensure the board fits comfortably
+  optimalTileSize = optimalTileSize * 0.98; // 2% buffer for safety
   
   // Clamp to reasonable bounds
   optimalTileSize = Math.max(config.minTileSize, 
@@ -60,9 +65,10 @@ export class ResponsiveGameManager {
     console.log('ResponsiveGameManager: Constructor called, setting up responsive handling');
     
     // Delay setup to ensure game is fully initialized
+    // Increased delay to prevent timing issues with GameScene
     setTimeout(() => {
       this.setupResponsiveHandling();
-    }, 500);
+    }, 1000);
   }
   
   private setupResponsiveHandling(): void {
@@ -92,9 +98,10 @@ export class ResponsiveGameManager {
     const availableWidth = window.innerWidth - 320; // Account for control panel
     const availableHeight = window.innerHeight - 100; // Account for header
     
-    // Calculate optimal tile size based on available space and map dimensions
-    const mapWidth = 16; // OfficeLayout width
-    const mapHeight = 12; // OfficeLayout height
+    // Get actual board dimensions from game state or use config fallback
+    const gameState = useGameStore.getState()
+    const mapWidth = gameState.board?.[0]?.length || MAPS['OfficeLayout'].width
+    const mapHeight = gameState.board?.length || MAPS['OfficeLayout'].height
     
     // Calculate tile size that would fit the map in available space
     const maxTileSizeForWidth = Math.floor(availableWidth / mapWidth);
@@ -138,6 +145,12 @@ export class ResponsiveGameManager {
   }
   
   private updateGameScale(): void {
+    // Don't update if the game isn't fully initialized yet
+    if (!this.game.scene.isActive('GameScene')) {
+      console.log('ResponsiveGameManager: GameScene not active yet, skipping update');
+      return;
+    }
+    
     console.log(`ResponsiveGameManager: updateGameScale called - viewport: ${window.innerWidth}x${window.innerHeight}`);
     
     const newTileSize = this.calculateOptimalTileSize();
@@ -162,17 +175,28 @@ export class ResponsiveGameManager {
   }
   
   private resizeGameBoard(): void {
-    const newWidth = 16 * this.currentTileSize;
-    const newHeight = 12 * this.currentTileSize;
+    // Get actual board dimensions for canvas sizing
+    const gameState = useGameStore.getState()
+    const boardWidth = gameState.board?.[0]?.length || MAPS['OfficeLayout'].width
+    const boardHeight = gameState.board?.length || MAPS['OfficeLayout'].height
+    const newWidth = boardWidth * this.currentTileSize;
+    const newHeight = boardHeight * this.currentTileSize;
     
     console.log(`ResponsiveGameManager: Resizing game board from ${this.game.scale.width}x${this.game.scale.height} to ${newWidth}x${newHeight}`);
     
-    // Update Phaser game scale - this will resize the actual canvas
-    if (this.game.scale) {
-      this.game.scale.resize(newWidth, newHeight);
-      
-      // Force the game to update its internal dimensions
-      this.game.scale.refresh();
+
+    // Don't call Phaser scale methods when using Scale.NONE - just update the canvas directly
+    // This avoids the snapTo.x error that occurs when the scale manager isn't properly initialized
+    try {
+      const canvas = this.game.canvas;
+      if (canvas) {
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        canvas.style.width = `${newWidth}px`;
+        canvas.style.height = `${newHeight}px`;
+      }
+    } catch (error) {
+      console.warn('ResponsiveGameManager: Could not update canvas directly, skipping resize');
     }
     
     // Update tile sprites and positioning
@@ -188,7 +212,16 @@ export class ResponsiveGameManager {
     // Get the current scene
     const scene = this.game.scene.getScene('GameScene');
     if (scene && (scene as any).updateTileSprites) {
-      (scene as any).updateTileSprites(this.currentTileSize);
+      try {
+        // Add a small delay to ensure the scene is fully ready
+        setTimeout(() => {
+          if (scene && (scene as any).updateTileSprites) {
+            (scene as any).updateTileSprites(this.currentTileSize);
+          }
+        }, 100);
+      } catch (error) {
+        console.warn('ResponsiveGameManager: Error updating tile sprites:', error);
+      }
     }
   }
   
@@ -197,9 +230,13 @@ export class ResponsiveGameManager {
   }
   
   public getBoardDimensions(): { width: number, height: number } {
+    // Get actual board dimensions from game state
+    const gameState = useGameStore.getState()
+    const boardWidth = gameState.board?.[0]?.length || MAPS['OfficeLayout'].width
+    const boardHeight = gameState.board?.length || MAPS['OfficeLayout'].height
     return {
-      width: 16 * this.currentTileSize,
-      height: 12 * this.currentTileSize
+      width: boardWidth * this.currentTileSize,
+      height: boardHeight * this.currentTileSize
     };
   }
   

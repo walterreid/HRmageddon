@@ -36,8 +36,8 @@ export function GameView() {
       parent: containerRef.current,
       backgroundColor: '#0f172a',
       scale: {
-        mode: Phaser.Scale.NONE, // Let ResponsiveGameManager control sizing
-        autoCenter: Phaser.Scale.NO_CENTER,
+        mode: Phaser.Scale.RESIZE, // Better for responsive resizing
+        autoCenter: Phaser.Scale.CENTER_BOTH, // Center the game in the container
         width: initialWidth,
         height: initialHeight,
         min: {
@@ -176,12 +176,16 @@ export function GameView() {
           <div>Tile Size: {currentTileSize}px</div>
           <div>Board: {gameRef.current?.scale.width || 0}×{gameRef.current?.scale.height || 0}</div>
           <div>Screen: {window.innerWidth}×{window.innerHeight}</div>
+          <div>Map: 16×12 tiles</div>
+          <div>Expected: {16 * currentTileSize}×{12 * currentTileSize}px</div>
           <button 
             onClick={() => {
               if (responsiveManagerRef.current) {
                 console.log('GameView: Manually testing ResponsiveGameManager');
                 const tileSize = responsiveManagerRef.current.getCurrentTileSize();
                 console.log(`GameView: Current tile size: ${tileSize}px`);
+                console.log(`GameView: Expected board size: ${16 * tileSize}×${12 * tileSize}px`);
+                console.log(`GameView: Actual board size: ${gameRef.current?.scale.width}×${gameRef.current?.scale.height}px`);
               } else {
                 console.log('GameView: ResponsiveGameManager not initialized');
               }

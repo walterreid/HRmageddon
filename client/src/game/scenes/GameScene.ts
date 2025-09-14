@@ -1,10 +1,12 @@
 import Phaser from 'phaser'
 import { useGameStore } from '../../stores/gameStore'
 import { TileType, type Unit, type Tile, type Coordinate, AbilityTargetingType } from 'shared'
-import { getAbilityById, getValidTargets } from '../systems/abilities.ts'
+import { getAbilityById, getValidTargets } from '../core/abilities.ts'
+import { getTilesInCone } from '../core/targeting'
 import { MAPS } from '../map/registry'
 import { MapManager } from '../map/MapManager'
 import { GridOverlay } from '../debug/GridOverlay'
+import { VisualEffectsPool } from '../visuals/VisualEffectsPool'
 
 // ===== GAME SCENE CONFIGURATION =====
 const VISUAL_CONFIG = {
@@ -91,6 +93,9 @@ export class GameScene extends Phaser.Scene {
 
   // Map management
   private mapMgr!: MapManager
+  
+  // Visual effects pooling
+  private visualEffectsPool!: VisualEffectsPool
   // These are loaded from the map but not directly used yet - kept for future features
   /** @ts-ignore - Intentionally unused, kept for future map features */
   private _tilemap!: Phaser.Tilemaps.Tilemap
@@ -131,6 +136,9 @@ export class GameScene extends Phaser.Scene {
     this.tileGraphics = this.add.graphics()
     this.highlightGraphics = this.add.graphics()
     this.abilityTargetGraphics = this.add.graphics()
+    
+    // Initialize visual effects pool
+    this.visualEffectsPool = new VisualEffectsPool(this)
     
     // Ensure ability graphics are drawn on top
     this.abilityTargetGraphics.setDepth(100)
@@ -288,10 +296,17 @@ export class GameScene extends Phaser.Scene {
     this.drawUnits(store.units)
   }
 
+  // In GameScene.ts - replace getTileSize() with:
   public getTileSize(): number {
-    // Return the tile size from the loaded map
-    return this.tileSizePx || 48 // Fallback to 48 if not yet loaded
+  // Get tile size from ResponsiveGameManager instead of calculating
+  const responsiveManager = (this.game as any).responsiveManager
+  if (responsiveManager) {
+    return responsiveManager.getCurrentTileSize()
   }
+  
+  // Fallback if ResponsiveGameManager not available
+  return 40
+}
 
   public getBoardOffsetX(): number {
     // With Tiled map, board starts at (0,0) - no offset needed
@@ -779,12 +794,23 @@ export class GameScene extends Phaser.Scene {
 
   private showConePreview(caster: Unit, ability: any) {
     // For cone abilities, show a preview of the cone area
+    const store = useGameStore.getState()
+    
+    // Check if this is a directional ability awaiting direction input
+    if (ability.requiresDirection && store.abilityAwaitingDirection) {
+      // Start listening for pointer movement to draw the preview
+      this.input.on('pointermove', this.updateConePreview, this)
+      console.log('Cone preview mode activated - listening for mouse movement')
+      return
+    }
+    
+    // Default cone preview (facing right)
     const { x: casterX, y: casterY } = this.tileToWorld(caster.position.x, caster.position.y)
     const casterCenterX = casterX + this.tileSizePx / 2
     const casterCenterY = casterY + this.tileSizePx / 2
     
     // Draw cone preview (simplified for now - can be enhanced with mouse tracking)
-    const coneRadius = (ability.aoeRadius || 3) * this.tileSizePx
+    const coneRadius = (ability.range || 3) * this.tileSizePx
     const coneAngle = (ability.coneAngle || 90) * Math.PI / 180 // Convert to radians
     
     // Draw cone outline
@@ -802,6 +828,34 @@ export class GameScene extends Phaser.Scene {
     // Fill cone area
     this.abilityTargetGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.AOE_ALPHA)
     this.abilityTargetGraphics.fill()
+  }
+
+  // NEW METHOD to dynamically draw the cone preview
+  private updateConePreview(pointer: Phaser.Input.Pointer) {
+    const store = useGameStore.getState()
+    const caster = store.selectedUnit
+    const abilityId = store.abilityAwaitingDirection
+
+    if (!caster || !abilityId) {
+      this.input.off('pointermove', this.updateConePreview, this) // Stop listening
+      return
+    }
+
+    this.abilityTargetGraphics.clear() // Clear previous preview
+    const ability = getAbilityById(abilityId)
+    if (!ability) return
+
+    const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
+    const direction = { x: tileX - caster.position.x, y: tileY - caster.position.y }
+
+    const affectedTiles = getTilesInCone(caster.position, direction, ability.range, ability.coneAngle || 90)
+
+    // Draw the highlight for all affected tiles
+    this.abilityTargetGraphics.fillStyle(VISUAL_CONFIG.COLORS.HIGHLIGHTS.ABILITY_AOE, VISUAL_CONFIG.HIGHLIGHT.AOE_ALPHA)
+    affectedTiles.forEach(tile => {
+      const { x: px, y: py } = this.tileToWorld(tile.x, tile.y)
+      this.abilityTargetGraphics.fillRect(px, py, this.tileSizePx, this.tileSizePx)
+    })
   }
 
   private showCirclePreview(caster: Unit, ability: any) {
@@ -850,6 +904,25 @@ export class GameScene extends Phaser.Scene {
     }
     
     const store = useGameStore.getState()
+    
+    // HIGHEST PRIORITY: Check if we are aiming a directional ability
+    if (store.abilityAwaitingDirection && store.selectedUnit) {
+      const caster = store.selectedUnit
+      const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
+
+      // Don't allow clicking on the caster itself to set direction
+      if (tileX === caster.position.x && tileY === caster.position.y) return
+
+      // The clicked tile determines the direction vector
+      const direction = { x: tileX - caster.position.x, y: tileY - caster.position.y }
+
+      // Use the ability, passing a special target object with the direction
+      store.useAbility(caster.id, store.abilityAwaitingDirection, { direction })
+
+      // Reset the aiming state
+      useGameStore.setState({ abilityAwaitingDirection: null, highlightedTiles: new Map() })
+      return // End the click handling here
+    }
     
     // If we're in ability targeting mode, handle ability target selection
     if (this.targetingMode && store.selectedAbility) {
@@ -1288,6 +1361,11 @@ export class GameScene extends Phaser.Scene {
     })
     this.unitSprites.clear()
     
+    // Clean up visual effects pool
+    if (this.visualEffectsPool) {
+      this.visualEffectsPool.destroy()
+    }
+    
     console.log('GameScene destroy completed')
   }
 
@@ -1325,124 +1403,43 @@ export class GameScene extends Phaser.Scene {
     const position = this.getTargetPosition(target)
     if (!position) return
 
-    // Create simple coffee steam effect with graphics
-    for (let i = 0; i < 8; i++) {
-      const steam = this.add.graphics()
-      steam.fillStyle(0x8B4513, 0.6)
-      steam.fillCircle(0, 0, 3)
-      
-      steam.setPosition(position.x, position.y)
-      
-      this.tweens.add({
-        targets: steam,
-        x: position.x + (Math.random() - 0.5) * 60,
-        y: position.y - Math.random() * 80,
-        alpha: 0,
-        scaleX: 2,
-        scaleY: 2,
-        duration: 1500,
-        onComplete: () => steam.destroy()
-      })
-    }
+    this.visualEffectsPool.createCoffeeParticles(target, position)
   }
 
   private createPinkSlipEffect(target: Unit | Coordinate) {
     const position = this.getTargetPosition(target)
     if (!position) return
 
-    // Create a flash effect
-    const flash = this.add.graphics()
-    flash.fillStyle(0xff0000, 0.8)
-    flash.fillRect(position.x - 20, position.y - 20, 40, 40)
-    
-    // Fade out
-    this.tweens.add({
-      targets: flash,
-      alpha: 0,
-      duration: 500,
-      onComplete: () => flash.destroy()
-    })
+    this.visualEffectsPool.createPinkSlipEffect(target, position)
   }
 
   private createPaperEffect(target: Unit | Coordinate) {
     const position = this.getTargetPosition(target)
     if (!position) return
 
-    // Create flying paper effect
-    for (let i = 0; i < 5; i++) {
-      const paper = this.add.graphics()
-      paper.fillStyle(0xffffff, 0.9)
-      paper.fillRect(0, 0, 8, 10)
-      
-      paper.setPosition(position.x, position.y)
-      
-      this.tweens.add({
-        targets: paper,
-        x: position.x + (Math.random() - 0.5) * 100,
-        y: position.y + (Math.random() - 0.5) * 100,
-        rotation: Math.PI * 2,
-        alpha: 0,
-        duration: 1000,
-        onComplete: () => paper.destroy()
-      })
-    }
+    this.visualEffectsPool.createPaperEffect(target, position)
   }
 
   private createHarassEffect(target: Unit | Coordinate) {
     const position = this.getTargetPosition(target)
     if (!position) return
 
-    // Create harassing aura effect
-    const aura = this.add.graphics()
-    aura.lineStyle(3, 0xff0000, 0.6)
-    aura.strokeCircle(position.x, position.y, 30)
-    
-    this.tweens.add({
-      targets: aura,
-      scaleX: 1.5,
-      scaleY: 1.5,
-      alpha: 0,
-      duration: 800,
-      onComplete: () => aura.destroy()
-    })
+    this.visualEffectsPool.createHarassEffect(target, position)
   }
 
   private createOvertimeEffect(target: Unit | Coordinate) {
     const position = this.getTargetPosition(target)
     if (!position) return
 
-    // Create overtime glow effect
-    const glow = this.add.graphics()
-    glow.fillStyle(0xffff00, 0.4)
-    glow.fillCircle(position.x, position.y, 25)
-    
-    this.tweens.add({
-      targets: glow,
-      scaleX: 2,
-      scaleY: 2,
-      alpha: 0,
-      duration: 1200,
-      onComplete: () => glow.destroy()
-    })
+    this.visualEffectsPool.createOvertimeGlow(target, position)
   }
 
   private createGenericEffect(target: Unit | Coordinate) {
     const position = this.getTargetPosition(target)
     if (!position) return
 
-    // Generic sparkle effect
-    const sparkle = this.add.graphics()
-    sparkle.fillStyle(0x00ffff, 0.7)
-    sparkle.fillCircle(position.x, position.y, 15)
-    
-    this.tweens.add({
-      targets: sparkle,
-      scaleX: 1.5,
-      scaleY: 1.5,
-      alpha: 0,
-      duration: 600,
-      onComplete: () => sparkle.destroy()
-    })
+    // Use money sparkle for generic effect
+    this.visualEffectsPool.createMoneySparkle(target, position)
   }
 
   private getTargetPosition(target: Unit | Coordinate): { x: number, y: number } | null {
@@ -1477,10 +1474,16 @@ export class GameScene extends Phaser.Scene {
     // Update the tile size
     this.tileSizePx = newTileSize;
     
-    // Clear existing graphics
-    this.tileGraphics.clear();
-    this.highlightGraphics.clear();
-    this.abilityTargetGraphics.clear();
+    // Clear existing graphics - add null checks to prevent errors
+    if (this.tileGraphics && this.tileGraphics.clear) {
+      this.tileGraphics.clear();
+    }
+    if (this.highlightGraphics && this.highlightGraphics.clear) {
+      this.highlightGraphics.clear();
+    }
+    if (this.abilityTargetGraphics && this.abilityTargetGraphics.clear) {
+      this.abilityTargetGraphics.clear();
+    }
     
     // Redraw the board with new tile size
     const currentBoard = useGameStore.getState().board;
@@ -1491,11 +1494,19 @@ export class GameScene extends Phaser.Scene {
     // Update unit positions and sizes
     this.updateUnitSprites();
     
-    // Clear any existing highlights (using existing clear methods)
-    this.highlightGraphics.clear();
-    this.abilityTargetGraphics.clear();
+    // Clear any existing highlights (using existing clear methods) - add null checks
+    if (this.highlightGraphics && this.highlightGraphics.clear) {
+      this.highlightGraphics.clear();
+    }
+    if (this.abilityTargetGraphics && this.abilityTargetGraphics.clear) {
+      this.abilityTargetGraphics.clear();
+    }
     
-    console.log(`GameScene: Tile size update complete. New dimensions: ${16 * newTileSize}x${12 * newTileSize}`);
+    // Get actual board dimensions for logging
+    const gameState = useGameStore.getState()
+    const boardWidth = gameState.board?.[0]?.length || 16
+    const boardHeight = gameState.board?.length || 12
+    console.log(`GameScene: Tile size update complete. New dimensions: ${boardWidth * newTileSize}x${boardHeight * newTileSize}`);
   }
   
   private updateUnitSprites(): void {
