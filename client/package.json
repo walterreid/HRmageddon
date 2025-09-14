@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:strict": "node scripts/test-strict.js",
+    "test:all": "npm run test:strict && npm run test:run"
   },
   "dependencies": {
     "phaser": "^3.90.0",
