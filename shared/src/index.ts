@@ -123,8 +123,11 @@ export type PlayerId = string
 export enum GamePhase {
   SETUP = 'setup',
   DRAFT = 'draft',
+  DRAFTING = 'drafting',
   PLAYING = 'playing',
+  PAUSED = 'paused',
   GAME_OVER = 'game_over',
+  WAITING_FOR_PLAYERS = 'waiting_for_players',
 }
 
 // Add draft-related interfaces
