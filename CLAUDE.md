@@ -156,18 +156,18 @@ client
   * **`src/game/ai/gameStateQueries.ts`**: A comprehensive query interface that provides a clean, declarative API for accessing game state. Abstracts data structure from AI decision-making and makes code more readable and maintainable.
 
 #### **Core Game Engine (`src/game/core/`)**
-  * **`src/game/core/abilities.ts`**: Defines all the special abilities ("speak attacks") units can perform, including their effects, costs, and targeting rules.
+  * **`src/game/core/abilities.ts`**: Defines all the special abilities ("speak attacks") units can perform, including their effects, costs, and targeting rules. Supports both single-target and directional abilities with cone targeting.
   * **`src/game/core/abilities.test.ts`**: Unit tests for all special abilities, ensuring they function correctly and have proper effects.
   * **`src/game/core/combat.ts`**: Pure utility functions for combat calculations including attack targeting, damage calculation, and enemy detection. Provides a clean API for both player and AI combat logic.
   * **`src/game/core/movement.ts`**: Pure utility functions for movement calculations including pathfinding, move validation, and unit positioning. Used by both the game store and AI system to ensure consistent behavior.
-  * **`src/game/core/targeting.ts`**: Complex targeting logic for abilities with patterns like cones, lines, and areas. Provides sophisticated targeting calculations for advanced abilities.
+  * **`src/game/core/targeting.ts`**: Complex targeting logic for abilities with patterns like cones, lines, and areas. Provides sophisticated targeting calculations for advanced abilities, including `getTilesInCone()` for directional cone attacks.
   * **`src/game/core/victory.ts`**: Pure utility functions for victory condition checking including elimination and capture point victories. Centralizes all victory logic for consistent behavior across the game.
 
 #### **Visual Systems (`src/game/visuals/`)**
   * **`src/game/visuals/VisualEffectsPool.ts`**: A performance optimization system that implements object pooling for Phaser visual effects. Instead of creating and destroying Graphics objects for each ability animation, it maintains a pool of reusable objects to eliminate garbage collection stutters and improve frame rates.
 
 #### **Other Game Systems**
-  * **`src/game/scenes/GameScene.ts`**: The main Phaser scene that handles all visual rendering of the game board, units, and overlays (highlights, ownership) based on the state in `gameStore`. Integrates with the VisualEffectsPool for optimized ability animations and visual effects.
+  * **`src/game/scenes/GameScene.ts`**: The main Phaser scene that handles all visual rendering of the game board, units, and overlays (highlights, ownership) based on the state in `gameStore`. Integrates with the VisualEffectsPool for optimized ability animations and visual effects. Supports directional ability targeting with real-time cone preview and direction input handling.
   * **`src/game/responsive/ResponsiveGameManager.ts`**: A sophisticated manager that dynamically calculates the optimal tile size for the game board to ensure it is always fully visible on any screen size. See the Responsive Tile Sizing System section below for detailed information.
   * **`src/game/map/MapManager.ts`**: A utility class that loads and parses the Tiled JSON map file, creating the visual layers and extracting important data like starting positions and obstacles.
   * **`src/game/map/MapRegistry.ts`**: A global singleton that stores parsed map data (like starting positions and blocked tiles) so it can be accessed by different parts of the application (e.g., `gameStore` and `GameScene`).
@@ -234,17 +234,63 @@ This is a standard physical attack to reduce an enemy's health.
 
 #### "Speak Attacks" (Abilities)
 
-These are special actions unique to each unit type, themed around satirical office interactions. They are defined in `src/game/systems/abilities.ts`.
+These are special actions unique to each unit type, themed around satirical office interactions. They are defined in `src/game/core/abilities.ts`.
 
-1.  **Definition**: Each ability has properties like `name`, `description`, `cost` (in action points), `cooldown`, `range`, `targetType` (ally, enemy, self), and an `effect` function.
+1.  **Definition**: Each ability has properties like `name`, `description`, `cost` (in action points), `cooldown`, `range`, `targetType` (ally, enemy, self), `targetingType` (single, AOE, cone), and an `effect` function.
 2.  **Targeting**: When an ability is selected from the Action Menu, the `getValidTargets` function finds all valid targets (units or tiles) within range, and the `GameScene` highlights them with a purple overlay.
-3.  **Execution**: Clicking a valid target calls the `useAbility` function in the `gameStore`. This triggers the ability's `effect` function, which can have various outcomes:
+3.  **Directional Abilities**: Some abilities require directional input (e.g., `paperclip_storm` cone attack). These abilities have `requiresDirection: true` and `coneAngle` properties. When selected, the game enters a special targeting mode where the player clicks to set the direction vector, and the system calculates affected tiles using `getTilesInCone()`.
+4.  **Execution**: Clicking a valid target calls the `useAbility` function in the `gameStore`. This triggers the ability's `effect` function, which can have various outcomes:
       * **Dealing Damage**: `pink_slip` executes a low-health enemy.
       * **Applying Status Effects**: `file_it` applies "Written Up," while `legal_threat` can "Stun" an enemy.
       * **Applying Buffs**: `fetch_coffee` grants an ally "On Deadline" (likely a positive status), while `overtime` gives the user an extra action at a cost.
       * **Healing/Support**: `mediation` can heal an ally and cleanse status effects.
+      * **Area of Effect**: `paperclip_storm` creates a cone-shaped attack affecting multiple enemies in a specific direction.
 
-These "speak attacks" make gameplay more strategic, as they allow for actions beyond simple damage, introducing buffs, debuffs, and unique utility.
+These "speak attacks" make gameplay more strategic, as they allow for actions beyond simple damage, introducing buffs, debuffs, unique utility, and directional targeting mechanics.
+
+### 🎯 Directional Abilities System
+
+The game supports directional abilities that require the player to specify a direction vector for targeting, enabling more strategic and visually interesting attacks.
+
+#### **How Directional Abilities Work**
+
+1. **Ability Definition**: Directional abilities are defined with `requiresDirection: true` and include a `coneAngle` property (e.g., 90 degrees for a quarter-circle cone).
+
+2. **Targeting Mode**: When a directional ability is selected, the game enters a special targeting mode where:
+   - The player clicks to set the direction vector
+   - Real-time cone preview shows affected tiles as the mouse moves
+   - The system calculates affected tiles using `getTilesInCone()`
+
+3. **Direction Calculation**: The direction vector is calculated as `{ x: targetX - casterX, y: targetY - casterY }` where the target is the clicked tile.
+
+4. **Cone Mathematics**: The `getTilesInCone()` function uses dot product calculations to determine which tiles fall within the specified cone angle from the caster position.
+
+#### **Example: Paperclip Storm**
+
+The `paperclip_storm` ability demonstrates the directional system:
+- **Range**: 3 tiles
+- **Cone Angle**: 90 degrees
+- **Target Type**: Enemy units only
+- **Effect**: Damages all enemies within the cone
+
+#### **Technical Implementation**
+
+**GameScene.ts Integration**:
+- `handleClick()` detects directional ability targeting mode
+- `updateConePreview()` provides real-time visual feedback
+- Direction vector is passed to `useAbility()` as a special target object
+
+**Targeting System**:
+- `getTilesInCone()` calculates affected tiles using vector mathematics
+- `isValidTarget()` validates directional targets
+- Cone angle and range are configurable per ability
+
+**Store Integration**:
+- `unitStore.ts` handles directional ability execution
+- `abilityAwaitingDirection` state tracks targeting mode
+- Directional targets are processed through the same ability system
+
+This system enables rich, strategic abilities that require player skill and positioning, adding depth to the tactical gameplay.
 
 -----
 

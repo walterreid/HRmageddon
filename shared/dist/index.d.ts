@@ -2,6 +2,9 @@ export type Coordinate = {
     x: number;
     y: number;
 };
+export type DirectionalTarget = {
+    direction: Coordinate;
+};
 export interface Tile {
     x: number;
     y: number;

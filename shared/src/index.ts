@@ -1,5 +1,8 @@
 export type Coordinate = { x: number; y: number }
 
+// Extended target type for directional abilities
+export type DirectionalTarget = { direction: Coordinate }
+
 // Tile System
 export interface Tile {
   x: number

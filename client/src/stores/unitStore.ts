@@ -122,7 +122,7 @@ export const useUnitStore = create<UnitState>()(
 
         // Check for directional ability
         if (ability.requiresDirection && target && 'direction' in target) {
-          const affectedTiles = getTilesInCone(unit.position, target.direction, ability.range, ability.coneAngle || 90)
+          const affectedTiles = getTilesInCone(unit.position, (target as any).direction, ability.range, ability.coneAngle || 90)
           const affectedUnitIds = new Set(
             state.units
               .filter(u => u.playerId !== unit.playerId && affectedTiles.some(t => t.x === u.position.x && t.y === u.position.y))

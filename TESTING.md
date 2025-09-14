@@ -38,6 +38,34 @@ Run the Test Until it Passes: Keep running npm test until your new test turns gr
 
 Refactor: With the test passing, you can now refactor your code confidently, knowing the test acts as a safety net.
 
+**Example: Testing a Directional Ability**
+
+```typescript
+// In targeting.test.ts
+describe('getTilesInCone', () => {
+  it('should return correct tiles for a 90-degree cone facing right', () => {
+    const casterPosition = { x: 5, y: 5 }
+    const direction = { x: 1, y: 0 } // Facing right
+    const range = 3
+    const coneAngle = 90
+
+    const result = getTilesInCone(casterPosition, direction, range, coneAngle)
+
+    // Should include tiles to the right of the caster
+    expect(result).toContainEqual({ x: 6, y: 5 })
+    expect(result).toContainEqual({ x: 7, y: 5 })
+    expect(result).toContainEqual({ x: 8, y: 5 })
+    
+    // Should include diagonal tiles within cone
+    expect(result).toContainEqual({ x: 6, y: 4 })
+    expect(result).toContainEqual({ x: 6, y: 6 })
+    
+    // Should not include tiles behind the caster
+    expect(result).not.toContainEqual({ x: 4, y: 5 })
+  })
+})
+```
+
 5. Running Tests
 
 Use the following commands to run the test suite:
@@ -62,3 +90,13 @@ npm run test:strict: Run a full suite of static analysis, including TypeScript a
 - AI prioritizes attacking over moving when enemies are available
 - AI doesn't attack when no enemies are in range
 - AI attack decisions are properly executed through the store
+
+**Testing Directional Abilities**: When implementing or testing directional abilities, ensure comprehensive coverage of:
+- **Cone Calculation Accuracy**: Test `getTilesInCone()` with various angles (45°, 90°, 180°) and ranges
+- **Direction Vector Validation**: Verify direction vectors are calculated correctly from click positions
+- **Targeting Mode State**: Test that `abilityAwaitingDirection` state is properly set and cleared
+- **Real-time Preview**: Ensure cone preview updates correctly as mouse moves during targeting
+- **Edge Cases**: Test clicking on caster position, out-of-bounds clicks, and invalid directions
+- **Store Integration**: Verify directional abilities execute correctly through `unitStore.useAbility()`
+- **Visual Feedback**: Test that affected tiles are properly highlighted and damage is applied
+- **AI Directional Abilities**: Ensure AI can use directional abilities with appropriate direction selection

@@ -916,8 +916,8 @@ export class GameScene extends Phaser.Scene {
       // The clicked tile determines the direction vector
       const direction = { x: tileX - caster.position.x, y: tileY - caster.position.y }
 
-      // Use the ability, passing a special target object with the direction
-      store.useAbility(caster.id, store.abilityAwaitingDirection, { direction })
+      // Use the ability, passing the direction as a special target
+      store.useAbility(caster.id, store.abilityAwaitingDirection, { direction } as any)
 
       // Reset the aiming state
       useGameStore.setState({ abilityAwaitingDirection: null, highlightedTiles: new Map() })
