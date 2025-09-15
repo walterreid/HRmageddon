@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { useGameStore } from '../../stores/gameStore'
+import { useUIStore } from '../../stores/uiStore'
 import { TileType, type Unit, type Tile, type Coordinate, AbilityTargetingType } from 'shared'
 import { getAbilityById, getValidTargets } from '../core/abilities.ts'
 import { getTilesInCone } from '../core/targeting'
@@ -82,6 +83,7 @@ export class GameScene extends Phaser.Scene {
   private highlightGraphics!: Phaser.GameObjects.Graphics
   private unitSprites: Map<string, Phaser.GameObjects.Container> = new Map()
   private unsubscribe?: () => void
+  private unsubscribeUI?: () => void
   private isDestroyed: boolean = false
   private lastSelectedAbility?: string // Track ability changes for synchronization
   
@@ -97,15 +99,15 @@ export class GameScene extends Phaser.Scene {
   // Visual effects pooling
   private visualEffectsPool!: VisualEffectsPool
   // These are loaded from the map but not directly used yet - kept for future features
-  /** @ts-ignore - Intentionally unused, kept for future map features */
+  /** @ts-expect-error - Intentionally unused, kept for future map features */
   private _tilemap!: Phaser.Tilemaps.Tilemap
-  /** @ts-ignore - Intentionally unused, kept for future map features */
+  /** @ts-expect-error - Intentionally unused, kept for future map features */
   private _backgroundLayer!: Phaser.Tilemaps.TilemapLayer
-  /** @ts-ignore - Intentionally unused, kept for future map features */
+  /** @ts-expect-error - Intentionally unused, kept for future map features */
   private _foregroundLayer!: Phaser.Tilemaps.TilemapLayer
-  /** @ts-ignore - Intentionally unused, kept for future map features */
+  /** @ts-expect-error - Intentionally unused, kept for future map features */
   private _capturePointsLayer!: Phaser.Tilemaps.TilemapLayer
-  /** @ts-ignore - Intentionally unused, kept for future map features */
+  /** @ts-expect-error - Intentionally unused, kept for future map features */
   private _startingPositionsLayer!: Phaser.Tilemaps.TilemapLayer
 
   private boardCols!: number
@@ -117,7 +119,7 @@ export class GameScene extends Phaser.Scene {
   private tileToWorld!: (tx:number, ty:number) => {x:number, y:number}
   private worldToTile!: (px:number, py:number) => {x:number, y:number}
   // Blocked helper for future movement validation
-  /** @ts-ignore - Intentionally unused, kept for future movement validation */
+  /** @ts-expect-error - Intentionally unused, kept for future movement validation */
   private _isBlocked!: (tx:number, ty:number) => boolean
 
   constructor() {
@@ -192,6 +194,34 @@ export class GameScene extends Phaser.Scene {
       abilityTargetGraphics: !!this.abilityTargetGraphics
     })
     
+    // Subscribe to UI store changes for highlights
+    this.unsubscribeUI = useUIStore.subscribe((uiState) => {
+      try {
+        // Check if scene is still valid
+        if (this.isDestroyed || !this.scene || !this.scene.manager || !this.scene.isActive || !this.scene.isActive()) {
+          return
+        }
+        
+        if (!this.highlightGraphics) {
+          return
+        }
+        
+        // Get current game state
+        const gameState = useGameStore.getState()
+        
+        // Update highlights when UI store changes
+        console.log('UI store changed, updating highlights:', {
+          highlightCount: uiState.highlightedTiles.size,
+          actionMode: uiState.actionMode,
+          selectedAbility: uiState.selectedAbility
+        })
+        
+        this.updateHighlights(uiState.highlightedTiles, gameState.selectedUnit)
+      } catch (error) {
+        console.error('Error in UI store subscription:', error)
+      }
+    })
+    
     // Subscribe to game store changes
     this.unsubscribe = useGameStore.subscribe((state) => {
       try {
@@ -207,24 +237,25 @@ export class GameScene extends Phaser.Scene {
         }
         
         // Check for ability changes specifically
-        if (state.selectedAbility !== this.lastSelectedAbility) {
+        const uiStore = useUIStore.getState()
+        if (uiStore.selectedAbility !== this.lastSelectedAbility) {
           console.log('Ability selection changed:', {
             from: this.lastSelectedAbility,
-            to: state.selectedAbility
+            to: uiStore.selectedAbility
           })
-          this.lastSelectedAbility = state.selectedAbility
+          this.lastSelectedAbility = uiStore.selectedAbility
           
           // Force complete re-render of highlights
           this.highlightGraphics.clear()
           this.abilityTargetGraphics.clear()
           
-          if (state.selectedAbility) {
-            console.log('Ability mode active, updating ability targeting')
-            this.updateAbilityTargeting(state.selectedUnit, state.selectedAbility)
-          } else {
-            console.log('Ability mode cleared, updating normal highlights')
-            this.updateHighlights(state.highlightedTiles, state.selectedUnit)
-          }
+        if (uiStore.selectedAbility) {
+          console.log('Ability mode active, updating ability targeting')
+          this.updateAbilityTargeting(state.selectedUnit, uiStore.selectedAbility)
+        } else {
+          console.log('Ability mode cleared, updating normal highlights')
+          this.updateHighlights(uiStore.highlightedTiles, state.selectedUnit)
+        }
         } else {
           // Regular update (no ability change)
           console.log('Regular rendering update:', {
@@ -232,23 +263,23 @@ export class GameScene extends Phaser.Scene {
             units: state.units?.length,
             highlights: state.highlightedTiles?.size,
             selectedUnit: !!state.selectedUnit,
-            selectedAbility: !!state.selectedAbility
+            selectedAbility: !!uiStore.selectedAbility
           })
           
           this.drawBoard(state.board)
           this.drawUnits(state.units)
           
           // If an ability is selected, don't show movement highlights
-          if (state.selectedAbility) {
+          if (uiStore.selectedAbility) {
             console.log('Ability selected, clearing movement highlights and showing ability range')
             // Clear movement highlights when ability is active
             this.highlightGraphics.clear()
             // Only show ability targeting
-            this.updateAbilityTargeting(state.selectedUnit, state.selectedAbility)
+            this.updateAbilityTargeting(state.selectedUnit, uiStore.selectedAbility)
           } else {
             console.log('No ability selected, showing normal highlights')
             // Show normal highlights (movement, attack, etc.)
-            this.updateHighlights(state.highlightedTiles, state.selectedUnit)
+            this.updateHighlights(uiStore.highlightedTiles, state.selectedUnit)
             // Clear ability targeting graphics
             this.abilityTargetGraphics.clear()
           }
@@ -274,6 +305,7 @@ export class GameScene extends Phaser.Scene {
     
     // Prevent zoom on mobile devices
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _gameObjects: any[], _deltaX: number, deltaY: number, _deltaZ: number) => {
+      void _pointer; void _gameObjects; void _deltaX; void _deltaZ; // Suppress unused parameter warnings
       // Prevent zoom/scroll on mobile
       if (Math.abs(deltaY) > 0) {
         return false
@@ -490,8 +522,8 @@ export class GameScene extends Phaser.Scene {
       this.highlightGraphics.clear()
       
       // Check ability state FIRST
-      const store = useGameStore.getState()
-      if (store.selectedAbility && store.targetingMode) {
+      const uiStore = useUIStore.getState()
+      if (uiStore.selectedAbility && uiStore.targetingMode) {
         console.log('Ability mode active, showing ability highlights only')
         // Only render highlights with type 'ability'
         highlighted.forEach((type, coordKey) => {
@@ -507,8 +539,8 @@ export class GameScene extends Phaser.Scene {
       }
       
       console.log('updateHighlights:', {
-        hasAbility: !!store.selectedAbility,
-        targetingMode: store.targetingMode,
+        hasAbility: !!uiStore.selectedAbility,
+        targetingMode: uiStore.targetingMode,
         highlightCount: highlighted.size,
         highlightTypes: Array.from(highlighted.values())
       })
@@ -741,7 +773,7 @@ export class GameScene extends Phaser.Scene {
         const { x: px, y: py } = this.tileToWorld(target.x, target.y)
         
         // Determine if this is a positive or negative ability
-        const ability = getAbilityById(useGameStore.getState().selectedAbility || '')
+        const ability = getAbilityById(useUIStore.getState().selectedAbility || '')
         const isNegativeAbility = ability?.targetType === 'enemy'
         
         // Use appropriate colors for target highlighting
@@ -767,7 +799,7 @@ export class GameScene extends Phaser.Scene {
         const { x: px, y: py } = this.tileToWorld(target.position.x, target.position.y)
         
         // Determine if this is a positive or negative ability
-        const ability = getAbilityById(useGameStore.getState().selectedAbility || '')
+        const ability = getAbilityById(useUIStore.getState().selectedAbility || '')
         const isNegativeAbility = ability?.targetType === 'enemy'
         
         // Use appropriate colors for target highlighting
@@ -794,10 +826,9 @@ export class GameScene extends Phaser.Scene {
 
   private showConePreview(caster: Unit, ability: any) {
     // For cone abilities, show a preview of the cone area
-    const store = useGameStore.getState()
-    
     // Check if this is a directional ability awaiting direction input
-    if (ability.requiresDirection && store.abilityAwaitingDirection) {
+    const uiStore = useUIStore.getState()
+    if (ability.requiresDirection && uiStore.abilityAwaitingDirection) {
       // Start listening for pointer movement to draw the preview
       this.input.on('pointermove', this.updateConePreview, this)
       console.log('Cone preview mode activated - listening for mouse movement')
@@ -833,8 +864,9 @@ export class GameScene extends Phaser.Scene {
   // NEW METHOD to dynamically draw the cone preview
   private updateConePreview(pointer: Phaser.Input.Pointer) {
     const store = useGameStore.getState()
+    const uiStore = useUIStore.getState()
     const caster = store.selectedUnit
-    const abilityId = store.abilityAwaitingDirection
+    const abilityId = uiStore.abilityAwaitingDirection
 
     if (!caster || !abilityId) {
       this.input.off('pointermove', this.updateConePreview, this) // Stop listening
@@ -877,6 +909,7 @@ export class GameScene extends Phaser.Scene {
 
   // Mobile touch event handlers
   private handlePointerOver(_pointer: Phaser.Input.Pointer) {
+    void _pointer; // Suppress unused parameter warning
     // Add hover effects for desktop (optional for mobile)
     if (!this.isMobileDevice()) {
       // Desktop hover effects can go here
@@ -884,6 +917,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePointerOut(_pointer: Phaser.Input.Pointer) {
+    void _pointer; // Suppress unused parameter warning
     // Clear hover effects for desktop (optional for mobile)
     if (!this.isMobileDevice()) {
       // Desktop hover cleanup can go here
@@ -906,7 +940,8 @@ export class GameScene extends Phaser.Scene {
     const store = useGameStore.getState()
     
     // HIGHEST PRIORITY: Check if we are aiming a directional ability
-    if (store.abilityAwaitingDirection && store.selectedUnit) {
+    const uiStore = useUIStore.getState()
+    if (uiStore.abilityAwaitingDirection && store.selectedUnit) {
       const caster = store.selectedUnit
       const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
 
@@ -917,15 +952,16 @@ export class GameScene extends Phaser.Scene {
       const direction = { x: tileX - caster.position.x, y: tileY - caster.position.y }
 
       // Use the ability, passing the direction as a special target
-      store.useAbility(caster.id, store.abilityAwaitingDirection, { direction } as any)
+      store.useAbility(caster.id, uiStore.abilityAwaitingDirection, { direction } as any)
 
       // Reset the aiming state
-      useGameStore.setState({ abilityAwaitingDirection: null, highlightedTiles: new Map() })
+      useUIStore.getState().setAbilityAwaitingDirection(null)
+      useUIStore.getState().clearHighlights()
       return // End the click handling here
     }
     
     // If we're in ability targeting mode, handle ability target selection
-    if (this.targetingMode && store.selectedAbility) {
+    if (this.targetingMode && uiStore.selectedAbility) {
       const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
       
       // Check if clicked on a valid target
@@ -939,14 +975,14 @@ export class GameScene extends Phaser.Scene {
       
       if (clickedTarget && store.selectedUnit) {
         // Use the ability on the target
-        store.useAbility(store.selectedUnit.id, store.selectedAbility, clickedTarget)
+        store.useAbility(store.selectedUnit.id, uiStore.selectedAbility, clickedTarget)
         // Clear targeting mode and action mode
-        store.selectAbility('')
+        useUIStore.getState().setSelectedAbility(undefined)
         this.actionMode = 'none'
         
         // CRITICAL: Notify GameHUD that ability was used
         if (typeof window !== 'undefined') {
-          const event = new CustomEvent('abilityUsed', { detail: { abilityId: store.selectedAbility } })
+          const event = new CustomEvent('abilityUsed', { detail: { abilityId: uiStore.selectedAbility } })
           window.dispatchEvent(event)
         }
         return
@@ -954,7 +990,7 @@ export class GameScene extends Phaser.Scene {
       
       // If clicked outside valid targets, cancel targeting
       console.log('Clicked outside ability range, cancelling ability')
-      store.selectAbility('')
+      useUIStore.getState().setSelectedAbility(undefined)
       this.actionMode = 'none'
       
       // CRITICAL: Notify GameHUD that ability was cancelled
@@ -991,7 +1027,7 @@ export class GameScene extends Phaser.Scene {
           isValidTarget = store.possibleTargets.some(target => target.x === tileX && target.y === tileY)
         } else if (this.actionMode === 'ability') {
           // For abilities, check if this tile is within range and a valid target
-          const selectedAbility = store.selectedAbility
+          const selectedAbility = uiStore.selectedAbility
           if (selectedAbility) {
             const ability = getAbilityById(selectedAbility)
             if (ability) {
@@ -1016,9 +1052,9 @@ export class GameScene extends Phaser.Scene {
           console.log('Clicked on invalid target, cancelling action mode')
           
           // If this was an ability, notify GameHUD
-          if (this.actionMode === 'ability' && store.selectedAbility) {
+          if (this.actionMode === 'ability' && uiStore.selectedAbility) {
             console.log('Cancelling ability due to invalid target')
-            store.selectAbility('')
+            useUIStore.getState().setSelectedAbility(undefined)
             if (typeof window !== 'undefined') {
               const event = new CustomEvent('abilityCancelled')
               window.dispatchEvent(event)
@@ -1064,7 +1100,7 @@ export class GameScene extends Phaser.Scene {
               }
             } else if (this.actionMode === 'ability') {
               // Check if this unit is a valid ability target
-              const selectedAbility = store.selectedAbility
+              const selectedAbility = uiStore.selectedAbility
               if (selectedAbility) {
                 const ability = getAbilityById(selectedAbility)
                 if (ability) {
@@ -1163,7 +1199,7 @@ export class GameScene extends Phaser.Scene {
     window.dispatchEvent(event)
     
     switch (this.actionMode) {
-      case 'move':
+      case 'move': {
         // Check if the clicked tile is a valid move
         const isValidMove = store.possibleMoves.some(move => move.x === tileX && move.y === tileY)
         if (isValidMove) {
@@ -1184,8 +1220,8 @@ export class GameScene extends Phaser.Scene {
           }
         }
         break
-        
-      case 'attack':
+      }
+      case 'attack': {
         // Check if the clicked tile has an enemy unit
         const targetUnit = store.units.find(u => u.position.x === tileX && u.position.y === tileY && u.playerId !== unit.playerId)
         if (targetUnit) {
@@ -1206,10 +1242,11 @@ export class GameScene extends Phaser.Scene {
           }
         }
         break
-        
-      case 'ability':
+      }
+      case 'ability': {
         // Handle ability targeting (already handled above)
         break
+      }
     }
   }
 
@@ -1223,7 +1260,7 @@ export class GameScene extends Phaser.Scene {
       // Restore normal unit highlights
       const store = useGameStore.getState()
       if (store.selectedUnit) {
-        this.updateHighlights(store.highlightedTiles, store.selectedUnit)
+        this.updateHighlights(useUIStore.getState().highlightedTiles, store.selectedUnit)
       }
     } else if (mode === 'move') {
       // Clear existing highlights and show move highlights
@@ -1333,10 +1370,14 @@ export class GameScene extends Phaser.Scene {
     // Mark as destroyed to prevent further operations
     this.isDestroyed = true
     
-    // Clean up subscription first
+    // Clean up subscriptions first
     if (this.unsubscribe) {
       this.unsubscribe()
       this.unsubscribe = undefined
+    }
+    if (this.unsubscribeUI) {
+      this.unsubscribeUI()
+      this.unsubscribeUI = undefined
     }
     
     // Clear graphics to prevent further operations

@@ -91,6 +91,55 @@ npm run test:strict: Run a full suite of static analysis, including TypeScript a
 - AI doesn't attack when no enemies are in range
 - AI attack decisions are properly executed through the store
 
+## UI vs Game State Testing
+
+The refactored architecture separates UI state from game state, requiring different testing approaches:
+
+### UI Store Testing (`uiStore.ts`)
+- **Focus**: UI interactions, visual feedback, action modes
+- **Test Cases**: Action mode transitions, highlight management, ability targeting states
+- **Mocking**: Mock game store interactions, test UI state in isolation
+- **Example**: Test that selecting "Move" mode clears previous highlights and sets correct action mode
+
+### Game Store Testing (`gameStore.ts`)
+- **Focus**: Core game logic, state orchestration, pure function delegation
+- **Test Cases**: Game actions, state updates, victory conditions
+- **Mocking**: Mock pure functions, test state changes
+- **Example**: Test that moving a unit updates position and consumes action points
+
+### Action Handler Testing (`actionHandlers.ts`)
+- **Focus**: Coordination between UI and game stores
+- **Test Cases**: Action flow, state synchronization, error handling
+- **Mocking**: Mock both UI and game stores, test coordination logic
+- **Example**: Test that executing a move updates both UI highlights and game state
+
+### Action Flow Testing
+Test the complete user interaction flow from UI to game state:
+
+```typescript
+describe('Action Flow', () => {
+  it('should handle complete move action flow', () => {
+    // 1. Select unit (game store)
+    const unit = createMockUnit();
+    gameStore.selectUnit(unit);
+    
+    // 2. Enter move mode (UI store + action handlers)
+    actionHandlers.enterMoveMode(unit);
+    expect(uiStore.getState().actionMode).toBe('move');
+    expect(uiStore.getState().highlightedTiles.size).toBeGreaterThan(0);
+    
+    // 3. Execute move (action handlers coordinate both stores)
+    const target = { x: 5, y: 5 };
+    actionHandlers.executeMove(unit, target);
+    
+    // 4. Verify both stores updated correctly
+    expect(gameStore.getState().units[0].position).toEqual(target);
+    expect(uiStore.getState().actionMode).toBe('none');
+    expect(uiStore.getState().highlightedTiles.size).toBe(0);
+  });
+});
+```
+
 **Testing Directional Abilities**: When implementing or testing directional abilities, ensure comprehensive coverage of:
 - **Cone Calculation Accuracy**: Test `getTilesInCone()` with various angles (45°, 90°, 180°) and ranges
 - **Direction Vector Validation**: Verify direction vectors are calculated correctly from click positions
@@ -100,3 +149,138 @@ npm run test:strict: Run a full suite of static analysis, including TypeScript a
 - **Store Integration**: Verify directional abilities execute correctly through `unitStore.useAbility()`
 - **Visual Feedback**: Test that affected tiles are properly highlighted and damage is applied
 - **AI Directional Abilities**: Ensure AI can use directional abilities with appropriate direction selection
+
+## Store Subscription Testing
+
+### Testing Multi-Store Subscriptions
+When testing components that subscribe to multiple stores (like GameScene), ensure both subscriptions are properly tested:
+
+```typescript
+describe('GameScene Store Subscriptions', () => {
+  it('should update highlights when UI store changes', () => {
+    const mockGameScene = createMockGameScene()
+    
+    // Simulate UI store change
+    const highlights = new Map([['5,5', 'movement']])
+    uiStore.setHighlightedTiles(highlights)
+    
+    // Verify GameScene responds to UI store change
+    expect(mockGameScene.updateHighlights).toHaveBeenCalledWith(
+      highlights, 
+      expect.any(Object)
+    )
+  })
+  
+  it('should update game state when game store changes', () => {
+    const mockGameScene = createMockGameScene()
+    
+    // Simulate game store change
+    gameStore.selectUnit(mockUnit)
+    
+    // Verify GameScene responds to game store change
+    expect(mockGameScene.render).toHaveBeenCalled()
+  })
+})
+```
+
+### Testing Visual Debugging
+When visual elements don't appear, create tests that verify the complete flow:
+
+```typescript
+describe('Movement Highlights Flow', () => {
+  it('should show movement highlights when entering move mode', () => {
+    // 1. Select unit
+    const unit = createMockUnit()
+    gameStore.selectUnit(unit)
+    
+    // 2. Enter move mode
+    actionHandlers.enterMoveMode(unit)
+    
+    // 3. Verify UI store updated
+    expect(uiStore.getState().actionMode).toBe('move')
+    expect(uiStore.getState().highlightedTiles.size).toBeGreaterThan(0)
+    
+    // 4. Verify GameScene would update (mock the subscription)
+    const mockUpdateHighlights = jest.fn()
+    const gameScene = { updateHighlights: mockUpdateHighlights }
+    
+    // Simulate UI store subscription trigger
+    uiStore.getState().setHighlightedTiles(new Map([['5,5', 'movement']]))
+    
+    // Verify visual update would be called
+    expect(mockUpdateHighlights).toHaveBeenCalled()
+  })
+})
+```
+
+### Testing Store Subscription Cleanup
+Always test that subscriptions are properly cleaned up to prevent memory leaks:
+
+```typescript
+describe('GameScene Cleanup', () => {
+  it('should unsubscribe from both stores on destroy', () => {
+    const gameScene = createGameScene()
+    const gameUnsubscribe = jest.fn()
+    const uiUnsubscribe = jest.fn()
+    
+    // Mock subscriptions
+    gameScene.unsubscribe = gameUnsubscribe
+    gameScene.unsubscribeUI = uiUnsubscribe
+    
+    // Destroy scene
+    gameScene.destroy()
+    
+    // Verify both subscriptions cleaned up
+    expect(gameUnsubscribe).toHaveBeenCalled()
+    expect(uiUnsubscribe).toHaveBeenCalled()
+  })
+})
+```
+
+### Common Visual Testing Patterns
+
+**Testing Highlight Types**: Ensure highlight types match between action handlers and visual rendering:
+
+```typescript
+describe('Highlight Type Consistency', () => {
+  it('should use consistent highlight types across stores and rendering', () => {
+    const movementHighlights = new Map([['5,5', 'movement']])
+    const attackHighlights = new Map([['6,6', 'attack']])
+    
+    // Test that action handlers use correct types
+    actionHandlers.enterMoveMode(unit)
+    expect(uiStore.getState().highlightedTiles.get('5,5')).toBe('movement')
+    
+    actionHandlers.enterAttackMode(unit)
+    expect(uiStore.getState().highlightedTiles.get('6,6')).toBe('attack')
+    
+    // Test that drawHighlight handles these types
+    expect(() => drawHighlight(0, 0, 32, 'movement')).not.toThrow()
+    expect(() => drawHighlight(0, 0, 32, 'attack')).not.toThrow()
+  })
+})
+```
+
+**Testing Store State Synchronization**: Verify that UI and game stores stay synchronized:
+
+```typescript
+describe('Store Synchronization', () => {
+  it('should keep UI and game stores synchronized during actions', () => {
+    const unit = createMockUnit()
+    
+    // Start action
+    actionHandlers.enterMoveMode(unit)
+    
+    // Verify both stores have consistent state
+    expect(uiStore.getState().actionMode).toBe('move')
+    expect(gameStore.getState().selectedUnit).toBe(unit)
+    
+    // Complete action
+    actionHandlers.executeMove(unit, { x: 5, y: 5 })
+    
+    // Verify both stores cleared consistently
+    expect(uiStore.getState().actionMode).toBe('none')
+    expect(uiStore.getState().highlightedTiles.size).toBe(0)
+  })
+})
+```

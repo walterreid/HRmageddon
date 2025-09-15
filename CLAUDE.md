@@ -140,8 +140,10 @@ client
 
 ### `src/stores`
 
-  * **`src/stores/gameStore.ts`**: The original monolithic state management file using Zustand. It holds the entire game state (board, units, players) and orchestrates game actions by delegating to pure utility functions. Includes performance optimizations with memoization caching and has been refactored to separate state management from business logic for better maintainability.
+  * **`src/stores/gameStore.ts`**: The core game state management file using Zustand. It holds the essential game state (board, units, players) and orchestrates game actions by delegating to pure utility functions. Includes performance optimizations with memoization caching and has been refactored to focus purely on game logic, with UI state separated into dedicated stores.
   * **`src/stores/gameStore.test.ts`**: Unit tests for the `gameStore`, ensuring that game logic functions as expected.
+  * **`src/stores/uiStore.ts`**: Dedicated store for UI-specific state management. Handles highlighted tiles, action modes, ability targeting, and other UI interactions. Separates UI concerns from core game logic for better maintainability and cleaner code organization.
+  * **`src/stores/actionHandlers.ts`**: Coordination layer between UI and game stores. Provides clean action handlers that manage the flow between UI interactions and game state changes, ensuring proper separation of concerns.
   * **`src/stores/unitStore.ts`**: Focused store slice for unit-related state management. Handles unit data, movement, combat, and unit-specific queries. Provides granular subscriptions for better performance.
   * **`src/stores/boardStore.ts`**: Focused store slice for board and tile state management. Handles board creation, tile updates, capture points, and board validation. Optimized for board-specific operations.
   * **`src/stores/playerStore.ts`**: Focused store slice for player and game state management. Handles players, game phases, turns, and victory conditions. Manages game flow and player data.
@@ -247,6 +249,66 @@ These are special actions unique to each unit type, themed around satirical offi
       * **Area of Effect**: `paperclip_storm` creates a cone-shaped attack affecting multiple enemies in a specific direction.
 
 These "speak attacks" make gameplay more strategic, as they allow for actions beyond simple damage, introducing buffs, debuffs, unique utility, and directional targeting mechanics.
+
+### 🔍 Debugging Visual Issues
+
+When visual elements (highlights, overlays, effects) don't appear, follow this systematic debugging approach:
+
+#### **1. Check Store Subscriptions**
+The most common cause of missing visuals is incomplete store subscriptions:
+
+```typescript
+// ❌ WRONG: Only subscribing to gameStore
+this.unsubscribe = useGameStore.subscribe((state) => {
+  this.updateHighlights(state.highlightedTiles, state.selectedUnit)
+})
+
+// ✅ CORRECT: Subscribe to both stores
+this.unsubscribe = useGameStore.subscribe((state) => {
+  // Handle game state changes
+})
+this.unsubscribeUI = useUIStore.subscribe((uiState) => {
+  // Handle UI state changes
+  this.updateHighlights(uiState.highlightedTiles, gameState.selectedUnit)
+})
+```
+
+#### **2. Verify Action Flow**
+Check the complete action flow from UI to visual rendering:
+
+1. **Action Menu Click** → `ActionMenu.tsx` calls `onActionSelect('move')`
+2. **Action Handler** → `actionHandlers.enterMoveMode()` updates UI store
+3. **Store Update** → `uiStore.setHighlightedTiles()` sets movement highlights
+4. **Scene Subscription** → `GameScene` UI subscription triggers
+5. **Visual Update** → `updateHighlights()` renders blue movement tiles
+
+#### **3. Debug Console Logs**
+Add strategic logging to trace the flow:
+
+```typescript
+// In actionHandlers.ts
+console.log('Entered move mode:', { unitId: unit.id, moveCount: moves.length })
+
+// In GameScene UI subscription
+console.log('UI store changed, updating highlights:', {
+  highlightCount: uiState.highlightedTiles.size,
+  actionMode: uiState.actionMode
+})
+```
+
+#### **4. Common Visual Issues**
+
+**Missing Movement Highlights:**
+- Cause: GameScene not subscribed to UI store
+- Fix: Add `useUIStore.subscribe()` in GameScene
+
+**Highlights Not Clearing:**
+- Cause: `highlightGraphics.clear()` not called before redraw
+- Fix: Always clear graphics before drawing new highlights
+
+**Wrong Highlight Colors:**
+- Cause: Incorrect type mapping in `drawHighlight()` switch statement
+- Fix: Verify highlight types match between action handlers and draw method
 
 ### 🎯 Directional Abilities System
 
@@ -486,9 +548,31 @@ The Game State Query Interface provides a clean, declarative API for accessing g
 - Caching can be added transparently
 - No performance impact on AI logic
 
-### **Store Slicing Architecture**
+### **Store Architecture**
 
-The monolithic `gameStore` has been refactored into focused, manageable slices for better performance, maintainability, and debugging.
+The game uses a multi-layered store architecture for optimal performance, maintainability, and clear separation of concerns.
+
+#### **Core Game State**
+
+**Game Store (`gameStore.ts`)**
+- **Purpose**: Manages essential game state and orchestrates actions
+- **State**: Board, units, players, game logic
+- **Actions**: Game actions, state orchestration, pure function delegation
+- **Performance**: Memoization caching for expensive calculations
+- **Benefits**: Focused on core game logic, clean action coordination
+
+#### **UI State Management**
+
+**UI Store (`uiStore.ts`)**
+- **Purpose**: Handles all UI-specific state and interactions
+- **State**: Highlighted tiles, action modes, ability targeting, visual feedback
+- **Actions**: UI state updates, visual feedback management
+- **Benefits**: Clean separation of UI concerns from game logic, prevents unnecessary re-renders
+
+**Action Handlers (`actionHandlers.ts`)**
+- **Purpose**: Coordinates between UI and game stores
+- **Actions**: Action flow management, state synchronization, user interaction handling
+- **Benefits**: Prevents UI and game state coupling, enables clean testing, explicit action flows
 
 #### **Store Slices**
 
@@ -517,6 +601,30 @@ The monolithic `gameStore` has been refactored into focused, manageable slices f
 - **Purpose**: Unified interface combining all slices
 - **Features**: Cross-slice actions, combined queries, state coordination
 - **Benefits**: Single entry point, maintains slice benefits
+
+#### **Critical Store Subscription Patterns**
+
+**Multi-Store Subscriptions in GameScene**
+The `GameScene` requires subscriptions to BOTH `gameStore` and `uiStore` to function properly:
+
+```typescript
+// GameScene must subscribe to both stores
+this.unsubscribe = useGameStore.subscribe((state) => {
+  // Handle game state changes (units, board, etc.)
+})
+
+this.unsubscribeUI = useUIStore.subscribe((uiState) => {
+  // Handle UI state changes (highlights, action modes, etc.)
+  this.updateHighlights(uiState.highlightedTiles, gameState.selectedUnit)
+})
+```
+
+**Why Both Subscriptions Are Required:**
+- **Game Store**: Provides core game data (units, board, selected unit)
+- **UI Store**: Provides visual state (highlights, action modes, targeting)
+- **Coordination**: Visual updates need both game data AND UI state to render correctly
+
+**Common Pitfall**: Only subscribing to `gameStore` will cause visual elements (like movement highlights) to not appear, even when the UI store is correctly updated by action handlers.
 
 #### **Benefits of Store Slicing**
 
