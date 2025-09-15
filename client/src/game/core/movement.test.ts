@@ -4,22 +4,19 @@ import {
   isValidMove, 
   getUnitsInRange, 
   findNearestUnit, 
-  findNearestCoordinate,
   getDistance
 } from './movement'
 import { createMockUnit, createMockGameState } from '../test/helpers'
-import { TileType, UnitType } from 'shared'
-import { testNotImplemented, expectImplementation, getImplementationStatus, TestStatus } from '../test/testHelpers'
+import { TileType, type GameState, type Tile } from 'shared'
+import { expectImplementation, getImplementationStatus, TestStatus } from '../test/testHelpers'
 
 describe('Movement System', () => {
-  let mockGameState: any
-  let mockBoard: any[][]
-  let mockUnits: any[]
+  let mockGameState: GameState
+  let mockBoard: Tile[][]
 
   beforeEach(() => {
     mockGameState = createMockGameState()
     mockBoard = mockGameState.board
-    mockUnits = mockGameState.units
   })
 
   describe('calculatePossibleMoves', () => {

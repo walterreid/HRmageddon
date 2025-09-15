@@ -6,19 +6,15 @@ import {
   getValuableCapturePoints 
 } from './victory'
 import { createMockUnit, createMockGameState } from '../test/helpers'
-import { TileType, GamePhase } from 'shared'
+import { TileType, GamePhase, type GameState, type Tile } from 'shared'
 
 describe('Victory System', () => {
-  let mockGameState: any
-  let mockBoard: any[][]
-  let mockUnits: any[]
-  let mockPlayers: any[]
+  let mockGameState: GameState
+  let mockBoard: Tile[][]
 
   beforeEach(() => {
     mockGameState = createMockGameState()
     mockBoard = mockGameState.board
-    mockUnits = mockGameState.units
-    mockPlayers = mockGameState.players
   })
 
   describe('checkVictoryConditions', () => {
@@ -52,7 +48,7 @@ describe('Victory System', () => {
         Array(10).fill(null).map((_, x) => {
           if (x < 6 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player2' }
           if (x >= 6 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player1' }
-          return { type: TileType.NORMAL, x, y }
+          return { type: TileType.NORMAL, x, y, owner: undefined }
         })
       )
       
@@ -61,7 +57,7 @@ describe('Victory System', () => {
         { id: 'player2', controlledCubicles: 6 }
       ]
 
-      const result = checkVictoryConditions(units, boardWithCubicles, players, 'player1', GamePhase.PLAYING)
+      const result = checkVictoryConditions({ units, board: boardWithCubicles, players, phase: GamePhase.PLAYING })
 
       expect(result.winner).toBe('player2')
       expect(result.reason).toBe('capture_points')
@@ -108,28 +104,24 @@ describe('Victory System', () => {
         Array(5).fill(null).map((_, x) => {
           if (x === 0 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player1' }
           if (x === 1 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player2' }
-          if (x === 2 && y === 0) return { type: TileType.CUBICLE, x, y, owner: null }
-          return { type: TileType.NORMAL, x, y }
+          if (x === 2 && y === 0) return { type: TileType.CUBICLE, x, y, owner: undefined }
+          return { type: TileType.NORMAL, x, y, owner: undefined }
         })
       )
 
       const result = getCubicleData(boardWithCubicles)
 
       expect(result.totalCubicles).toBe(3)
-      expect(result.player1Cubicles).toBe(1)
-      expect(result.player2Cubicles).toBe(1)
-      expect(result.neutralCubicles).toBe(1)
-      expect(result.cubiclePositions).toHaveLength(3)
+      expect(result.count).toBe(3)
+      expect(result.positions).toHaveLength(3)
     })
 
     it('should handle board with no cubicles', () => {
       const result = getCubicleData(mockBoard)
 
       expect(result.totalCubicles).toBe(0)
-      expect(result.player1Cubicles).toBe(0)
-      expect(result.player2Cubicles).toBe(0)
-      expect(result.neutralCubicles).toBe(0)
-      expect(result.cubiclePositions).toHaveLength(0)
+      expect(result.count).toBe(0)
+      expect(result.positions).toHaveLength(0)
     })
   })
 
@@ -139,8 +131,8 @@ describe('Victory System', () => {
         Array(5).fill(null).map((_, x) => {
           if (x === 0 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player1' }
           if (x === 1 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player2' }
-          if (x === 2 && y === 0) return { type: TileType.CUBICLE, x, y, owner: null }
-          return { type: TileType.NORMAL, x, y }
+          if (x === 2 && y === 0) return { type: TileType.CUBICLE, x, y, owner: undefined }
+          return { type: TileType.NORMAL, x, y, owner: undefined }
         })
       )
 
@@ -151,12 +143,11 @@ describe('Victory System', () => {
 
       const result = getCapturePointStats({ units: [], board: boardWithCubicles, players, phase: GamePhase.PLAYING })
 
-      expect(result.totalCubicles).toBe(3)
+      expect(result.totalCapturePoints).toBe(3)
       expect(result.player1Percentage).toBeCloseTo(33.33, 1)
       expect(result.player2Percentage).toBeCloseTo(33.33, 1)
-      expect(result.neutralPercentage).toBeCloseTo(33.33, 1)
-      expect(result.player1NeedsToWin).toBe(2) // Need 2 more to reach 51%
-      expect(result.player2NeedsToWin).toBe(2)
+      expect(result.unclaimed).toBe(1)
+      expect(result.victoryThreshold).toBe(2) // Need 2 more to reach 51%
     })
   })
 
@@ -166,8 +157,8 @@ describe('Victory System', () => {
         Array(5).fill(null).map((_, x) => {
           if (x === 0 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player1' }
           if (x === 1 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player2' }
-          if (x === 2 && y === 0) return { type: TileType.CUBICLE, x, y, owner: null }
-          return { type: TileType.NORMAL, x, y }
+          if (x === 2 && y === 0) return { type: TileType.CUBICLE, x, y, owner: undefined }
+          return { type: TileType.NORMAL, x, y, owner: undefined }
         })
       )
 
@@ -184,7 +175,7 @@ describe('Victory System', () => {
         Array(5).fill(null).map((_, x) => {
           if (x === 0 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player1' }
           if (x === 1 && y === 0) return { type: TileType.CUBICLE, x, y, owner: 'player1' }
-          return { type: TileType.NORMAL, x, y }
+          return { type: TileType.NORMAL, x, y, owner: undefined }
         })
       )
 

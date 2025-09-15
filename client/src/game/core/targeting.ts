@@ -1,4 +1,4 @@
-import { type Unit, type Coordinate, type Ability } from 'shared'
+import { type Unit, type Coordinate, type Ability, type Tile } from 'shared'
 
 /**
  * Core targeting logic for complex targeting patterns like cones, lines, and areas
@@ -26,8 +26,8 @@ export function getValidTargets(
   context: TargetingContext,
   pattern: 'single' | 'line' | 'cone' | 'area' | 'self'
 ): TargetingResult {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { source, ability, board, units } = context
+  const { source: _source, ability: _ability, board: _board, units: _units } = context
+  void _source; void _ability; void _board; void _units; // Suppress unused variable warnings
   
   switch (pattern) {
     case 'single':
@@ -187,8 +187,7 @@ function getAreaTargets(context: TargetingContext): TargetingResult {
   const invalidTargets: (Unit | Coordinate)[] = []
   
   const range = ability.range || 1
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const areaSize = (ability as any).areaSize || 1 // eslint-disable-line @typescript-eslint/no-explicit-any
+  // const _areaSize = (ability as any).areaSize || 1 // Currently unused
   
   // Check all positions within range
   for (let x = 0; x < board[0].length; x++) {
@@ -239,7 +238,7 @@ export function isValidTarget(
   source: Unit,
   target: Unit | Coordinate,
   ability: Ability,
-  board: any[][],
+  board: Tile[][],
   units: Unit[]
 ): boolean {
   const context: TargetingContext = { source, ability, board, units }

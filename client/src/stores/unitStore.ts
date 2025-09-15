@@ -159,9 +159,8 @@ export const useUnitStore = create<UnitState>()(
 
       // Also reset the UI state in the main gameStore
       useGameStore.setState({
-        targetingMode: false,
-        selectedAbility: undefined,
-        abilityAwaitingDirection: null,
+        // targetingMode moved to uiStore
+        // selectedAbility and abilityAwaitingDirection moved to uiStore
         highlightedTiles: new Map(),
       })
     },

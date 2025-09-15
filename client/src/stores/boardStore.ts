@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import { type Tile, TileType } from 'shared'
+import { type Tile, TileType, type Unit } from 'shared'
 import { MAPS } from '../game/map/registry'
 import { getCubicleData as getCubicleDataUtil } from '../game/core/victory'
 
@@ -29,12 +29,12 @@ export interface BoardState {
   getCubicles: () => Tile[]
   getCubiclesByOwner: (ownerId: string) => Tile[]
   getUnclaimedCubicles: () => Tile[]
-  getCubicleData: () => any
+  getCubicleData: () => { totalCubicles: number; count: number; positions: { x: number; y: number }[] }
   
   // Board validation
   isValidPosition: (x: number, y: number) => boolean
   isPositionBlocked: (x: number, y: number) => boolean
-  isPositionOccupied: (x: number, y: number, units: any[]) => boolean
+  isPositionOccupied: (x: number, y: number, units: Unit[]) => boolean
   
   // Board utilities
   getNeighboringTiles: (x: number, y: number) => Tile[]

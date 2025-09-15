@@ -1,4 +1,4 @@
-import { type Unit, StatusType, UnitType, type Coordinate, type Ability, TargetType, AbilityTargetingType } from 'shared'
+import { type Unit, StatusType, UnitType, type Coordinate, type Ability, TargetType, AbilityTargetingType, type Tile } from 'shared'
 
 // Enhanced ability definitions with new abilities for each unit type
 export const ABILITIES: Record<string, Ability> = {
@@ -91,6 +91,7 @@ export const ABILITIES: Record<string, Ability> = {
     coneAngle: 90,
     requiresDirection: true,
     effect: (_caster, _target) => {
+      void _caster; void _target; // Suppress unused parameter warnings
       // This would need to be enhanced to handle AOE targeting
       return { success: true, damageDealt: 1, message: 'Paperclip storm unleashed!' }
     },
@@ -320,7 +321,7 @@ export function canUseAbility(unit: Unit, abilityId: string): boolean {
   return true
 }
 
-export function getValidTargets(unit: Unit, ability: Ability, board: any[][], units?: Unit[]): (Unit | Coordinate)[] {
+export function getValidTargets(unit: Unit, ability: Ability, board: Tile[][], units?: Unit[]): (Unit | Coordinate)[] {
   const targets: (Unit | Coordinate)[] = []
   
   switch (ability.targetType) {

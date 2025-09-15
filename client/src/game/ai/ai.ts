@@ -1,9 +1,8 @@
-import { type GameState, type Unit, type Coordinate, TileType } from 'shared'
+import { type GameState, type Unit, type Coordinate, TileType, type Ability } from 'shared'
 import { getUnitAbilities, canUseAbility, getValidTargets } from '../core/abilities'
 import { GameQueries, type GameState as QueryGameState } from './gameStateQueries'
 import { type MainStoreState } from '../../stores/mainStore'
-import { calculatePossibleMoves, findNearestUnit, findNearestCoordinate } from '../core/movement'
-import { getValuableCapturePoints } from '../core/victory'
+import { calculatePossibleMoves, findNearestCoordinate } from '../core/movement'
 
 interface AIActions {
   moveUnit: (unitId: string, to: Coordinate) => void
@@ -21,10 +20,11 @@ interface AIAction {
 }
 
 export class AIController {
-  private difficulty: 'easy' | 'normal' | 'hard'
+  // private _difficulty: 'easy' | 'normal' | 'hard' // Currently unused
   
-  constructor(difficulty: 'easy' | 'normal' | 'hard' = 'normal') {
-    this.difficulty = difficulty
+  constructor(_difficulty: 'easy' | 'normal' | 'hard' = 'normal') {
+    // Difficulty setting currently unused
+    void _difficulty; // Suppress unused parameter warning
   }
 
   takeTurnWithMainStore(mainStore: MainStoreState): void {
@@ -233,18 +233,18 @@ export class AIController {
     actions.endTurn()
   }
 
-  private makeDecisionWithQueries(unit: Unit, _queryState: QueryGameState): AIAction | null {
+  private makeDecisionWithQueries(unit: Unit, queryState: QueryGameState): AIAction | null {
     console.log('Making decision for unit:', unit.id, 'type:', unit.type, 'actions:', unit.actionsRemaining)
     
     // 1. Check for ability opportunities first (highest priority)
-    const abilityDecision = this.evaluateAbilities(unit, _queryState)
+    const abilityDecision = this.evaluateAbilities(unit, queryState)
     if (abilityDecision) {
       console.log('Ability decision:', abilityDecision)
       return abilityDecision
     }
     
     // 2. Check for attack opportunities (high priority)
-    const enemiesInRange = GameQueries.getEnemiesInRange(_queryState, unit)
+    const enemiesInRange = GameQueries.getEnemiesInRange(queryState, unit)
     if (enemiesInRange.length > 0) {
       // Find the weakest enemy in range
       const weakestEnemy = enemiesInRange.reduce((weakest, enemy) => 
@@ -256,10 +256,13 @@ export class AIController {
     
     // 3. Check for capture opportunities (medium priority)
     const capturableTiles = this.getCapturableTiles(unit, {
-      units: _queryState.units,
-      board: _queryState.board,
-      players: _queryState.players,
-      phase: _queryState.phase
+      id: 'ai-game-state',
+      units: queryState.units,
+      board: queryState.board,
+      players: queryState.players,
+      phase: queryState.phase,
+      currentPlayerId: queryState.currentPlayerId,
+      turnNumber: queryState.turnNumber
     })
     
     if (capturableTiles.length > 0) {
@@ -272,9 +275,9 @@ export class AIController {
     }
     
     // 4. Move towards nearest enemy (low priority)
-    const nearestEnemy = GameQueries.findNearestEnemy(_queryState, unit.position, unit.playerId)
+    const nearestEnemy = GameQueries.findNearestEnemy(queryState, unit.position, unit.playerId)
     if (nearestEnemy) {
-      const possibleMoves = GameQueries.getPossibleMoves(_queryState, unit)
+      const possibleMoves = GameQueries.getPossibleMoves(queryState, unit)
       if (possibleMoves.length > 0) {
         // Find the move that gets us closest to the enemy
         const bestMove = this.findBestMoveTowardsTarget(unit.position, nearestEnemy.position, possibleMoves)
@@ -286,9 +289,9 @@ export class AIController {
     }
     
     // 5. Move towards nearest objective (fallback)
-    const nearestObjective = GameQueries.findNearestObjective(_queryState, unit.position, unit.playerId)
+    const nearestObjective = GameQueries.findNearestObjective(queryState, unit.position, unit.playerId)
     if (nearestObjective) {
-      const possibleMoves = GameQueries.getPossibleMoves(_queryState, unit)
+      const possibleMoves = GameQueries.getPossibleMoves(queryState, unit)
       if (possibleMoves.length > 0) {
         const bestMove = this.findBestMoveTowardsTarget(unit.position, nearestObjective, possibleMoves)
         if (bestMove) {
@@ -299,7 +302,7 @@ export class AIController {
     }
     
     // 6. Random move if nothing else works (last resort)
-    const possibleMoves = GameQueries.getPossibleMoves(_queryState, unit)
+    const possibleMoves = GameQueries.getPossibleMoves(queryState, unit)
     if (possibleMoves.length > 0) {
       const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)]
       console.log('Random move decision:', randomMove)
@@ -310,17 +313,17 @@ export class AIController {
     return null
   }
 
-  private evaluateAbilities(unit: Unit, _queryState: QueryGameState): AIAction | null {
+  private evaluateAbilities(unit: Unit, queryState: QueryGameState): AIAction | null {
     const abilities = getUnitAbilities(unit.type)
     
     for (const ability of abilities) {
       if (!canUseAbility(unit, ability.id)) continue
       
-      const validTargets = getValidTargets(unit, ability, _queryState.board, _queryState.units)
+      const validTargets = getValidTargets(unit, ability, queryState.board, queryState.units)
       if (validTargets.length === 0) continue
       
       // Score this ability based on its potential impact
-      const score = this.scoreAbility(unit, ability, validTargets, _queryState)
+      const score = this.scoreAbility(unit, ability, validTargets, queryState)
       if (score > 0.7) { // Threshold for using ability
         const bestTarget = validTargets[0] // For now, just use first target
         return { type: 'ability', abilityId: ability.id, target: bestTarget as Coordinate }
@@ -330,42 +333,48 @@ export class AIController {
     return null
   }
 
-  private scoreAbility(unit: Unit, ability: any, targets: (Unit | Coordinate)[], _queryState: QueryGameState): number {
+  private scoreAbility(unit: Unit, ability: Ability, targets: (Unit | Coordinate)[], _queryState: QueryGameState): number {
+    void _queryState; // Suppress unused parameter warning
     let score = 0
 
     // Base score for different ability types
     switch (ability.id) {
-      case 'pink_slip':
+      case 'pink_slip': {
         // High value for execution abilities
         const target = targets[0] as Unit
         if (target && 'hp' in target && target.hp <= 2) {
           score += 0.9
         }
         break
-      case 'fetch_coffee':
+      }
+      case 'fetch_coffee': {
         // Good for supporting allies
         if (targets[0] && 'playerId' in targets[0] && targets[0].playerId === unit.playerId) {
           score += 0.8
         }
         break
-      case 'overtime':
+      }
+      case 'overtime': {
         // Good when actions are needed
         if (unit.actionsRemaining <= 1) {
           score += 0.7
         }
         break
-      case 'file_it':
+      }
+      case 'file_it': {
         // Good for debuffing enemies
         if (targets[0] && 'playerId' in targets[0] && targets[0].playerId !== unit.playerId) {
           score += 0.6
         }
         break
-      case 'harass':
+      }
+      case 'harass': {
         // Good for preventing captures
         if (targets[0] && 'playerId' in targets[0] && targets[0].playerId !== unit.playerId) {
           score += 0.7
         }
         break
+      }
       default:
         score += 0.3
     }
@@ -403,69 +412,8 @@ export class AIController {
     return capturable
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private getBestMovePosition(unit: Unit, state: GameState): Coordinate | null {
-    // Find all possible move positions
-    const possibleMoves = calculatePossibleMoves(unit, { board: state.board, units: state.units })
-    console.log('Possible moves for unit', unit.id, ':', possibleMoves)
-    
-    if (possibleMoves.length === 0) {
-      console.log('No possible moves found for unit', unit.id)
-      return null
-    }
-    
-    // Score each position based on proximity to objectives
-    let bestMove = possibleMoves[0]
-    let bestScore = -Infinity
-    
-    for (const move of possibleMoves) {
-      let score = 0
-      
-      // Score based on proximity to enemies
-      const nearestEnemy = this.findNearestEnemy(move, unit.playerId, state)
-      if (nearestEnemy) {
-        const distance = Math.abs(nearestEnemy.position.x - move.x) + 
-                        Math.abs(nearestEnemy.position.y - move.y)
-        score += (10 - distance) * 2 // Closer is better
-      }
-      
-      // Score based on proximity to uncaptured cubicles
-      const nearestCubicle = this.findNearestCubicle(move, unit.playerId, state)
-      if (nearestCubicle) {
-        const distance = Math.abs(nearestCubicle.x - move.x) + 
-                        Math.abs(nearestCubicle.y - move.y)
-        score += (10 - distance) // Closer is better
-      }
-      
-      // Add randomness based on difficulty
-      if (this.difficulty === 'easy') score += Math.random() * 5
-      if (this.difficulty === 'normal') score += Math.random() * 2
-      
-      if (score > bestScore) {
-        bestScore = score
-        bestMove = move
-      }
-    }
-    
-    console.log('Best move for unit', unit.id, ':', bestMove, 'score:', bestScore)
-    return bestMove
-  }
 
 
-  private findNearestEnemy(position: Coordinate, playerId: string, state: GameState): Unit | null {
-    return findNearestUnit(position, state.units, (unit) => unit.playerId !== playerId) || null
-  }
-
-  private findNearestCubicle(position: Coordinate, playerId: string, state: GameState): Coordinate | null {
-    const valuableCubicles = getValuableCapturePoints({
-      units: state.units,
-      board: state.board,
-      players: state.players,
-      phase: state.phase
-    }, playerId)
-    
-    return findNearestCoordinate(position, valuableCubicles) || null
-  }
 
   private findBestMoveTowardsTarget(_currentPosition: Coordinate, targetPosition: Coordinate, possibleMoves: Coordinate[]): Coordinate | null {
     if (possibleMoves.length === 0) return null

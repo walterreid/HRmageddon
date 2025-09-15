@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { ABILITIES, getAbilityById, getUnitAbilities, canUseAbility, getValidTargets } from './abilities'
 import { createMockUnit, createMockGameState } from '../test/helpers.ts'
-import { UnitType, StatusType } from 'shared'
-import { testNotImplemented, expectImplementation, getImplementationStatus, TestStatus } from '../test/testHelpers'
+import { UnitType, type GameState } from 'shared'
+import { expectImplementation, getImplementationStatus, TestStatus } from '../test/testHelpers'
 
 describe('Ability System', () => {
-  let mockGameState: any
+  let mockGameState: GameState
 
   beforeEach(() => {
     mockGameState = createMockGameState()
@@ -34,7 +34,7 @@ describe('Ability System', () => {
 
     it('should have paperclip_storm as directional ability', () => {
       const ability = ABILITIES.paperclip_storm
-      expect(ability).toBeDefined()
+          expect(ability).toBeDefined()
       expect(ability.requiresDirection).toBe(true)
       expect(ability.coneAngle).toBe(90)
       expect(ability.targetingType).toBe('aoe_cone')
@@ -46,9 +46,9 @@ describe('Ability System', () => {
       // This test expects the canUseAbility function to work properly
       // If it's not implemented, we'll get a clear error
       try {
-        const unit = createMockUnit({ actionsRemaining: 0 })
-        const ability = ABILITIES.fetch_coffee
-        
+      const unit = createMockUnit({ actionsRemaining: 0 })
+      const ability = ABILITIES.fetch_coffee
+      
         const result = canUseAbility(unit, ability.id)
         
         // If we get here, the function exists but might not work correctly
@@ -58,9 +58,9 @@ describe('Ability System', () => {
         }
         
         expect(result).toBe(false)
-        
-        unit.actionsRemaining = 1
-        expect(canUseAbility(unit, ability.id)).toBe(true)
+      
+      unit.actionsRemaining = 1
+      expect(canUseAbility(unit, ability.id)).toBe(true)
       } catch (error) {
         expectImplementation('Ability action validation', `canUseAbility function not implemented: ${error}`)
       }
@@ -68,9 +68,9 @@ describe('Ability System', () => {
 
     it('should check if unit has the required ability', () => {
       try {
-        const unit = createMockUnit({ abilities: [] })
-        const ability = ABILITIES.fetch_coffee
-        
+      const unit = createMockUnit({ abilities: [] })
+      const ability = ABILITIES.fetch_coffee
+      
         const result = canUseAbility(unit, ability.id)
         
         if (result === undefined) {
@@ -79,9 +79,9 @@ describe('Ability System', () => {
         }
         
         expect(result).toBe(false)
-        
-        unit.abilities = [ability.id]
-        expect(canUseAbility(unit, ability.id)).toBe(true)
+      
+      unit.abilities = [ability.id]
+      expect(canUseAbility(unit, ability.id)).toBe(true)
       } catch (error) {
         expectImplementation('Ability ownership validation', `canUseAbility function not implemented: ${error}`)
       }
@@ -127,17 +127,17 @@ describe('Ability System', () => {
           playerId: 'player2',
           position: { x: 7, y: 5 }
         })
-        
-        const ability = ABILITIES.fetch_coffee
+      
+      const ability = ABILITIES.fetch_coffee
         const targets = getValidTargets(caster, ability, mockGameState.board, [caster, ally, enemy])
         
         if (targets === undefined) {
           expectImplementation('Ability targeting', 'getValidTargets should return array, got undefined')
           return
         }
-        
-        expect(targets).toContain(ally)
-        expect(targets).not.toContain(enemy)
+      
+      expect(targets).toContain(ally)
+      expect(targets).not.toContain(enemy)
       } catch (error) {
         expectImplementation('Ability targeting', `getValidTargets function not implemented: ${error}`)
       }
@@ -165,17 +165,17 @@ describe('Ability System', () => {
           playerId: 'player2',
           position: { x: 7, y: 5 }
         })
-        
-        const ability = ABILITIES.file_it
+      
+      const ability = ABILITIES.file_it
         const targets = getValidTargets(caster, ability, mockGameState.board, [caster, ally, enemy])
         
         if (targets === undefined) {
           expectImplementation('Enemy targeting', 'getValidTargets should return array, got undefined')
           return
         }
-        
-        expect(targets).toContain(enemy)
-        expect(targets).not.toContain(ally)
+      
+      expect(targets).toContain(enemy)
+      expect(targets).not.toContain(ally)
       } catch (error) {
         expectImplementation('Enemy targeting', `getValidTargets function not implemented: ${error}`)
       }
@@ -193,14 +193,14 @@ describe('Ability System', () => {
           playerId: 'player1',
           position: { x: 5, y: 5 }
         })
-        const nearbyEnemy = createMockUnit({ 
+      const nearbyEnemy = createMockUnit({ 
           id: 'nearby', 
-          playerId: 'player2',
+        playerId: 'player2', 
           position: { x: 6, y: 5 } // 1 tile away
-        })
-        const farEnemy = createMockUnit({ 
+      })
+      const farEnemy = createMockUnit({ 
           id: 'far', 
-          playerId: 'player2',
+        playerId: 'player2', 
           position: { x: 9, y: 5 } // 4 tiles away
         })
         
@@ -211,8 +211,8 @@ describe('Ability System', () => {
           expectImplementation('Range validation', 'getValidTargets should return array, got undefined')
           return
         }
-        
-        expect(targets).toContain(nearbyEnemy)
+      
+      expect(targets).toContain(nearbyEnemy)
         expect(targets).not.toContain(farEnemy)
       } catch (error) {
         expectImplementation('Range validation', `getValidTargets function not implemented: ${error}`)
@@ -239,8 +239,8 @@ describe('Ability System', () => {
   describe('Helper Functions', () => {
     it('should return ability by ID', () => {
       try {
-        const ability = getAbilityById('fetch_coffee')
-        expect(ability).toBeDefined()
+      const ability = getAbilityById('fetch_coffee')
+      expect(ability).toBeDefined()
         expect(ability?.id).toBe('fetch_coffee')
       } catch (error) {
         expectImplementation('Ability lookup', `getAbilityById function not implemented: ${error}`)
@@ -265,9 +265,9 @@ describe('Ability System', () => {
       }
 
       try {
-        const unit = createMockUnit({ abilities: [] })
-        
-        expect(canUseAbility(unit, 'fetch_coffee')).toBe(false)
+      const unit = createMockUnit({ abilities: [] })
+      
+      expect(canUseAbility(unit, 'fetch_coffee')).toBe(false)
         expect(getValidTargets(unit, ABILITIES.fetch_coffee, mockGameState.board, [unit])).toEqual([])
       } catch (error) {
         expectImplementation('Empty abilities handling', `System should handle empty abilities: ${error}`)
@@ -284,7 +284,7 @@ describe('Ability System', () => {
         const unit = createMockUnit({ 
           position: { x: 0, y: 0 } // Edge of board
         })
-        const edgeTarget = createMockUnit({ 
+      const edgeTarget = createMockUnit({ 
           position: { x: 0, y: 1 } // Adjacent to edge
         })
         
@@ -296,7 +296,7 @@ describe('Ability System', () => {
           return
         }
         
-        expect(targets).toContain(edgeTarget)
+      expect(targets).toContain(edgeTarget)
       } catch (error) {
         expectImplementation('Board boundary handling', `Board boundary handling not implemented: ${error}`)
       }

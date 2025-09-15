@@ -7,20 +7,13 @@ import {
   getWeakestEnemyInRange,
   getStrongestEnemyInRange,
   canAttackAnyEnemy,
-  getUnitsThatCanAttack,
-  calculateTotalDamageToTarget,
   canKillTargetThisTurn
 } from './combat'
-import { createMockUnit, createMockGameState } from '../test/helpers'
-import { UnitType } from 'shared'
+import { createMockUnit } from '../test/helpers'
 
 describe('Combat System', () => {
-  let mockGameState: any
-  let mockUnits: any[]
-
   beforeEach(() => {
-    mockGameState = createMockGameState()
-    mockUnits = mockGameState.units
+    // Test setup if needed
   })
 
   describe('calculateDamage', () => {
@@ -106,7 +99,7 @@ describe('Combat System', () => {
         playerId: 'player1' 
       })
 
-      const result = calculatePossibleTargets(attacker, [attacker, friendlyTarget])
+      const result = calculatePossibleTargets(attacker, { units: [attacker, friendlyTarget] })
 
       expect(result).not.toContainEqual({ x: 6, y: 5 })
     })
@@ -125,7 +118,7 @@ describe('Combat System', () => {
         playerId: 'player2' 
       })
 
-      const result = calculatePossibleTargets(attacker, [attacker, enemyTarget])
+      const result = calculatePossibleTargets(attacker, { units: [attacker, enemyTarget] })
 
       expect(result).toContainEqual({ x: 6, y: 5 })
     })

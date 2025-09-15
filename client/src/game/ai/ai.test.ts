@@ -77,7 +77,7 @@ describe('AI Controller', () => {
         units: [
           createMockUnit({ 
             id: 'ai-unit', 
-            playerId: 'player2', 
+        playerId: 'player2',
             actionsRemaining: 0,
             hasMoved: true,
             hasAttacked: true
@@ -262,8 +262,8 @@ describe('AI Controller', () => {
           createMockUnit({ 
             id: 'enemy-in-range', 
             playerId: 'player1', 
-            position: { x: 1, y: 0 }
-          })
+        position: { x: 1, y: 0 }
+      })
         ],
         currentPlayerId: 'player2',
         phase: GamePhase.PLAYING

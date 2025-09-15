@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { getTilesInCone, isValidTarget } from './targeting'
 import { createMockUnit } from '../test/helpers'
-import { UnitType, AbilityTargetingType } from 'shared'
+import { AbilityTargetingType, TargetType } from 'shared'
 
 describe('Targeting System', () => {
   describe('getTilesInCone', () => {
@@ -90,9 +90,14 @@ describe('Targeting System', () => {
       const target = createMockUnit({ id: 'target', position: { x: 6, y: 5 }, playerId: 'player2' })
       const ability = {
         id: 'test_ability',
+        name: 'Test Ability',
+        description: 'Test ability for testing',
+        cost: 1,
+        cooldown: 0,
         range: 2,
-        targetType: 'ENEMY',
-        targetingType: AbilityTargetingType.SINGLE_TARGET
+        targetType: TargetType.ENEMY,
+        targetingType: AbilityTargetingType.SINGLE_TARGET,
+        effect: () => ({ success: true })
       }
       const board = Array(10).fill(null).map(() => Array(10).fill({ type: 'NORMAL' }))
       const units = [source, target]
@@ -107,9 +112,14 @@ describe('Targeting System', () => {
       const target = createMockUnit({ id: 'target', position: { x: 8, y: 5 }, playerId: 'player2' })
       const ability = {
         id: 'test_ability',
+        name: 'Test Ability',
+        description: 'Test ability for testing',
+        cost: 1,
+        cooldown: 0,
         range: 2,
-        targetType: 'ENEMY',
-        targetingType: AbilityTargetingType.SINGLE_TARGET
+        targetType: TargetType.ENEMY,
+        targetingType: AbilityTargetingType.SINGLE_TARGET,
+        effect: () => ({ success: true })
       }
       const board = Array(10).fill(null).map(() => Array(10).fill({ type: 'NORMAL' }))
       const units = [source, target]
@@ -124,9 +134,14 @@ describe('Targeting System', () => {
       const target = createMockUnit({ id: 'target', position: { x: 6, y: 5 }, playerId: 'player1' })
       const ability = {
         id: 'test_ability',
+        name: 'Test Ability',
+        description: 'Test ability for testing',
+        cost: 1,
+        cooldown: 0,
         range: 2,
-        targetType: 'ENEMY',
-        targetingType: AbilityTargetingType.SINGLE_TARGET
+        targetType: TargetType.ENEMY,
+        targetingType: AbilityTargetingType.SINGLE_TARGET,
+        effect: () => ({ success: true })
       }
       const board = Array(10).fill(null).map(() => Array(10).fill({ type: 'NORMAL' }))
       const units = [source, target]

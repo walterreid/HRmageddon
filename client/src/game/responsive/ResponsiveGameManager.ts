@@ -196,6 +196,7 @@ export class ResponsiveGameManager {
         canvas.style.height = `${newHeight}px`;
       }
     } catch (error) {
+      void error; // Suppress unused variable warning
       console.warn('ResponsiveGameManager: Could not update canvas directly, skipping resize');
     }
     

@@ -8,8 +8,8 @@ describe('Player Store', () => {
     // Reset store state before each test
     usePlayerStore.setState({
       players: [
-        { id: 'player1', controlledCubicles: 0 },
-        { id: 'player2', controlledCubicles: 0 }
+        { id: 'player1', name: 'Player 1', controlledCubicles: 0, isEliminated: false, score: 0 },
+        { id: 'player2', name: 'Player 2', controlledCubicles: 0, isEliminated: false, score: 0 }
       ],
       currentPlayerId: 'player1',
       gamePhase: GamePhase.PLAYING,
@@ -19,8 +19,7 @@ describe('Player Store', () => {
     // Also reset gameStore state
     useGameStore.setState({
       currentPlayerId: 'player1',
-      turnNumber: 1,
-      gamePhase: GamePhase.PLAYING
+      turnNumber: 1
     })
   })
 
@@ -65,7 +64,7 @@ describe('Player Store', () => {
 
   describe('Player Management', () => {
     it('should add a new player', () => {
-      const newPlayer = { id: 'player3', controlledCubicles: 0 }
+      const newPlayer = { id: 'player3', name: 'Player 3', controlledCubicles: 0, isEliminated: false, score: 0 }
 
       usePlayerStore.getState().addPlayer(newPlayer)
 
@@ -120,8 +119,8 @@ describe('Player Store', () => {
 
   describe('Victory Conditions', () => {
     it('should check victory conditions', () => {
-      const units = [] // Empty units array
-      const board = [] // Empty board
+      const units: any[] = [] // Empty units array
+      const board: any[] = [] // Empty board
 
       const result = usePlayerStore.getState().checkVictory(board, units)
 
@@ -131,8 +130,8 @@ describe('Player Store', () => {
     it('should detect elimination victory', () => {
       // This would be tested with actual unit elimination scenarios
       // The victory logic is delegated to the core victory module
-      const units = [] // No units = elimination
-      const board = []
+      const units: any[] = [] // No units = elimination
+      const board: any[] = []
 
       const result = usePlayerStore.getState().checkVictory(board, units)
 

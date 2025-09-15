@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useGameStore } from '../stores/gameStore'
+import { useUIStore } from '../stores/uiStore'
+import { actionHandlers } from '../stores/actionHandlers'
 import { ActionMenu } from './ActionMenu'
 import { BottomSheet } from './BottomSheet'
-import { ABILITIES } from '../game/core/abilities'
+// ABILITIES import removed - now handled by actionHandlers
 
 // Type definitions for window extensions
 interface GameScene {
@@ -31,19 +33,18 @@ export function GameHUD() {
   const possibleMoves = useGameStore(state => state.possibleMoves)
   const possibleTargets = useGameStore(state => state.possibleTargets)
   
+  // UI state from UI store
+  const actionMode = useUIStore(state => state.actionMode)
+  const selectedAbility = useUIStore(state => state.selectedAbility)
+  
   // Actions don't need selectors as they don't cause re-renders
   const endTurn = useGameStore(state => state.endTurn)
-  const moveUnit = useGameStore(state => state.moveUnit)
-  const attackTarget = useGameStore(state => state.attackTarget)
   const getAbilityTargets = useGameStore(state => state.getAbilityTargets)
-  const selectAbility = useGameStore(state => state.selectAbility)
   const canUnitMove = useGameStore(state => state.canUnitMove)
   const canUnitAttack = useGameStore(state => state.canUnitAttack)
   const getEnemiesInRange = useGameStore(state => state.getEnemiesInRange)
 
   const [actionMenuPosition, setActionMenuPosition] = useState({ x: 0, y: 0 })
-  const [actionMode, setActionMode] = useState<'none' | 'move' | 'attack' | 'ability'>('none')
-  const [selectedAbility, setSelectedAbility] = useState<string | null>(null)
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
   
   // Mobile bottom sheet state
@@ -136,8 +137,7 @@ export function GameHUD() {
   useEffect(() => {
     if (!selectedUnit || selectedUnit.actionsRemaining <= 0) {
       console.log('Resetting action mode: no unit selected or no actions remaining')
-      setActionMode('none')
-      setSelectedAbility(null)
+      actionHandlers.cancelAction()
       
       // Clear action mode in GameScene if available
       const gameScene = (window as ExtendedWindow).gameScene
@@ -151,8 +151,7 @@ export function GameHUD() {
   useEffect(() => {
     const handleActionCompleted = () => {
       console.log('Action completed, resetting action mode')
-      setActionMode('none')
-      setSelectedAbility(null)
+      actionHandlers.cancelAction()
       
       // Clear action mode in GameScene if available
       const gameScene = (window as ExtendedWindow).gameScene
@@ -176,55 +175,13 @@ export function GameHUD() {
       return;
     }
 
-    if (action === 'move' || action === 'attack') {
-      // Clear any ability selection first
-      selectAbility('')
-      
-      // CRITICAL: Force recalculation of movement/attack highlights
-      // This ensures the highlights appear immediately when the button is clicked
-      const store = useGameStore.getState()
-      if (store.calculatePossibleMoves && store.calculatePossibleTargets) {
-        const moves = store.calculatePossibleMoves(selectedUnit)
-        const targets = store.calculatePossibleTargets(selectedUnit)
-        const highlights = new Map<string, string>()
-        
-        if (action === 'move') {
-          moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
-        } else if (action === 'attack') {
-          targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
-        }
-        
-        // Update the store with the new highlights
-        useGameStore.setState({ 
-          highlightedTiles: highlights,
-          possibleMoves: action === 'move' ? moves : [],
-          possibleTargets: action === 'attack' ? targets : []
-        })
-        
-        console.log(`${action} action mode set with ${highlights.size} highlights`)
-      }
-      
-      // Then set action mode
-      setActionMode(action)
-      setSelectedAbility(null)
+    if (action === 'move') {
+      actionHandlers.enterMoveMode(selectedUnit)
+    } else if (action === 'attack') {
+      actionHandlers.enterAttackMode(selectedUnit)
     } else {
       // This is an ability
-      const ability = ABILITIES[action]
-      if (ability && ability.requiresDirection) {
-        // Set the state to wait for a direction click
-        useGameStore.setState({ abilityAwaitingDirection: action })
-        console.log(`Directional ability selected: ${action}, waiting for direction input`)
-      } else {
-        // Handle normal single-target abilities
-        console.log(`Normal ability selected: ${action}`)
-      }
-      
-      setActionMode('ability')
-      setSelectedAbility(action)
-      
-      // CRITICAL: Set ability in store
-      selectAbility(action)
-      console.log(`Ability mode set with ability:`, action)
+      actionHandlers.enterAbilityMode(selectedUnit, action)
     }
 
     // Set GameScene action mode
@@ -252,9 +209,7 @@ export function GameHUD() {
         const isValidMove = possibleMoves.some(move => move.x === coord.x && move.y === coord.y)
         if (isValidMove) {
           console.log('Executing move to:', coord)
-          moveUnit(selectedUnit.id, coord)
-          setActionMode('none')
-          setSelectedAbility(null)
+          actionHandlers.executeMove(selectedUnit, coord)
           
           // Clear action mode in game scene
           const gameScene = (window as ExtendedWindow).gameScene
@@ -282,9 +237,7 @@ export function GameHUD() {
         
         if (isValidTarget && targetUnit) {
           console.log('Executing attack on:', targetUnit.id)
-          attackTarget(selectedUnit.id, targetUnit.id)
-          setActionMode('none')
-          setSelectedAbility(null)
+          actionHandlers.executeAttack(selectedUnit, targetUnit)
           
           // Clear action mode in game scene
           const gameScene = (window as ExtendedWindow).gameScene
@@ -315,12 +268,7 @@ export function GameHUD() {
 
           if (clickedTarget) {
             console.log('Executing ability:', selectedAbility, 'on target:', clickedTarget)
-            const store = useGameStore.getState()
-            if (store.useAbility) {
-              store.useAbility(selectedUnit.id, selectedAbility, clickedTarget)
-            }
-            setActionMode('none')
-            setSelectedAbility(null)
+            actionHandlers.executeAbility(selectedUnit, selectedAbility, clickedTarget)
             
             // Clear action mode in game scene
             const gameScene = (window as ExtendedWindow).gameScene
@@ -338,7 +286,7 @@ export function GameHUD() {
         break
       }
     }
-  }, [selectedUnit, canControl, actionMode, possibleMoves, possibleTargets, moveUnit, attackTarget, selectedAbility, getAbilityTargets])
+  }, [selectedUnit, canControl, actionMode, possibleMoves, possibleTargets, selectedAbility, getAbilityTargets])
 
   // Listen for tile clicks from the game scene
   useEffect(() => {
@@ -349,16 +297,14 @@ export function GameHUD() {
 
     const handleAbilityUsed = (event: CustomEvent) => {
       console.log('Ability used:', event.detail?.abilityId)
-      setActionMode('none')
-      setSelectedAbility(null)
+      actionHandlers.cancelAction()
       setActionFeedback({ type: 'success', message: 'Ability used successfully!' })
       setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
     }
 
     const handleAbilityCancelled = () => {
       console.log('Ability cancelled')
-      setActionMode('none')
-      setSelectedAbility(null)
+      actionHandlers.cancelAction()
       setActionFeedback({ type: 'error', message: 'Ability cancelled - invalid target' })
       setTimeout(() => setActionFeedback(null), HUD_CONFIG.FEEDBACK.DURATION)
     }
@@ -397,23 +343,23 @@ export function GameHUD() {
     const checkGameScene = () => {
       const gameScene = (window as ExtendedWindow).gameScene
       if (gameScene && gameScene.getActionMode) {
-              const sceneActionMode = gameScene.getActionMode()
-      // Validate the action mode from the scene
-      if (sceneActionMode === 'move' || sceneActionMode === 'attack' || sceneActionMode === 'ability' || sceneActionMode === 'none') {
-        if (sceneActionMode !== actionMode) {
-          setActionMode(sceneActionMode)
-          if (sceneActionMode === 'none') {
-            setSelectedAbility(null)
+        const sceneActionMode = gameScene.getActionMode()
+        // Validate the action mode from the scene
+        if (sceneActionMode === 'move' || sceneActionMode === 'attack' || sceneActionMode === 'ability' || sceneActionMode === 'none') {
+          if (sceneActionMode !== actionMode) {
+            const uiStore = useUIStore.getState()
+            uiStore.setActionMode(sceneActionMode)
+            if (sceneActionMode === 'none') {
+              uiStore.setSelectedAbility(undefined)
+            }
+          }
+        } else {
+          console.warn('Invalid action mode from GameScene:', sceneActionMode, '- resetting to none')
+          actionHandlers.cancelAction()
+          if (gameScene?.clearActionMode) {
+            gameScene.clearActionMode()
           }
         }
-      } else {
-        console.warn('Invalid action mode from GameScene:', sceneActionMode, '- resetting to none')
-        setActionMode('none')
-        setSelectedAbility(null)
-        if (gameScene?.clearActionMode) {
-          gameScene.clearActionMode()
-        }
-      }
       }
     }
 
@@ -856,8 +802,7 @@ export function GameHUD() {
                         </div>
                         <button
                           onClick={() => {
-                            setActionMode('none')
-                            setSelectedAbility(null)
+                            actionHandlers.cancelAction()
                             const gameScene = (window as ExtendedWindow).gameScene
                             if (gameScene && gameScene.clearActionMode) {
                               gameScene.clearActionMode()

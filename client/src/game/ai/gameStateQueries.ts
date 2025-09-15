@@ -48,8 +48,8 @@ export interface GameStateQueries {
   
   // Strategic queries
   getValuableCapturePoints: (state: GameState, playerId: string) => Coordinate[]
-  getCapturePointStats: (state: GameState) => any
-  isCloseToVictory: (state: GameState) => { player1Close: boolean; player2Close: boolean; stats: any }
+  getCapturePointStats: (state: GameState) => { totalCapturePoints: number; player1Percentage: number; player2Percentage: number; unclaimed: number; victoryThreshold: number }
+  isCloseToVictory: (state: GameState) => { player1Close: boolean; player2Close: boolean; stats: { totalCapturePoints: number; player1Percentage: number; player2Percentage: number; unclaimed: number; victoryThreshold: number } }
   getThreatLevel: (state: GameState, unit: Unit) => number
   getStrategicValue: (state: GameState, position: Coordinate) => number
   
@@ -126,6 +126,7 @@ export const GameQueries: GameStateQueries = {
     // Calculate how threatened a unit is based on nearby enemies
     const enemiesInRange = getEnemiesInRange(unit, { units: state.units })
     const totalDamage = enemiesInRange.reduce((total, _enemy) => {
+      void _enemy; // Suppress unused parameter warning
       return total + calculateTotalDamageToTarget(unit, { units: state.units })
     }, 0)
     

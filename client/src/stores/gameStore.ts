@@ -8,6 +8,7 @@ import {
   type Tile,
   TileType,
   UnitType,
+  Team,
   UNIT_STATS,
   UNIT_COSTS,
   type DraftState,
@@ -134,8 +135,8 @@ function createFallbackBoard(): Tile[][] {
 
 function createPlayers(): Player[] {
   return [
-    { id: 'player1', name: 'Blue Team', team: 'blue' as any, budget: 10, income: 0, controlledCubicles: 0 },
-    { id: 'player2', name: 'Red Team', team: 'red' as any, budget: 10, income: 0, controlledCubicles: 0 },
+    { id: 'player1', name: 'Blue Team', team: Team.BLUE, budget: 10, income: 0, controlledCubicles: 0 },
+    { id: 'player2', name: 'Red Team', team: Team.RED, budget: 10, income: 0, controlledCubicles: 0 },
   ]
 }
 
@@ -157,11 +158,8 @@ type GameStore = SharedGameState & {
   highlightedTiles: Map<string, string>
   draftState: DraftState
   
-  // Ability targeting state
-  selectedAbility?: string
-  targetingMode: boolean
+  // Ability targeting state (moved to uiStore)
   validTargets: (Unit | Coordinate)[]
-  abilityAwaitingDirection: string | null // ID of the ability awaiting direction input
   
   // Track units that landed on cubicles for end-of-turn capture
   pendingCubicleCaptures: Map<string, { unitId: string; coord: Coordinate; playerId: string }>
@@ -195,8 +193,7 @@ type GameStore = SharedGameState & {
   isValidAttack: (attacker: Unit, target: Unit) => boolean
   checkVictoryConditions: () => void
   
-  // Ability system methods
-  selectAbility: (abilityId: string) => void
+  // Ability system methods (moved to uiStore)
   useAbility: (unitId: string, abilityId: string, target?: Unit | Coordinate) => void
   getAbilityTargets: (unitId: string, abilityId: string) => (Unit | Coordinate)[]
   canUseAbility: (unitId: string, abilityId: string) => boolean
@@ -231,11 +228,8 @@ export const useGameStore = create<GameStore>((set, get) => {
   possibleTargets: [],
   highlightedTiles: new Map<string, string>(),
   
-  // Ability targeting state
-  selectedAbility: undefined,
-  targetingMode: false,
+  // Ability targeting state (moved to uiStore)
   validTargets: [],
-  abilityAwaitingDirection: null,
   
   // Track units that landed on cubicles for end-of-turn capture
   pendingCubicleCaptures: new Map(),
@@ -311,10 +305,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         
         if (teamId === 'player1') {
           // Gold team uses goldTeamPositions (tile 595)
-          return startingPositions.goldTeam?.map((pos: any) => ({ x: pos.x, y: pos.y })) || []
+          return startingPositions.goldTeam?.map((pos: { x: number; y: number }) => ({ x: pos.x, y: pos.y })) || []
         } else {
           // Navy team uses navyTeamPositions (tile 563)
-          return startingPositions.navyTeam?.map((pos: any) => ({ x: pos.x, y: pos.y })) || []
+          return startingPositions.navyTeam?.map((pos: { x: number; y: number }) => ({ x: pos.x, y: pos.y })) || []
         }
       } catch (error) {
         console.warn('Error getting map starting positions from MapRegistry, using fallback:', error)
@@ -501,10 +495,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         
         if (teamId === 'player1') {
           // Gold team uses goldTeamPositions (tile 595)
-          return startingPositions.goldTeam?.map((pos: any) => ({ x: pos.x, y: pos.y })) || []
+          return startingPositions.goldTeam?.map((pos: { x: number; y: number }) => ({ x: pos.x, y: pos.y })) || []
         } else {
           // Navy team uses navyTeamPositions (tile 563)
-          return startingPositions.navyTeam?.map((pos: any) => ({ x: pos.x, y: pos.y })) || []
+          return startingPositions.navyTeam?.map((pos: { x: number; y: number }) => ({ x: pos.x, y: pos.y })) || []
         }
       } catch (error) {
         console.warn('Error getting map starting positions from MapRegistry, using fallback:', error)
@@ -678,11 +672,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (!unit) {
       set({
         selectedUnit: undefined,
-        selectedAbility: undefined, // Clear ability when deselecting
         possibleMoves: [],
         possibleTargets: [],
-        highlightedTiles: new Map(),
-        targetingMode: false
+        highlightedTiles: new Map()
       })
       return
     }
@@ -690,13 +682,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     const state = get()
     
     // BEFORE selecting new unit, check if we're in ability mode
-    if (state.selectedAbility && unit) {
-      // Preserve ability mode if re-selecting same unit
-      if (state.selectedUnit?.id === unit.id) {
-        console.log('Re-selecting same unit in ability mode, preserving state')
-        return // Don't reset state
-      }
-    }
+    // This logic will be handled by the UI store
     
     // Check if we're trying to select a different unit while one is already selected
     if (state.selectedUnit && state.selectedUnit.id !== unit.id) {
@@ -731,12 +717,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     }
     
-    // Clear ability state when selecting different unit
-    if (state.selectedAbility) {
-      set({ selectedAbility: undefined, targetingMode: false })
-    }
-    
-    // Don't automatically show movement highlights - wait for user to choose an action
+    // Simply select the unit - no automatic highlighting
     const canControl = unit.playerId === state.currentPlayerId && 
                       state.currentPlayerId === 'player1' && 
                       unit.actionsRemaining > 0
@@ -748,7 +729,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       
       console.log('selectUnit called:', {
         unitId: unit.id,
-        currentAbility: state.selectedAbility,
         moveCount: moves.length,
         targetCount: targets.length,
         note: 'Highlights will appear when user chooses an action'
@@ -1290,52 +1270,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
   },
 
-  // Ability system methods
-  selectAbility: (abilityId: string) => {
-    const state = get()
-    if (!state.selectedUnit) return
-    
-    console.log('selectAbility called:', {
-      abilityId,
-      unitId: state.selectedUnit.id,
-      currentAbility: state.selectedAbility
-    })
-    
-    // CRITICAL: Clear ALL movement state first
-    set({ 
-      possibleMoves: [],
-      possibleTargets: [],
-      highlightedTiles: new Map(),
-      selectedAbility: abilityId,
-      targetingMode: !!abilityId
-    })
-    
-    // Then calculate and set ONLY ability highlights
-    if (abilityId) {
-      const ability = ABILITIES[abilityId]
-      if (ability) {
-        const validTargets = getValidTargets(state.selectedUnit, ability, state.board, state.units)
-        const abilityHighlights = new Map<string, string>()
-        
-        validTargets.forEach(target => {
-          if ('x' in target) {
-            abilityHighlights.set(`${target.x},${target.y}`, 'ability')
-          } else {
-            abilityHighlights.set(`${target.position.x},${target.position.y}`, 'ability')
-          }
-        })
-        
-        console.log('selectAbility called:', {
-          abilityId,
-          validTargets: validTargets.length,
-          highlightCount: abilityHighlights.size
-        })
-        
-        // Update ONLY with ability highlights
-        set({ highlightedTiles: abilityHighlights })
-      }
-    }
-  },
+  // Ability system methods (selectAbility moved to uiStore)
 
   useAbility: (unitId: string, abilityId: string, target?: Unit | Coordinate) => {
     const state = get()
@@ -1443,9 +1378,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         selectedUnit: updatedUnit,
         possibleMoves: moves,
         possibleTargets: targets,
-        highlightedTiles: highlights,
-        selectedAbility: undefined,
-        targetingMode: false
+        highlightedTiles: highlights
       })
     }
   },
@@ -1610,8 +1543,7 @@ export function createGameStore() {
     get phase() { return useGameStore.getState().phase },
     get selectedUnit() { return useGameStore.getState().selectedUnit },
     get winner() { return useGameStore.getState().winner },
-    get selectedAbility() { return useGameStore.getState().selectedAbility },
-    get targetingMode() { return useGameStore.getState().targetingMode },
+    // selectedAbility and targetingMode moved to uiStore
     get draftState() { return useGameStore.getState().draftState },
 
     
@@ -1640,7 +1572,7 @@ export function createGameStore() {
     calculatePossibleTargets: useGameStore.getState().calculatePossibleTargets,
     isValidAttack: useGameStore.getState().isValidAttack,
     attackTarget: useGameStore.getState().attackTarget,
-    selectAbility: useGameStore.getState().selectAbility,
+    // selectAbility moved to uiStore
     getAbilityTargets: useGameStore.getState().getAbilityTargets,
     canUseAbility: useGameStore.getState().canUseAbility,
     useAbility: useGameStore.getState().useAbility,
@@ -1653,7 +1585,7 @@ export function createGameStore() {
     removeUnitFromDraft: useGameStore.getState().removeUnitFromDraft,
     confirmDraft: useGameStore.getState().confirmDraft,
     returnToMenu: useGameStore.getState().returnToMenu
-  } as any // Use 'as any' to bypass strict typing for test helper
+  } as Partial<GameStore> // Use Partial to bypass strict typing for test helper
 }
 
 

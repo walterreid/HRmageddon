@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { ABILITIES, getAbilityById, getUnitAbilities, canUseAbility, getValidTargets } from './abilities'
 import { createMockUnit, createMockGameState } from '../test/helpers.ts'
-import { UnitType, StatusType } from 'shared'
+import { UnitType, StatusType, type GameState } from 'shared'
 
 describe('Ability System', () => {
-  let mockGameState: any
+  let mockGameState: GameState
 
   beforeEach(() => {
     mockGameState = createMockGameState()
