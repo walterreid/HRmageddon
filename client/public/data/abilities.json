@@ -22,6 +22,21 @@
         ]
       },
       {
+        "key": "urgent_memo",
+        "name": "Urgent Memo",
+        "description": "Boosts an ally's speed, granting them extra movement.",
+        "cooldown_turns": 2,
+        "range_pattern_key": "centered_cross_burst",
+        "effects": [
+          {
+            "type": "apply_status_effect",
+            "target": "ally",
+            "status_key": "increase_speed",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
         "key": "firewall",
         "name": "Firewall",
         "description": "Creates a wall of fire that burns any who pass through it.",

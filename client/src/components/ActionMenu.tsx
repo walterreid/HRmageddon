@@ -36,7 +36,7 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
   const canUnitMove = useGameStore(state => state.canUnitMove)
   const canUnitAttack = useGameStore(state => state.canUnitAttack)
   const getEnemiesInRange = useGameStore(state => state.getEnemiesInRange)
-  const abilities = getUnitAbilities(unit.type)
+  const abilities = getUnitAbilities(unit)
 
   // Smart positioning logic - position tooltip to avoid screen edges
   const getTooltipPosition = () => {

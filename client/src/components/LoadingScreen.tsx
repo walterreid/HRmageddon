@@ -1,64 +1,52 @@
 import { useState, useEffect } from 'react';
 import { initializeMapRegistry } from '../game/map/registry';
 import { mapRegistry } from '../game/map/MapRegistry';
+import { dataManager } from '../game/data/DataManager';
 
 interface LoadingScreenProps {
   onLoadingComplete: () => void;
   minDisplayTime?: number; // Minimum time to show loading screen (ms)
 }
 
-export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: LoadingScreenProps) {
-  const [progress, setProgress] = useState(0);
+export function LoadingScreen({ onLoadingComplete }: LoadingScreenProps) {
   const [isComplete, setIsComplete] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
 
   useEffect(() => {
-    // Initialize the MapRegistry with all available maps
-    initializeMapRegistry();
-    
-    // CRITICAL: Pre-populate starting positions from tilemap JSON
-    // This eliminates the race condition between LoadingScreen and GameScene
-    preloadStartingPositions();
-    
-    console.log('LoadingScreen: MapRegistry initialized with starting positions');
-
-    // Simulate loading progress
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + Math.random() * 15 + 5; // Random progress increments
-      });
-    }, 100);
-
-    // Ensure minimum display time
-    const timer = setTimeout(() => {
-      if (progress >= 100) {
+    const loadAllData = async () => {
+      try {
+        // Initialize the MapRegistry with all available maps
+        initializeMapRegistry();
+        
+        // CRITICAL: Pre-populate starting positions from tilemap JSON
+        // This eliminates the race condition between LoadingScreen and GameScene
+        await preloadStartingPositions();
+        
+        // Load all game data from JSON files
+        await dataManager.loadAll();
+        
+        console.log('LoadingScreen: All data loaded successfully');
+        
+        // Mark as complete
         setIsComplete(true);
         setIsFadingOut(true);
         setTimeout(() => {
           onLoadingComplete();
         }, 500); // Small delay for fade out animation
+      } catch (error) {
+        console.error('LoadingScreen: Failed to load data:', error);
+        // Still complete loading even if data fails to load
+        setIsComplete(true);
+        setIsFadingOut(true);
+        setTimeout(() => {
+          onLoadingComplete();
+        }, 500);
       }
-    }, minDisplayTime);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timer);
     };
-  }, [progress, minDisplayTime, onLoadingComplete]);
 
-  useEffect(() => {
-    if (progress >= 100 && !isComplete) {
-      setIsComplete(true);
-      setIsFadingOut(true);
-      setTimeout(() => {
-        onLoadingComplete();
-      }, 500);
-    }
-  }, [progress, isComplete, onLoadingComplete]);
+    loadAllData();
+  }, [onLoadingComplete]);
+
 
   // Function to pre-parse starting positions from tilemap JSON
   const preloadStartingPositions = async () => {
@@ -221,20 +209,20 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
           <div className="w-64 sm:w-80 bg-slate-700 rounded-full h-2 sm:h-3 mb-6 sm:mb-8 overflow-hidden shadow-lg animate-fade-in mx-4">
             <div 
               className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-300 ease-out shadow-lg shimmer-effect"
-              style={{ width: `${progress}%` }}
+              style={{ width: isComplete ? '100%' : '0%' }}
             />
           </div>
 
           {/* Progress Percentage */}
           <div className="text-base sm:text-lg text-slate-300 font-mono animate-fade-in">
-            {Math.round(progress)}%
+            {isComplete ? '100%' : 'Loading...'}
           </div>
 
           {/* Loading Dots */}
           <div className="flex space-x-2 mt-4 sm:mt-6 animate-fade-in">
-            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${progress > 25 ? 'bg-blue-400 animate-pulse-slow' : 'bg-slate-600'}`} />
-            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${progress > 50 ? 'bg-blue-400 animate-pulse-slow' : 'bg-slate-600'}`} />
-            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${progress > 75 ? 'bg-blue-400 animate-pulse-slow' : 'bg-slate-600'}`} />
+            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${isComplete ? 'bg-blue-400 animate-pulse-slow' : 'bg-slate-600'}`} />
+            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${isComplete ? 'bg-blue-400 animate-pulse-slow' : 'bg-slate-600'}`} />
+            <div className={`w-2 h-2 rounded-full transition-all duration-300 ${isComplete ? 'bg-blue-400 animate-pulse-slow' : 'bg-slate-600'}`} />
           </div>
         </div>
       </div>

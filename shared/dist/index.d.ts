@@ -45,7 +45,7 @@ export interface Unit {
     attackDamage: number;
     actionsRemaining: number;
     maxActions: number;
-    status: StatusEffect[];
+    status: LegacyStatusEffect[];
     cost: number;
     hasMoved: boolean;
     hasAttacked: boolean;
@@ -64,10 +64,27 @@ export declare enum UnitType {
     LEGAL_COUNSEL = "legal",
     EXECUTIVE = "executive"
 }
-export interface StatusEffect {
+export interface LegacyStatusEffect {
     type: StatusType;
     duration: number;
     source?: string;
+}
+export interface StatusEffect {
+    key: string;
+    name: string;
+    description: string;
+    type: 'buff' | 'debuff';
+    duration_in_turns: number;
+    modifiers?: {
+        stat: string;
+        operation: 'multiply' | 'add' | 'set';
+        value: number | boolean;
+    };
+    tick_effect?: {
+        type: string;
+        value: number;
+    };
+    visual_effect: string;
 }
 export declare enum StatusType {
     WRITTEN_UP = "written_up",
@@ -125,7 +142,7 @@ export interface DraftState {
     aiUnits: DraftUnit[];
 }
 export interface DraftUnit {
-    type: UnitType;
+    employeeKey: string;
     position?: Coordinate;
 }
 export interface GameAction {
@@ -143,8 +160,6 @@ export declare enum ActionType {
     HIRE_UNIT = "hire_unit",
     END_TURN = "end_turn"
 }
-export declare const UNIT_STATS: Record<UnitType, Omit<Unit, 'id' | 'playerId' | 'position' | 'status' | 'hasMoved' | 'hasAttacked' | 'actionsRemaining'>>;
-export declare const UNIT_COSTS: Record<UnitType, number>;
 export interface Ability {
     id: string;
     name: string;
@@ -184,11 +199,90 @@ export type TargetType = typeof TargetType[keyof typeof TargetType];
 export interface AbilityResult {
     success: boolean;
     message?: string;
-    statusApplied?: StatusEffect[];
+    statusApplied?: LegacyStatusEffect[];
     damageDealt?: number;
     healingDone?: number;
     movementBonus?: number;
     actionBonus?: number;
     targetPosition?: Coordinate;
+}
+export interface Employee {
+    id: number;
+    key: string;
+    name: string;
+    cost: number;
+    stats: {
+        health: number;
+        attack_power: number;
+        defense: number;
+        speed: number;
+    };
+    attack: {
+        type: 'melee' | 'ranged';
+        range: number;
+        description: string;
+        status_effect: {
+            type: string;
+            chance: number;
+            duration: number;
+            magnitude?: number;
+            damage_per_turn?: number;
+        };
+    };
+    special_ability?: {
+        name: string;
+        type: string;
+        target: string;
+        effect: string;
+        magnitude: number;
+        duration: number;
+    };
+}
+export interface DataAbility {
+    key: string;
+    name: string;
+    description: string;
+    cooldown_turns: number;
+    range_pattern_key: string;
+    effects: Array<{
+        type: string;
+        target: string;
+        value?: number;
+        damage_type?: string;
+        status_key?: string;
+        chance?: number;
+        hazard_details?: {
+            name: string;
+            duration_in_turns: number;
+            visual_effect: string;
+            on_turn_end?: {
+                type: string;
+                value: number;
+                damage_type: string;
+            };
+            on_enter?: {
+                type: string;
+                status_key: string;
+                chance: number;
+            };
+        };
+    }>;
+}
+export interface AttackPattern {
+    key: string;
+    type: 'directional' | 'centered';
+    pattern: number[][];
+}
+export interface GameConfig {
+    game_version: string;
+    draft_config: {
+        starting_funds: number;
+        timer_seconds: number;
+        picks_per_player: number;
+    };
+    gameplay_rules: {
+        max_team_size: number;
+        turn_limit: number;
+    };
 }
 //# sourceMappingURL=index.d.ts.map

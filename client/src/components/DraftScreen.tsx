@@ -1,5 +1,5 @@
 import { useGameStore } from '../stores/gameStore'
-import { UnitType, UNIT_STATS, UNIT_COSTS } from 'shared'
+import { dataManager } from '../game/data/DataManager'
 
 export function DraftScreen() {
   // Use selectors for state that causes re-renders
@@ -10,15 +10,16 @@ export function DraftScreen() {
   const removeUnitFromDraft = useGameStore(state => state.removeUnitFromDraft)
   const confirmDraft = useGameStore(state => state.confirmDraft)
   
-  const totalCost = draftState.selectedUnits.reduce((sum, unit) => 
-    sum + UNIT_COSTS[unit.type], 0
-  )
+  const totalCost = draftState.selectedUnits.reduce((sum, unit) => {
+    const employee = dataManager.getEmployee(unit.employeeKey)
+    return sum + (employee?.cost || 0)
+  }, 0)
   const remainingBudget = draftState.playerBudget - totalCost
   const canAddMore = draftState.selectedUnits.length < draftState.maxHeadcount && remainingBudget >= 20
   
-  const handleAddUnit = (unitType: UnitType) => {
+  const handleAddUnit = (employeeKey: string) => {
     if (canAddMore) {
-      addUnitToDraft(unitType)
+      addUnitToDraft(employeeKey)
     }
   }
   
@@ -48,36 +49,34 @@ export function DraftScreen() {
             <div className="bg-slate-800 rounded-lg border border-slate-700 p-4 sm:p-6">
               <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-green-400">Available Units</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                {Object.values(UnitType).map((unitType) => {
-                  const stats = UNIT_STATS[unitType]
-                  const cost = UNIT_COSTS[unitType]
-                  const canAfford = cost <= remainingBudget
+                {dataManager.getAllEmployees().map((employee) => {
+                  const canAfford = employee.cost <= remainingBudget
                   const canAdd = canAddMore && canAfford
                   
                   return (
                     <div
-                      key={unitType}
+                      key={employee.key}
                       className={`bg-slate-700 rounded-lg p-3 sm:p-4 border-2 transition-all ${
                         canAdd ? 'border-green-500 hover:border-green-400' : 'border-slate-600 opacity-60'
                       }`}
                     >
                       <div className="text-center">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-2 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-lg">
-                          {unitType.charAt(0).toUpperCase()}
+                          {employee.name.charAt(0).toUpperCase()}
                         </div>
-                        <h3 className="font-semibold text-xs sm:text-sm mb-1 capitalize">
-                          {unitType.replace('_', ' ')}
+                        <h3 className="font-semibold text-xs sm:text-sm mb-1">
+                          {employee.name}
                         </h3>
-                        <p className="text-green-400 font-mono text-xs sm:text-sm mb-2">${cost}k</p>
+                        <p className="text-green-400 font-mono text-xs sm:text-sm mb-2">${employee.cost}k</p>
                         
                         <div className="text-xs text-slate-300 space-y-1 mb-3">
-                          <div>HP: {stats.hp}</div>
-                          <div>Move: {stats.moveRange}</div>
-                          <div>Attack: {stats.attackRange}/{stats.attackDamage}</div>
+                          <div>HP: {employee.stats.health}</div>
+                          <div>Move: {employee.stats.speed}</div>
+                          <div>Attack: {employee.attack.range}/{employee.stats.attack_power}</div>
                         </div>
                         
                         <button
-                          onClick={() => handleAddUnit(unitType)}
+                          onClick={() => handleAddUnit(employee.key)}
                           disabled={!canAdd}
                           className={`w-full py-2 px-2 sm:px-3 rounded text-xs sm:text-sm font-medium transition-colors min-h-[44px] ${
                             canAdd
@@ -127,29 +126,34 @@ export function DraftScreen() {
                 <p className="text-slate-400 text-center py-8">No units selected yet</p>
               ) : (
                 <div className="space-y-3">
-                  {draftState.selectedUnits.map((unit, index) => (
-                    <div key={index} className="flex items-center justify-between bg-slate-700 rounded p-3">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                          {unit.type.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-medium capitalize text-sm">
-                            {unit.type.replace('_', ' ')}
+                  {draftState.selectedUnits.map((unit, index) => {
+                    const employee = dataManager.getEmployee(unit.employeeKey)
+                    if (!employee) return null
+                    
+                    return (
+                      <div key={index} className="flex items-center justify-between bg-slate-700 rounded p-3">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            {employee.name.charAt(0).toUpperCase()}
                           </div>
-                          <div className="text-xs text-slate-400">
-                            ${UNIT_COSTS[unit.type]}k
+                          <div>
+                            <div className="font-medium text-sm">
+                              {employee.name}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              ${employee.cost}k
+                            </div>
                           </div>
                         </div>
+                        <button
+                          onClick={() => handleRemoveUnit(index)}
+                          className="text-red-400 hover:text-red-300 text-sm font-medium"
+                        >
+                          Remove
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleRemoveUnit(index)}
-                        className="text-red-400 hover:text-red-300 text-sm font-medium"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -158,16 +162,21 @@ export function DraftScreen() {
             <div className="bg-slate-800 rounded-lg border border-slate-700 p-4 sm:p-6">
               <h2 className="text-lg sm:text-xl font-semibold mb-4 text-red-400">AI Team</h2>
               <div className="space-y-2">
-                {draftState.aiUnits.map((unit, index) => (
-                  <div key={index} className="flex items-center space-x-3 bg-slate-700 rounded p-2">
-                    <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                      {unit.type.charAt(0).toUpperCase()}
+                {draftState.aiUnits.map((unit, index) => {
+                  const employee = dataManager.getEmployee(unit.employeeKey)
+                  if (!employee) return null
+                  
+                  return (
+                    <div key={index} className="flex items-center space-x-3 bg-slate-700 rounded p-2">
+                      <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        {employee.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="text-sm">
+                        {employee.name}
+                      </div>
                     </div>
-                    <div className="text-sm capitalize">
-                      {unit.type.replace('_', ' ')}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
             

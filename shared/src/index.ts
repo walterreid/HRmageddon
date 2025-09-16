@@ -49,7 +49,7 @@ export interface Unit {
   attackDamage: number
   actionsRemaining: number
   maxActions: number
-  status: StatusEffect[]
+  status: LegacyStatusEffect[]
   cost: number
   hasMoved: boolean
   hasAttacked: boolean
@@ -71,10 +71,30 @@ export enum UnitType {
   EXECUTIVE = 'executive',
 }
 
-export interface StatusEffect {
+// Legacy StatusEffect interface for backward compatibility
+export interface LegacyStatusEffect {
   type: StatusType
   duration: number
   source?: string
+}
+
+// New data-driven StatusEffect interface
+export interface StatusEffect {
+  key: string
+  name: string
+  description: string
+  type: 'buff' | 'debuff'
+  duration_in_turns: number
+  modifiers?: {
+    stat: string
+    operation: 'multiply' | 'add' | 'set'
+    value: number | boolean
+  }
+  tick_effect?: {
+    type: string
+    value: number
+  }
+  visual_effect: string
 }
 
 export enum StatusType {
@@ -142,7 +162,7 @@ export interface DraftState {
 }
 
 export interface DraftUnit {
-  type: UnitType;
+  employeeKey: string; // Key from employees.json
   position?: Coordinate; // Will be set during deployment
 }
 
@@ -164,139 +184,8 @@ export enum ActionType {
   END_TURN = 'end_turn',
 }
 
-// Unit Configuration
-export const UNIT_STATS: Record<
-  UnitType,
-  Omit<
-    Unit,
-    'id' | 'playerId' | 'position' | 'status' | 'hasMoved' | 'hasAttacked' | 'actionsRemaining'
-  >
-> = {
-  [UnitType.INTERN]: {
-    type: UnitType.INTERN,
-    hp: 2,
-    maxHp: 2,
-    moveRange: 3,
-    attackRange: 1,
-    attackDamage: 1,
-    maxActions: 2,
-    cost: 2,
-    abilities: ['fetch_coffee', 'overtime'],
-    abilityCooldowns: {},
-    movementUsed: 0,
-    remainingMovement: 3,
-  },
-  [UnitType.SECRETARY]: {
-    type: UnitType.SECRETARY,
-    hp: 2,
-    maxHp: 2,
-    moveRange: 3,
-    attackRange: 3,
-    attackDamage: 1,
-    maxActions: 2,
-    cost: 3,
-    abilities: ['file_it'],
-    abilityCooldowns: {},
-    movementUsed: 0,
-    remainingMovement: 3,
-  },
-  [UnitType.SALES_REP]: {
-    type: UnitType.SALES_REP,
-    hp: 3,
-    maxHp: 3,
-    moveRange: 4,
-    attackRange: 2,
-    attackDamage: 2,
-    maxActions: 2,
-    cost: 3,
-    abilities: ['harass'],
-    abilityCooldowns: {},
-    movementUsed: 0,
-    remainingMovement: 4,
-  },
-  [UnitType.HR_MANAGER]: {
-    type: UnitType.HR_MANAGER,
-    hp: 3,
-    maxHp: 3,
-    moveRange: 3,
-    attackRange: 1,
-    attackDamage: 2,
-    maxActions: 2,
-    cost: 5,
-    abilities: ['pink_slip', 'mediation'],
-    abilityCooldowns: {},
-    movementUsed: 0,
-    remainingMovement: 3,
-  },
-  [UnitType.IT_SPECIALIST]: {
-    type: UnitType.IT_SPECIALIST,
-    hp: 3,
-    maxHp: 3,
-    moveRange: 3,
-    attackRange: 2,
-    attackDamage: 2,
-    maxActions: 2,
-    cost: 4,
-    abilities: ['hack_system', 'tech_support'],
-    abilityCooldowns: {},
-    movementUsed: 0,
-    remainingMovement: 3,
-  },
-  [UnitType.ACCOUNTANT]: {
-    type: UnitType.ACCOUNTANT,
-    hp: 3,
-    maxHp: 3,
-    moveRange: 3,
-    attackRange: 2,
-    attackDamage: 2,
-    maxActions: 2,
-    cost: 4,
-    abilities: ['audit', 'creative_accounting'],
-    abilityCooldowns: {},
-    movementUsed: 0,
-    remainingMovement: 3,
-  },
-  [UnitType.LEGAL_COUNSEL]: {
-    type: UnitType.LEGAL_COUNSEL,
-    hp: 3,
-    maxHp: 3,
-    moveRange: 3,
-    attackRange: 2,
-    attackDamage: 2,
-    maxActions: 2,
-    cost: 5,
-    abilities: ['legal_threat', 'contract_negotiation'],
-    abilityCooldowns: {},
-    movementUsed: 0,
-    remainingMovement: 3,
-  },
-  [UnitType.EXECUTIVE]: {
-    type: UnitType.EXECUTIVE,
-    hp: 4,
-    maxHp: 4,
-    moveRange: 3,
-    attackRange: 2,
-    attackDamage: 3,
-    maxActions: 2,
-    cost: 6,
-    abilities: ['executive_order', 'corporate_restructuring'],
-    abilityCooldowns: {},
-    movementUsed: 0,
-    remainingMovement: 3,
-  },
-}
-
-// Unit costs for draft system (in thousands of dollars)
-export const UNIT_COSTS: Record<UnitType, number> = {
-  [UnitType.INTERN]: 20,
-  [UnitType.SECRETARY]: 30,
-  [UnitType.SALES_REP]: 30,
-  [UnitType.HR_MANAGER]: 50,
-  [UnitType.IT_SPECIALIST]: 40,
-  [UnitType.ACCOUNTANT]: 40,
-  [UnitType.LEGAL_COUNSEL]: 50,
-  [UnitType.EXECUTIVE]: 60,
-}
+// Legacy unit configuration - will be replaced by data-driven system
+// These are kept for backward compatibility during transition
 
 // Enhanced Ability System Interfaces
 export interface Ability {
@@ -344,12 +233,96 @@ export type TargetType = typeof TargetType[keyof typeof TargetType]
 export interface AbilityResult {
   success: boolean
   message?: string
-  statusApplied?: StatusEffect[]
+  statusApplied?: LegacyStatusEffect[]
   damageDealt?: number
   healingDone?: number
   movementBonus?: number
   actionBonus?: number
   targetPosition?: Coordinate
+}
+
+// Data-driven types for JSON files
+export interface Employee {
+  id: number
+  key: string
+  name: string
+  cost: number
+  stats: {
+    health: number
+    attack_power: number
+    defense: number
+    speed: number
+  }
+  attack: {
+    type: 'melee' | 'ranged'
+    range: number
+    description: string
+    status_effect: {
+      type: string
+      chance: number
+      duration: number
+      magnitude?: number
+      damage_per_turn?: number
+    }
+  }
+  special_ability?: {
+    name: string
+    type: string
+    target: string
+    effect: string
+    magnitude: number
+    duration: number
+  }
+}
+
+export interface DataAbility {
+  key: string
+  name: string
+  description: string
+  cooldown_turns: number
+  range_pattern_key: string
+  effects: Array<{
+    type: string
+    target: string
+    value?: number
+    damage_type?: string
+    status_key?: string
+    chance?: number
+    hazard_details?: {
+      name: string
+      duration_in_turns: number
+      visual_effect: string
+      on_turn_end?: {
+        type: string
+        value: number
+        damage_type: string
+      }
+      on_enter?: {
+        type: string
+        status_key: string
+        chance: number
+      }
+    }
+  }>
+}
+
+export interface AttackPattern {
+  key: string
+  type: 'directional' | 'centered'
+  pattern: number[][]
+}
+
+export interface GameConfig {
+  game_version: string
+  draft_config: {
+    starting_funds: number
+    timer_seconds: number
+    picks_per_player: number
+  }
+  gameplay_rules: {
+    max_team_size: number
+    turn_limit: number
+  }
 }
 
 

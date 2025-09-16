@@ -6,13 +6,11 @@ import {
   type Tile,
   TileType,
   UnitType,
-  UNIT_STATS,
-  UNIT_COSTS,
   type DraftState,
 } from 'shared'
 import { AIController } from '../game/ai/ai.ts'
 import { generateAIDraft } from '../game/ai/aiDraft.ts'
-import { ABILITIES, canUseAbility, getValidTargets } from '../game/core/abilities.ts'
+import { canUseAbility, getValidTargets, getAbilityById } from '../game/core/abilities.ts'
 import { mapRegistry } from '../game/map/MapRegistry'
 import { MAPS } from '../game/map/registry'
 import { calculatePossibleMoves as calcMoves, isValidMove as isValidMoveUtil } from '../game/core/movement'
@@ -22,6 +20,7 @@ import { useUnitStore } from './unitStore'
 import { useBoardStore } from './boardStore'
 import { usePlayerStore } from './playerStore'
 import { useUIStore } from './uiStore'
+import { dataManager } from '../game/data/DataManager'
 
 // Helper functions for memoization
 
@@ -80,7 +79,7 @@ type GameStore = {
   enterTestMode: () => void
   initializeGame: () => void
   initializeDraft: () => void
-  addUnitToDraft: (unitType: UnitType) => void
+  addUnitToDraft: (employeeKey: string) => void
   removeUnitFromDraft: (index: number) => void
   confirmDraft: () => void
   selectUnit: (unit: Unit | undefined | null) => void
@@ -222,58 +221,74 @@ export const useGameStore = create<GameStore>((set, get) => {
     const playerPositions = getMapStartingPositions('player1')
     const aiPositions = getMapStartingPositions('player2')
     
-    const units: Unit[] = [
+    // Create units using DataManager
+    const units: Unit[] = []
+    
+    // Get employee data from DataManager
+    const internEmployee = dataManager.getEmployee('salesman') // Using salesman as intern for now
+    const secretaryEmployee = dataManager.getEmployee('secretary')
+    
+    if (internEmployee && secretaryEmployee) {
       // Player units (Gold team)
-      {
+      units.push(
+        dataManager.createUnitFromEmployee(
+          internEmployee, 
+          'blue-intern-1', 
+          'player1', 
+          playerPositions[0] || { x: 0, y: 1 }
+        )
+      )
+      units.push(
+        dataManager.createUnitFromEmployee(
+          secretaryEmployee, 
+          'blue-secretary-1', 
+          'player1', 
+          playerPositions[1] || { x: 1, y: 1 }
+        )
+      )
+      
+      // AI units (Navy team)
+      units.push(
+        dataManager.createUnitFromEmployee(
+          internEmployee, 
+          'red-intern-1', 
+          'player2', 
+          aiPositions[0] || { x: 7, y: 8 }
+        )
+      )
+      units.push(
+        dataManager.createUnitFromEmployee(
+          secretaryEmployee, 
+          'red-secretary-1', 
+          'player2', 
+          aiPositions[1] || { x: 6, y: 8 }
+        )
+      )
+    } else {
+      console.error('Failed to load employee data from DataManager')
+      // Fallback to basic units if data loading failed
+      units.push({
         id: 'blue-intern-1',
         playerId: 'player1',
+        type: UnitType.INTERN,
         position: playerPositions[0] || { x: 0, y: 1 },
-        ...UNIT_STATS[UnitType.INTERN],
+        hp: 2,
+        maxHp: 2,
+        moveRange: 3,
+        attackRange: 1,
+        attackDamage: 1,
         actionsRemaining: 2,
+        maxActions: 2,
         status: [],
+        cost: 2,
         hasMoved: false,
         hasAttacked: false,
-        abilities: UNIT_STATS[UnitType.INTERN].abilities,
-        abilityCooldowns: {}
-      },
-      {
-        id: 'blue-secretary-1',
-        playerId: 'player1',
-        position: playerPositions[1] || { x: 1, y: 1 },
-        ...UNIT_STATS[UnitType.SECRETARY],
-        actionsRemaining: 2,
-        status: [],
-        hasMoved: false,
-        hasAttacked: false,
-        abilities: UNIT_STATS[UnitType.SECRETARY].abilities,
-        abilityCooldowns: {}
-      },
-      // AI units (Navy team)
-      {
-        id: 'red-intern-1',
-        playerId: 'player2',
-        position: aiPositions[0] || { x: 7, y: 8 },
-        ...UNIT_STATS[UnitType.INTERN],
-        actionsRemaining: 2,
-        status: [],
-        hasMoved: false,
-        hasAttacked: false,
-        abilities: UNIT_STATS[UnitType.INTERN].abilities,
-        abilityCooldowns: {}
-      },
-      {
-        id: 'red-secretary-1',
-        playerId: 'player2',
-        position: aiPositions[1] || { x: 6, y: 8 },
-        ...UNIT_STATS[UnitType.SECRETARY],
-        actionsRemaining: 2,
-        status: [],
-        hasMoved: false,
-        hasAttacked: false,
-        abilities: UNIT_STATS[UnitType.SECRETARY].abilities,
-        abilityCooldowns: {}
-      },
-    ]
+        abilities: [],
+        abilityCooldowns: {},
+        movementUsed: 0,
+        remainingMovement: 3,
+      })
+    }
 
     // Set units through unit store
     useUnitStore.getState().setUnits(units)
@@ -283,22 +298,35 @@ export const useGameStore = create<GameStore>((set, get) => {
   },
 
   initializeDraft: () => {
-    const aiUnits = generateAIDraft(200, 6)
+    const config = dataManager.getConfig()
+    const budget = config.draft_config?.starting_funds || 1000
+    const maxHeadcount = config.gameplay_rules?.max_team_size || 4
+    
+    const aiUnits = generateAIDraft(budget, maxHeadcount)
     set((state) => ({
       draftState: {
         ...state.draftState,
+        playerBudget: budget,
+        maxHeadcount,
         aiUnits,
       }
     }))
     usePlayerStore.getState().setPhase(GamePhase.DRAFT)
   },
 
-  addUnitToDraft: (unitType) => {
+  addUnitToDraft: (employeeKey) => {
     const state = get()
-    const cost = UNIT_COSTS[unitType]
-    const currentCost = state.draftState.selectedUnits.reduce((sum, unit) => 
-      sum + UNIT_COSTS[unit.type], 0
-    )
+    const employee = dataManager.getEmployee(employeeKey)
+    if (!employee) {
+      console.error(`Employee not found: ${employeeKey}`)
+      return
+    }
+    
+    const cost = employee.cost
+    const currentCost = state.draftState.selectedUnits.reduce((sum, unit) => {
+      const unitEmployee = dataManager.getEmployee(unit.employeeKey)
+      return sum + (unitEmployee?.cost || 0)
+    }, 0)
     
     if (state.draftState.selectedUnits.length >= state.draftState.maxHeadcount) return
     if (currentCost + cost > state.draftState.playerBudget) return
@@ -306,7 +334,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     set((state) => ({
       draftState: {
         ...state.draftState,
-        selectedUnits: [...state.draftState.selectedUnits, { type: unitType }]
+        selectedUnits: [...state.draftState.selectedUnits, { employeeKey }]
       }
     }))
   },
@@ -372,53 +400,75 @@ export const useGameStore = create<GameStore>((set, get) => {
     const aiPositions = getMapStartingPositions('player2')
     
     const playerUnits: Unit[] = state.draftState.selectedUnits.map((draftUnit, index) => {
-      const stats = UNIT_STATS[draftUnit.type]
+      const employee = dataManager.getEmployee(draftUnit.employeeKey)
+      if (!employee) {
+        console.error(`Employee not found: ${draftUnit.employeeKey}`)
+        // Fallback to basic unit
       return {
-        id: `player1-${draftUnit.type}-${index}`,
+          id: `player1-${draftUnit.employeeKey}-${index}`,
         playerId: 'player1',
-        type: draftUnit.type,
+          type: UnitType.INTERN,
         position: playerPositions[index] || { x: 0, y: 0 },
-        hp: stats.hp,
-        maxHp: stats.maxHp,
-        moveRange: stats.moveRange,
-        attackRange: stats.attackRange,
-        attackDamage: stats.attackDamage,
-        actionsRemaining: stats.maxActions,
-        maxActions: stats.maxActions,
+          hp: 2,
+          maxHp: 2,
+          moveRange: 3,
+          attackRange: 1,
+          attackDamage: 1,
+          actionsRemaining: 2,
+          maxActions: 2,
         status: [],
         hasMoved: false,
         hasAttacked: false,
-        cost: stats.cost,
-        abilities: stats.abilities,
+          cost: 2,
+          abilities: [],
         abilityCooldowns: {},
         movementUsed: 0,
-        remainingMovement: stats.moveRange,
+          remainingMovement: 3,
+        }
       }
+      
+      return dataManager.createUnitFromEmployee(
+        employee,
+        `player1-${draftUnit.employeeKey}-${index}`,
+        'player1',
+        playerPositions[index] || { x: 0, y: 0 }
+      )
     })
     
     const aiUnits: Unit[] = state.draftState.aiUnits.map((draftUnit, index) => {
-      const stats = UNIT_STATS[draftUnit.type]
+      const employee = dataManager.getEmployee(draftUnit.employeeKey)
+      if (!employee) {
+        console.error(`Employee not found: ${draftUnit.employeeKey}`)
+        // Fallback to basic unit
       return {
-        id: `player2-${draftUnit.type}-${index}`,
+          id: `player2-${draftUnit.employeeKey}-${index}`,
         playerId: 'player2',
-        type: draftUnit.type,
+          type: UnitType.INTERN,
         position: aiPositions[index] || { x: 7, y: 9 },
-        hp: stats.hp,
-        maxHp: stats.maxHp,
-        moveRange: stats.moveRange,
-        attackRange: stats.attackRange,
-        attackDamage: stats.attackDamage,
-        actionsRemaining: stats.maxActions,
-        maxActions: stats.maxActions,
+          hp: 2,
+          maxHp: 2,
+          moveRange: 3,
+          attackRange: 1,
+          attackDamage: 1,
+          actionsRemaining: 2,
+          maxActions: 2,
         status: [],
         hasMoved: false,
         hasAttacked: false,
-        cost: stats.cost,
-        abilities: stats.abilities,
+          cost: 2,
+          abilities: [],
         abilityCooldowns: {},
         movementUsed: 0,
-        remainingMovement: stats.moveRange,
+          remainingMovement: 3,
+        }
       }
+      
+      return dataManager.createUnitFromEmployee(
+        employee,
+        `player2-${draftUnit.employeeKey}-${index}`,
+        'player2',
+        aiPositions[index] || { x: 7, y: 9 }
+      )
     })
     
     // Initialize the game with drafted units
@@ -443,7 +493,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       uiStore.clearHighlights()
       return
     }
-
+    
     // Check if we're trying to select a different unit while one is already selected
     const currentSelectedUnit = unitStore.selectedUnit
     if (currentSelectedUnit && currentSelectedUnit.id !== unit.id) {
@@ -595,13 +645,13 @@ export const useGameStore = create<GameStore>((set, get) => {
     const unit = unitStore.getUnitById(unitId)
     if (!unit || !get().isValidMove(unit, to)) return
 
-    console.log('Moving unit:', {
-      unitId,
-      from: unit.position,
-      to,
-      hasMoved: unit.hasMoved,
-      actionsRemaining: unit.actionsRemaining
-    })
+      console.log('Moving unit:', {
+        unitId,
+        from: unit.position,
+        to,
+        hasMoved: unit.hasMoved,
+        actionsRemaining: unit.actionsRemaining
+      })
 
     // Update unit position and actions
     unitStore.updateUnit(unitId, { 
@@ -610,23 +660,23 @@ export const useGameStore = create<GameStore>((set, get) => {
       actionsRemaining: unit.actionsRemaining - 1 
     })
 
-    // Clear memoization cache when units move
+      // Clear memoization cache when units move
     clearMemoizationCache(get().memoCache)
 
-    // Check if the unit landed on a cubicle for potential capture
+      // Check if the unit landed on a cubicle for potential capture
     const targetTile = boardStore.getTileAt(to)
-    if (targetTile && targetTile.type === TileType.CUBICLE) {
-      console.log('Unit landed on cubicle:', {
-        unitId,
-        unitPlayer: unit.playerId,
-        tilePosition: to,
-        tileOwner: targetTile.owner,
-        tileType: targetTile.type
-      })
-      
-      // If the cubicle is not owned by this unit's player, add to pending captures
-      if (targetTile.owner !== unit.playerId) {
-        const captureKey = `${to.x},${to.y}`
+      if (targetTile && targetTile.type === TileType.CUBICLE) {
+        console.log('Unit landed on cubicle:', {
+          unitId,
+          unitPlayer: unit.playerId,
+          tilePosition: to,
+          tileOwner: targetTile.owner,
+          tileType: targetTile.type
+        })
+        
+        // If the cubicle is not owned by this unit's player, add to pending captures
+        if (targetTile.owner !== unit.playerId) {
+          const captureKey = `${to.x},${to.y}`
         set((state) => {
           const updatedPendingCaptures = new Map(state.pendingCubicleCaptures)
           updatedPendingCaptures.set(captureKey, {
@@ -635,10 +685,10 @@ export const useGameStore = create<GameStore>((set, get) => {
             playerId: unit.playerId
           })
           return { pendingCubicleCaptures: updatedPendingCaptures }
-        })
-        
-        console.log('Added to pending captures:', {
-          captureKey,
+          })
+          
+          console.log('Added to pending captures:', {
+            captureKey,
           pendingCapturesCount: get().pendingCubicleCaptures.size
         })
       }
@@ -657,13 +707,13 @@ export const useGameStore = create<GameStore>((set, get) => {
     // Clear UI highlights
     uiStore.clearHighlights()
 
-    // Emit action completed event for UI cleanup
-    if (typeof window !== 'undefined') {
-      const event = new CustomEvent('actionCompleted', {
+      // Emit action completed event for UI cleanup
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('actionCompleted', {
         detail: { actionType: 'move', unitId, remainingActions: updatedUnit?.actionsRemaining || 0 }
-      })
-      window.dispatchEvent(event)
-    }
+        })
+        window.dispatchEvent(event)
+      }
   },
 
   attackTarget: (attackerId, targetId) => {
@@ -676,7 +726,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     if (!attacker || !target || !get().isValidAttack(attacker, target)) return
 
-    const damage = calculateDamage(attacker, target)
+      const damage = calculateDamage(attacker, target)
 
     // Update attacker
     unitStore.updateUnit(attackerId, { 
@@ -708,13 +758,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       uiStore.setHighlightedTiles(highlights)
     }
 
-    // Emit action completed event
-    if (typeof window !== 'undefined') {
-      const event = new CustomEvent('actionCompleted', {
+      // Emit action completed event
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('actionCompleted', {
         detail: { actionType: 'attack', unitId: attackerId, remainingActions: updatedAttacker?.actionsRemaining || 0 }
-      })
-      window.dispatchEvent(event)
-    }
+        })
+        window.dispatchEvent(event)
+      }
   },
 
   captureCubicle: (unitId, coord) => {
@@ -726,29 +776,29 @@ export const useGameStore = create<GameStore>((set, get) => {
     const uiStore = useUIStore.getState()
     
     const unit = unitStore.getUnitById(unitId)
-    if (!unit || unit.actionsRemaining === 0) {
-      console.log('Cannot capture: unit not found or no actions remaining', { unit, actionsRemaining: unit?.actionsRemaining })
+      if (!unit || unit.actionsRemaining === 0) {
+        console.log('Cannot capture: unit not found or no actions remaining', { unit, actionsRemaining: unit?.actionsRemaining })
       return
-    }
+      }
 
     const tile = boardStore.getTileAt(coord)
-    if (!tile || tile.type !== TileType.CUBICLE) {
-      console.log('Cannot capture: not a cubicle tile', { tile, coord })
+      if (!tile || tile.type !== TileType.CUBICLE) {
+        console.log('Cannot capture: not a cubicle tile', { tile, coord })
       return
-    }
+      }
 
-    if (tile.owner === unit.playerId) {
-      console.log('Cannot capture: already owned by this player', { tileOwner: tile.owner, unitPlayer: unit.playerId })
+      if (tile.owner === unit.playerId) {
+        console.log('Cannot capture: already owned by this player', { tileOwner: tile.owner, unitPlayer: unit.playerId })
       return
-    }
+      }
 
-    console.log('Capturing cubicle:', {
-      unitId,
-      unitPlayer: unit.playerId,
-      coord,
-      currentOwner: tile.owner,
-      tileType: tile.type
-    })
+      console.log('Capturing cubicle:', {
+        unitId,
+        unitPlayer: unit.playerId,
+        coord,
+        currentOwner: tile.owner,
+        tileType: tile.type
+      })
 
     // Update board tile ownership
     boardStore.updateTileOwner(coord, unit.playerId)
@@ -758,12 +808,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     // Update player cubicle count and income
     const cubicleCount = boardStore.getCubicleTilesByOwner(unit.playerId).length
-    console.log('Updated cubicle count for player', unit.playerId, ':', cubicleCount)
+      console.log('Updated cubicle count for player', unit.playerId, ':', cubicleCount)
 
     // Update player data
     const players = playerStore.players.map((p) =>
-      p.id === unit.playerId ? { ...p, controlledCubicles: cubicleCount, income: cubicleCount } : p
-    )
+        p.id === unit.playerId ? { ...p, controlledCubicles: cubicleCount, income: cubicleCount } : p
+      )
     playerStore.setPlayers(players)
 
     // Clear selection and highlights
@@ -783,58 +833,58 @@ export const useGameStore = create<GameStore>((set, get) => {
     const nextPlayerIndex = (currentPlayerIndex + 1) % playerStore.players.length
     const nextPlayer = playerStore.players[nextPlayerIndex]
 
-    // Process pending cubicle captures before ending turn
+      // Process pending cubicle captures before ending turn
     const updatedPendingCaptures = new Map(get().pendingCubicleCaptures)
-    
-    console.log('Processing pending cubicle captures:', {
+      
+      console.log('Processing pending cubicle captures:', {
       count: get().pendingCubicleCaptures.size,
       captures: Array.from(get().pendingCubicleCaptures.entries())
-    })
-    
-    // Process each pending capture
-    for (const [captureKey, capture] of get().pendingCubicleCaptures) {
-      const { unitId, coord, playerId } = capture
+      })
       
-      // Verify the unit is still at the capture location
+      // Process each pending capture
+    for (const [captureKey, capture] of get().pendingCubicleCaptures) {
+        const { unitId, coord, playerId } = capture
+        
+        // Verify the unit is still at the capture location
       const unit = unitStore.getUnitById(unitId)
-      if (unit && unit.position.x === coord.x && unit.position.y === coord.y) {
-        // Execute the capture
+        if (unit && unit.position.x === coord.x && unit.position.y === coord.y) {
+          // Execute the capture
         const tile = boardStore.getTileAt(coord)
-        if (tile && tile.type === TileType.CUBICLE && tile.owner !== playerId) {
-          console.log('Executing pending capture:', { unitId, coord, playerId })
-          
-          // Update the board
+          if (tile && tile.type === TileType.CUBICLE && tile.owner !== playerId) {
+            console.log('Executing pending capture:', { unitId, coord, playerId })
+            
+            // Update the board
           boardStore.updateTileOwner(coord, playerId)
-          
-          // Remove from pending captures
+            
+            // Remove from pending captures
+            updatedPendingCaptures.delete(captureKey)
+          }
+        } else {
+          // Unit is no longer at the capture location, remove from pending
+          console.log('Unit no longer at capture location, removing pending capture:', { unitId, coord })
           updatedPendingCaptures.delete(captureKey)
         }
-      } else {
-        // Unit is no longer at the capture location, remove from pending
-        console.log('Unit no longer at capture location, removing pending capture:', { unitId, coord })
-        updatedPendingCaptures.delete(captureKey)
       }
-    }
-    
-    // Update player cubicle counts and income
-    const cubicleCounts = new Map<string, number>()
+      
+      // Update player cubicle counts and income
+      const cubicleCounts = new Map<string, number>()
     boardStore.board.flat().forEach(tile => {
-      if (tile.type === TileType.CUBICLE && tile.owner) {
-        cubicleCounts.set(tile.owner, (cubicleCounts.get(tile.owner) || 0) + 1)
-      }
-    })
-    
+        if (tile.type === TileType.CUBICLE && tile.owner) {
+          cubicleCounts.set(tile.owner, (cubicleCounts.get(tile.owner) || 0) + 1)
+        }
+      })
+      
     const updatedPlayers = playerStore.players.map(p => ({
-      ...p,
-      controlledCubicles: cubicleCounts.get(p.id) || 0,
-      income: cubicleCounts.get(p.id) || 0
-    }))
+        ...p,
+        controlledCubicles: cubicleCounts.get(p.id) || 0,
+        income: cubicleCounts.get(p.id) || 0
+      }))
 
     // Reset actions for next player's units
     unitStore.resetAllUnitActions(nextPlayer.id)
 
     // Add income to budget if starting new round
-    if (nextPlayerIndex === 0) {
+      if (nextPlayerIndex === 0) {
       const playersWithIncome = updatedPlayers.map((p) => ({ ...p, budget: p.budget + p.income }))
       playerStore.setPlayers(playersWithIncome)
     } else {
@@ -853,18 +903,18 @@ export const useGameStore = create<GameStore>((set, get) => {
     unitStore.selectUnit(null)
     uiStore.clearHighlights()
 
-    console.log('Turn ended, new state:', {
-      nextPlayer: nextPlayer.id,
-      pendingCapturesRemaining: updatedPendingCaptures.size,
-      cubicleCounts: Array.from(cubicleCounts.entries())
-    })
+      console.log('Turn ended, new state:', {
+        nextPlayer: nextPlayer.id,
+        pendingCapturesRemaining: updatedPendingCaptures.size,
+        cubicleCounts: Array.from(cubicleCounts.entries())
+      })
 
-    // IMPORTANT: Trigger AI turn if next player is AI
-    if (nextPlayer.id === 'player2') {
-      setTimeout(() => {
-        get().executeAITurn()
-      }, 500) // Small delay for visual feedback
-    }
+      // IMPORTANT: Trigger AI turn if next player is AI
+      if (nextPlayer.id === 'player2') {
+        setTimeout(() => {
+          get().executeAITurn()
+        }, 500) // Small delay for visual feedback
+      }
   },
 
   // Add new function to execute AI turn
@@ -1031,8 +1081,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     const unit = unitStore.getUnitById(unitId)
     if (!unit) return
 
-    // Import ability system
-    const ability = ABILITIES[abilityId]
+    // Get ability from DataManager or legacy system
+    const ability = getAbilityById(abilityId)
     
     if (!ability || !canUseAbility(unit, abilityId)) return
     
@@ -1076,10 +1126,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       // Set cooldown
       if (ability.cooldown > 0) {
         unitStore.updateUnit(unitId, { 
-          abilityCooldowns: { 
+                abilityCooldowns: { 
             ...unit.abilityCooldowns, 
-            [abilityId]: ability.cooldown 
-          } 
+                  [abilityId]: ability.cooldown 
+                } 
         })
       }
       
@@ -1091,13 +1141,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       // Get the updated unit to recalculate moves and targets
       const updatedUnit = unitStore.getUnitById(unitId)
       if (updatedUnit) {
-        // Recalculate possible moves and targets for the updated unit
+      // Recalculate possible moves and targets for the updated unit
         const moves = get().calculatePossibleMoves(updatedUnit)
         const targets = get().calculatePossibleTargets(updatedUnit)
-        
-        const highlights = new Map<string, string>()
-        moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
-        targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
+      
+      const highlights = new Map<string, string>()
+      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
+      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
         
         uiStore.setHighlightedTiles(highlights)
       }
@@ -1119,7 +1169,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     const unit = unitStore.getUnitById(unitId)
     if (!unit) return []
     
-    return getValidTargets(unit, ABILITIES[abilityId], boardStore.board, unitStore.units)
+    const ability = getAbilityById(abilityId)
+    if (!ability) return []
+    return getValidTargets(unit, ability, boardStore.board, unitStore.units)
   },
 
   canUseAbility: (unitId: string, abilityId: string) => {
@@ -1142,7 +1194,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   getEnemiesInRange: (unit: Unit) => {
     const unitStore = useUnitStore.getState();
     return unitStore.getEnemyUnits(unit.playerId).filter(enemy => {
-      const distance = Math.abs(enemy.position.x - unit.position.x) + Math.abs(enemy.position.y - unit.position.y);
+        const distance = Math.abs(enemy.position.x - unit.position.x) + Math.abs(enemy.position.y - unit.position.y);
       return distance <= unit.attackRange;
     });
   },

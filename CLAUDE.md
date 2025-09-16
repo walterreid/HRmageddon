@@ -11,9 +11,16 @@ This document provides a comprehensive overview of the HRmageddon codebase, incl
 ```
 client
 ├── public/
-│   └── assets/
-│       └── tilemaps/
-│           └── OfficeLayout16x12.json (multiple maps are possible, dimensions configurable)
+│   ├── assets/
+│   │   └── tilemaps/
+│   │       ├── OfficeLayout16x12.json
+│   │       └── OfficeLayout16x12.tmj
+│   └── data/                      # 📊 Data-driven configuration files
+│       ├── abilities.json         # Ability definitions and effects
+│       ├── attack_patterns.json   # Attack pattern configurations
+│       ├── employees.json         # Employee/unit definitions
+│       ├── game_config.json       # Game configuration settings
+│       └── status_effects.json    # Status effect definitions
 ├── src/
 │   ├── components/
 │   │   ├── layout/
@@ -50,6 +57,8 @@ client
 │   │   │   ├── movement.ts        # Movement logic
 │   │   │   ├── targeting.ts       # Complex targeting patterns
 │   │   │   └── victory.ts         # Victory conditions
+│   │   ├── data/                  # 📊 Data management system
+│   │   │   └── DataManager.ts     # Centralized data loading and management
 │   │   ├── debug/
 │   │   │   └── GridOverlay.ts
 │   │   ├── map/
@@ -58,32 +67,42 @@ client
 │   │   │   ├── registry.ts
 │   │   │   └── types.ts
 │   │   ├── responsive/
+│   │   │   ├── README.md
 │   │   │   └── ResponsiveGameManager.ts
 │   │   ├── scenes/
 │   │   │   └── GameScene.ts
+│   │   ├── systems/               # 🔄 Legacy system files (being phased out)
+│   │   │   ├── abilities.ts       # Legacy ability system
+│   │   │   ├── abilities.test.ts  # Legacy ability tests
+│   │   │   ├── ai.ts              # Legacy AI system
+│   │   │   └── ai.test.ts         # Legacy AI tests
+│   │   ├── test/                  # 🧪 Testing utilities
+│   │   │   ├── helpers.ts         # Test helper functions
+│   │   │   └── testHelpers.ts     # Advanced test utilities and status tracking
 │   │   ├── visuals/               # 🎨 Rendering and effects
 │   │   │   ├── UnitManager.ts     # Unit sprite management and animations
 │   │   │   ├── HighlightManager.ts # Highlight graphics and targeting previews
 │   │   │   └── VisualEffectsPool.ts # Object pooling for effects
-│   │   ├── test/
-│   │   │   └── helpers.ts
 │   │   └── config.ts
 │   ├── lib/
 │   │   └── config.ts
 │   ├── stores/
-│   │   ├── boardStore.ts
-│   │   ├── gameStore.test.ts
-│   │   ├── gameStore.ts
-│   │   ├── mainStore.ts
-│   │   ├── playerStore.ts
-│   │   └── unitStore.ts
+│   │   ├── actionHandlers.ts      # Action coordination layer
+│   │   ├── boardStore.ts          # Board state management
+│   │   ├── gameStore.ts           # Game orchestration
+│   │   ├── playerStore.ts         # Player state management
+│   │   ├── uiStore.ts             # UI state management
+│   │   └── unitStore.ts           # Unit state management
 │   ├── test/
 │   │   └── setup.ts
 │   ├── types/
 │   │   └── vite-env.d.ts
 │   ├── App.css
 │   ├── index.css
-│   └── main.tsx
+│   ├── main.tsx
+│   └── vite-env.d.ts
+├── scripts/
+│   └── test-strict.js             # Comprehensive testing script
 ├── .eslintrc.js
 ├── index.html
 ├── package.json
@@ -143,19 +162,20 @@ client
 ### `src/stores`
 
   * **`src/stores/gameStore.ts`**: **Pure Orchestrator** - No longer holds duplicated state. Instead, it coordinates between slice stores to execute complex game actions. Manages only orchestrator-specific state (memoization cache, pending captures, highlights) and delegates all data operations to the appropriate slice stores. This eliminates state duplication and creates a true Single Source of Truth architecture.
-  * **`src/stores/gameStore.test.ts`**: Unit tests for the `gameStore`, ensuring that game logic functions as expected.
   * **`src/stores/uiStore.ts`**: Dedicated store for UI-specific state management. Handles highlighted tiles, action modes, ability targeting, and other UI interactions. Separates UI concerns from core game logic for better maintainability and cleaner code organization.
   * **`src/stores/actionHandlers.ts`**: Coordination layer between UI and game stores. Provides clean action handlers that manage the flow between UI interactions and game state changes, ensuring proper separation of concerns.
   * **`src/stores/unitStore.ts`**: **Single Source of Truth for Units** - The only place that holds the `units` array and `selectedUnit`. Handles unit data, movement, combat, and unit-specific queries. Provides granular subscriptions for better performance and eliminates duplication with gameStore.
   * **`src/stores/boardStore.ts`**: **Single Source of Truth for Board** - The only place that holds the `board` 2D array and board dimensions. Handles board creation, tile updates, capture points, and board validation. Optimized for board-specific operations and eliminates duplication with gameStore.
   * **`src/stores/playerStore.ts`**: **Single Source of Truth for Players** - The only place that holds `players`, `currentPlayerId`, `gamePhase`, and `turnNumber`. Handles players, game phases, turns, and victory conditions. Manages game flow and player data without duplication.
-  * **`src/stores/mainStore.ts`**: Unified store that combines all slices into a single interface. Provides cross-slice actions and combined queries while maintaining the benefits of sliced architecture.
 
 ### `src/game`
 
+#### **Data Management System (`src/game/data/`)**
+  * **`src/game/data/DataManager.ts`**: **Centralized Data Management** - A singleton class that loads and manages all game data from JSON configuration files. Handles employees, abilities, attack patterns, status effects, and game configuration. Provides a clean API for accessing game data and converts employee data to unit data for game logic. Implements lazy loading and caching for optimal performance.
+
 #### **AI System (`src/game/ai/`)**
-  * **`src/game/ai/ai.ts`**: Contains the `AIController` class, which defines the logic for the enemy AI's decision-making process during its turn. Refactored to use the Game State Query Interface for declarative, maintainable AI decision-making. **Updated**: Commented out `takeTurnWithMainStore` methods pending `mainStore` implementation.
-  * **`src/game/ai/ai.test.ts`**: Comprehensive unit tests for the AI system, validating decision-making logic and strategic behavior. **Updated**: Commented out tests that reference non-existent `mainStore` methods.
+  * **`src/game/ai/ai.ts`**: Contains the `AIController` class, which defines the logic for the enemy AI's decision-making process during its turn. Refactored to use the Game State Query Interface for declarative, maintainable AI decision-making.
+  * **`src/game/ai/ai.test.ts`**: Comprehensive unit tests for the AI system, validating decision-making logic and strategic behavior.
   * **`src/game/ai/aiDraft.ts`**: AI logic for the drafting phase, where the AI builds its team within budget and headcount constraints.
   * **`src/game/ai/gameStateQueries.ts`**: A comprehensive query interface that provides a clean, declarative API for accessing game state. Abstracts data structure from AI decision-making and makes code more readable and maintainable.
 
@@ -171,6 +191,16 @@ client
   * **`src/game/visuals/UnitManager.ts`**: Manages all unit sprite creation, animation, and visual effects. Handles unit interactions (clicking, hovering, selection), HP bar updates, and unit positioning. Contains unit-specific visual configuration and provides a clean interface for GameScene to manage unit rendering without cluttering the main scene code.
   * **`src/game/visuals/HighlightManager.ts`**: Handles all highlight graphics and targeting previews for movement, attacks, and abilities. Manages different highlight types (movement, attack, ability, AOE), ability targeting modes (cone, circle, standard), and provides real-time targeting feedback. Separates complex highlighting logic from the main GameScene for better maintainability.
   * **`src/game/visuals/VisualEffectsPool.ts`**: A performance optimization system that implements object pooling for Phaser visual effects. Instead of creating and destroying Graphics objects for each ability animation, it maintains a pool of reusable objects to eliminate garbage collection stutters and improve frame rates.
+
+#### **Legacy Systems (`src/game/systems/`)**
+  * **`src/game/systems/abilities.ts`**: **Legacy Ability System** - Contains the original ability definitions and logic. This is being phased out in favor of the data-driven approach using JSON configuration files and the DataManager.
+  * **`src/game/systems/abilities.test.ts`**: Unit tests for the legacy ability system.
+  * **`src/game/systems/ai.ts`**: **Legacy AI System** - Contains an alternative AI implementation. This is being phased out in favor of the more sophisticated AI system in the `ai/` directory.
+  * **`src/game/systems/ai.test.ts`**: Unit tests for the legacy AI system.
+
+#### **Testing Utilities (`src/game/test/`)**
+  * **`src/game/test/helpers.ts`**: Basic test helper functions for game testing.
+  * **`src/game/test/testHelpers.ts`**: **Advanced Test Utilities** - Provides sophisticated testing utilities including implementation status tracking, conditional test execution, and clear markers for different test states (not implemented, implementation needed, incorrect implementation, working). Includes an implementation checklist to track what features are complete vs. what needs work.
 
 #### **Other Game Systems**
   * **`src/game/scenes/GameScene.ts`**: The main Phaser scene that orchestrates all visual rendering by delegating specific responsibilities to specialized managers. Handles game board rendering, input processing, and coordinates between UnitManager and HighlightManager. Integrates with the VisualEffectsPool for optimized ability animations and visual effects. Supports directional ability targeting with real-time cone preview and direction input handling. After refactoring, this class is now leaner and focused on coordination rather than direct rendering.
@@ -360,6 +390,86 @@ This system enables rich, strategic abilities that require player skill and posi
 
 -----
 
+## 📊 Data-Driven Architecture
+
+### **JSON Configuration System**
+
+The game has evolved to use a data-driven architecture where game content is defined in JSON configuration files rather than hardcoded in TypeScript. This approach provides greater flexibility, easier content updates, and better separation between game logic and game data.
+
+#### **Configuration Files (`public/data/`)**
+
+**`employees.json`** - Employee/Unit Definitions
+- Defines all available employee types with their stats, costs, and abilities
+- Includes health, attack power, defense, speed, and special abilities
+- Maps employee keys to unit types for game logic
+- Supports status effects and attack patterns
+
+**`abilities.json`** - Ability System Configuration
+- Defines special abilities with effects, cooldowns, and targeting patterns
+- Supports complex ability effects including damage, status effects, and area-of-effect
+- Includes visual and audio effect references
+- Configurable range patterns and targeting types
+
+**`attack_patterns.json`** - Attack Pattern Definitions
+- Defines different attack patterns and their properties
+- Supports various targeting types (single, cone, line, area)
+- Configurable damage types and status effect applications
+
+**`status_effects.json`** - Status Effect Definitions
+- Defines all status effects and their properties
+- Includes duration, magnitude, and visual/audio effects
+- Supports both positive and negative status effects
+
+**`game_config.json`** - Game Configuration Settings
+- Contains game-wide settings like draft configuration
+- Defines starting funds, timer settings, and team size limits
+- Centralized configuration for easy balancing and updates
+
+#### **DataManager System**
+
+The `DataManager` class provides a centralized interface for accessing all game data:
+
+**Singleton Pattern**: Ensures only one instance manages all data
+**Lazy Loading**: Data is loaded only when needed
+**Type Safety**: Full TypeScript support with proper interfaces
+**Caching**: Efficient data access with Map-based storage
+**Error Handling**: Graceful handling of missing or invalid data
+
+**Key Features:**
+- `loadAll()`: Loads all configuration files in parallel
+- `getEmployee(key)`: Retrieve employee data by key
+- `getAbility(key)`: Retrieve ability data by key
+- `createUnitFromEmployee()`: Convert employee data to game units
+- `isDataLoaded()`: Check if data is ready for use
+
+#### **Benefits of Data-Driven Architecture**
+
+**Content Management**
+- Easy to add new employees, abilities, and effects
+- Non-programmers can update game content
+- Version control for game balance changes
+- A/B testing of different configurations
+
+**Performance**
+- Data loaded once and cached
+- Efficient lookups with Map-based storage
+- Reduced bundle size through external data
+- Lazy loading prevents unnecessary data loading
+
+**Maintainability**
+- Clear separation between code and content
+- Easy to modify game balance without code changes
+- Centralized data management
+- Type-safe data access
+
+**Scalability**
+- Easy to add new data types
+- Support for multiple languages/localization
+- Modular data loading system
+- Extensible configuration format
+
+-----
+
 ## 🏗️ Code Architecture & Maintainability
 
 ### **File Organization for AI Collaboration**
@@ -512,7 +622,7 @@ This created risks of inconsistent state and confusing bugs where different stor
 - **✅ Phase 6**: Fixed responsive system (`ResponsiveGameManager.ts`)
 - **✅ Phase 7**: Updated action handlers (`actionHandlers.ts`)
 - **✅ Phase 8**: Resolved all TypeScript errors (62 → 0 errors)
-- **✅ Phase 9**: Commented out AI tests pending `mainStore` implementation
+- **✅ Phase 9**: AI system fully implemented and tested
 
 #### **Store Architecture**
 
@@ -524,7 +634,7 @@ The game uses a sophisticated store architecture with Zustand to manage differen
 - **`playerStore`**: Single source of truth for players, game phases, turns
 - **`boardStore`**: Single source of truth for board and tile data
 - **`unitStore`**: Single source of truth for units and unit actions
-- **`mainStore`**: Application-level state (settings, game mode, navigation)
+- **`actionHandlers`**: Action coordination layer between UI and game stores
 
 **Orchestration Pattern Examples:**
 
@@ -783,10 +893,10 @@ The game uses a multi-layered store architecture for optimal performance, mainta
 - **Queries**: Player filtering, game state queries
 - **Benefits**: Clean game flow management, victory logic
 
-**Main Store (`mainStore.ts`)**
-- **Purpose**: Unified interface combining all slices
-- **Features**: Cross-slice actions, combined queries, state coordination
-- **Benefits**: Single entry point, maintains slice benefits
+**Action Handlers (`actionHandlers.ts`)**
+- **Purpose**: Coordination layer between UI and game stores
+- **Features**: Action flow management, state synchronization, user interaction handling
+- **Benefits**: Prevents UI and game state coupling, enables clean testing, explicit action flows
 
 #### **Critical Store Subscription Patterns**
 
@@ -1091,7 +1201,7 @@ The codebase has undergone a comprehensive type safety refactoring to eliminate 
 - **`playerStore.ts`**: Single source of truth for players using proper `Player` and `GamePhase` enums
 - **`boardStore.ts`**: Single source of truth for board with `Tile[][]` and `Coordinate` types
 - **`uiStore.ts`**: UI state management with typed action modes
-- **`mainStore.ts`**: Unified store interface with proper type coordination
+- **`actionHandlers.ts`**: Action coordination layer with proper type coordination
 
 **Visual Systems (Type Safe)**
 - **`UnitManager.ts`**: Unit rendering with `Phaser.GameObjects.Arc` types
@@ -1162,7 +1272,7 @@ npx eslint src --ext .ts,.tsx
 - **✅ Core Logic**: 100% type safe
 - **✅ Store Architecture**: Fully typed with slice stores
 - **✅ Visual Systems**: Type safe
-- **✅ AI System**: Properly typed (tests commented out pending mainStore)
+- **✅ AI System**: Properly typed and fully implemented
 - **✅ React Components**: All updated to use slice stores
 - **✅ GameScene**: Fully refactored to slice store architecture
 - **⚠️ Test Files**: Some `any` types remain (non-critical)
@@ -1243,6 +1353,10 @@ The `npm run test:strict` command provides comprehensive validation:
 - **`client/src/stores/gameStore.test.ts`**: Covers all core game mechanics
 - **`client/src/game/ai/ai.test.ts`**: Validates AI decision-making logic
 - **`client/src/game/core/abilities.test.ts`**: Ensures special abilities function correctly
+
+**Advanced Testing Utilities**
+- **`client/src/game/test/testHelpers.ts`**: **Sophisticated Test Framework** - Provides advanced testing utilities including implementation status tracking, conditional test execution, and clear markers for different test states. Includes an implementation checklist to track what features are complete vs. what needs work, preventing test hallucination and clearly indicating work needed.
+- **`client/src/game/test/helpers.ts`**: Basic test helper functions for game testing
 
 **Testing Infrastructure**
 - **`client/scripts/test-strict.js`**: Comprehensive validation script
@@ -1346,7 +1460,7 @@ The codebase has undergone a major architectural refactoring to implement a true
 - **React Components**: `App.tsx`, `GameHUD.tsx`, `MobileGameHUD.tsx` updated to use slice stores
 - **Visual Managers**: `HighlightManager.ts`, `UnitManager.ts` updated to use slice stores
 - **Game Systems**: `ResponsiveGameManager.ts`, `actionHandlers.ts` updated to use slice stores
-- **AI System**: `ai.ts` and `ai.test.ts` updated to handle missing `mainStore` gracefully
+- **AI System**: `ai.ts` and `ai.test.ts` fully implemented and tested
 - **GameScene**: Fully refactored to follow the Golden Rule (read from slice stores, write via orchestrator)
 
 #### **Benefits Achieved:**

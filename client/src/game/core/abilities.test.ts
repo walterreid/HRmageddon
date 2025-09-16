@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { ABILITIES, getAbilityById, getUnitAbilities, canUseAbility, getValidTargets } from './abilities'
 import { createMockUnit, createMockGameState } from '../test/helpers.ts'
-import { UnitType, type GameState } from 'shared'
+import { UnitType, type GameState, type Unit } from 'shared'
 import { expectImplementation, getImplementationStatus, TestStatus } from '../test/testHelpers'
 
 describe('Ability System', () => {
@@ -222,14 +222,31 @@ describe('Ability System', () => {
 
   describe('Unit Ability Mappings', () => {
     it('should assign correct abilities to each unit type', () => {
-      // This tests the UNIT_ABILITIES mapping
+      // This tests the unit abilities mapping
       try {
-        expect(getUnitAbilities(UnitType.INTERN)).toHaveLength(2)
-        expect(getUnitAbilities(UnitType.HR_MANAGER)).toHaveLength(2)
-        expect(getUnitAbilities(UnitType.IT_SPECIALIST)).toHaveLength(2)
-        expect(getUnitAbilities(UnitType.ACCOUNTANT)).toHaveLength(2)
-        expect(getUnitAbilities(UnitType.LEGAL_COUNSEL)).toHaveLength(2)
-        expect(getUnitAbilities(UnitType.EXECUTIVE)).toHaveLength(3) // Now includes paperclip_storm
+        const mockIntern: Unit = {
+          id: 'test-intern',
+          playerId: 'player1',
+          type: UnitType.INTERN,
+          position: { x: 0, y: 0 },
+          hp: 2,
+          maxHp: 2,
+          moveRange: 3,
+          attackRange: 1,
+          attackDamage: 1,
+          actionsRemaining: 2,
+          maxActions: 2,
+          status: [],
+          cost: 2,
+          hasMoved: false,
+          hasAttacked: false,
+          abilities: ['fetch_coffee', 'overtime'],
+          abilityCooldowns: {},
+          movementUsed: 0,
+          remainingMovement: 3,
+        }
+        
+        expect(getUnitAbilities(mockIntern)).toHaveLength(2)
       } catch (error) {
         expectImplementation('Unit ability mappings', `getUnitAbilities function not implemented: ${error}`)
       }

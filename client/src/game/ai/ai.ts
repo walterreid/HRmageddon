@@ -218,7 +218,7 @@ export class AIController {
   }
 
   private evaluateAbilities(unit: Unit, queryState: QueryGameState): AIAction | null {
-    const abilities = getUnitAbilities(unit.type)
+    const abilities = getUnitAbilities(unit)
     
     for (const ability of abilities) {
       if (!canUseAbility(unit, ability.id)) continue

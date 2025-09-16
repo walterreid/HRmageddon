@@ -1,6 +1,51 @@
-import { type Unit, StatusType, UnitType, type Coordinate, type Ability, TargetType, AbilityTargetingType, type Tile } from 'shared'
+import { type Unit, StatusType, UnitType, type Coordinate, type Ability, TargetType, AbilityTargetingType, type Tile, type DataAbility } from 'shared'
+import { dataManager } from '../data/DataManager'
 
-// Enhanced ability definitions with new abilities for each unit type
+// Get ability from DataManager or fallback to legacy
+export function getAbilityById(id: string): Ability | undefined {
+  const dataAbility = dataManager.getAbility(id)
+  if (dataAbility) {
+    return convertDataAbilityToLegacyAbility(dataAbility)
+  }
+  return ABILITIES[id]
+}
+
+// Convert DataAbility to legacy Ability format
+function convertDataAbilityToLegacyAbility(dataAbility: DataAbility): Ability {
+  return {
+    id: dataAbility.key,
+    name: dataAbility.name,
+    description: dataAbility.description,
+    cost: 1, // Default cost
+    cooldown: dataAbility.cooldown_turns,
+    range: 1, // Default range
+    targetType: TargetType.ENEMY, // Default target type
+    targetingType: AbilityTargetingType.SINGLE_TARGET,
+    effect: () => {
+      // Process effects from JSON
+      const results = dataAbility.effects.map((effect) => {
+        switch (effect.type) {
+          case 'damage':
+            return { damageDealt: effect.value || 0 }
+          case 'apply_status_effect':
+            return { statusApplied: [{ type: effect.status_key as StatusType, duration: 2 }] }
+          default:
+            return {}
+        }
+      })
+      
+      return {
+        success: true,
+        message: `${dataAbility.name} used`,
+        ...results.reduce((acc: Record<string, unknown>, result: Record<string, unknown>) => ({ ...acc, ...result }), {})
+      }
+    },
+    visualEffect: 'default',
+    soundEffect: 'default',
+  }
+}
+
+// Legacy abilities for backward compatibility during transition
 export const ABILITIES: Record<string, Ability> = {
   // Intern abilities
   fetch_coffee: {
@@ -292,22 +337,18 @@ export const UNIT_ABILITIES: Record<UnitType, string[]> = {
 }
 
 // Helper functions for ability system
-export function getAbilityById(id: string): Ability | undefined {
-  return ABILITIES[id]
-}
 
-export function getUnitAbilities(unitType: UnitType): Ability[] {
-  const abilityIds = UNIT_ABILITIES[unitType]
-  return abilityIds.map(id => ABILITIES[id]).filter(Boolean)
+export function getUnitAbilities(unit: Unit): Ability[] {
+  // Get abilities from unit's abilities array (now stored from employee data)
+  return unit.abilities.map(abilityId => getAbilityById(abilityId)).filter((ability): ability is Ability => ability !== undefined)
 }
 
 export function canUseAbility(unit: Unit, abilityId: string): boolean {
-  const ability = ABILITIES[abilityId]
+  const ability = getAbilityById(abilityId)
   if (!ability) return false
   
-  // Check if unit type has access to this ability
-  const unitAbilities = UNIT_ABILITIES[unit.type]
-  if (!unitAbilities.includes(abilityId)) return false
+  // Check if unit has access to this ability
+  if (!unit.abilities.includes(abilityId)) return false
   
   // Check cooldown
   const currentCooldown = unit.abilityCooldowns[abilityId] || 0
