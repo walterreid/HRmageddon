@@ -7,6 +7,7 @@ interface UIStore {
   selectedAbility: string | undefined
   targetingMode: boolean
   abilityAwaitingDirection: string | null
+  actionMenuPosition: { x: number; y: number; isVisible: boolean } | null
 
   // Actions
   setHighlightedTiles: (tiles: Map<string, string>) => void
@@ -14,6 +15,7 @@ interface UIStore {
   setSelectedAbility: (abilityId: string | undefined) => void
   setTargetingMode: (mode: boolean) => void
   setAbilityAwaitingDirection: (abilityId: string | null) => void
+  setActionMenu: (position: { x: number; y: number } | null) => void
   clearActionMode: () => void
   clearHighlights: () => void
   addHighlight: (coord: string, type: string) => void
@@ -33,6 +35,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   selectedAbility: undefined,
   targetingMode: false,
   abilityAwaitingDirection: null,
+  actionMenuPosition: null,
 
   // Actions
   setHighlightedTiles: (tiles) => {
@@ -71,13 +74,20 @@ export const useUIStore = create<UIStore>((set, get) => ({
     })
   },
 
+  setActionMenu: (position) => {
+    set({ 
+      actionMenuPosition: position ? { ...position, isVisible: true } : null
+    })
+  },
+
   clearActionMode: () => {
     set({
       actionMode: 'none',
       selectedAbility: undefined,
       targetingMode: false,
       abilityAwaitingDirection: null,
-      highlightedTiles: new Map()
+      highlightedTiles: new Map(),
+      actionMenuPosition: null
     })
   },
 

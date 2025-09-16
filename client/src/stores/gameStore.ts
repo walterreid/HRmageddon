@@ -491,6 +491,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (!unit) {
       unitStore.selectUnit(null)
       uiStore.clearHighlights()
+      uiStore.setActionMenu(null)
       return
     }
     

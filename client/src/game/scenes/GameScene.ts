@@ -1202,6 +1202,22 @@ export class GameScene extends Phaser.Scene {
           if (this.actionMode === 'none') {
             // Select the unit (this will show the action menu for player units)
             gameState.selectUnit(unit)
+            
+            // Calculate and set the action menu position for player units
+            if (unit.playerId === 'player1') {
+              const { x: wx, y: wy } = this.tileToWorld(unit.position.x, unit.position.y)
+              const screenX = wx + this.tileSizePx / 2
+              const screenY = wy + this.tileSizePx / 2
+              
+              console.log('Setting action menu position for unit:', {
+                unitId: unit.id,
+                unitPosition: unit.position,
+                screenPosition: { x: screenX, y: screenY },
+                tileSize: this.tileSizePx
+              })
+              
+              useUIStore.getState().setActionMenu({ x: screenX, y: screenY })
+            }
           }
           return
         }

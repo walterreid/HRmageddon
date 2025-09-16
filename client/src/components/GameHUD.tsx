@@ -41,6 +41,7 @@ export function GameHUD() {
   // UI state from UI store
   const actionMode = useUIStore(state => state.actionMode)
   const selectedAbility = useUIStore(state => state.selectedAbility)
+  const actionMenuPosition = useUIStore(state => state.actionMenuPosition)
   
   // Actions don't need selectors as they don't cause re-renders
   const endTurn = useGameStore(state => state.endTurn)
@@ -49,7 +50,6 @@ export function GameHUD() {
   const canUnitAttack = useGameStore(state => state.canUnitAttack)
   const getEnemiesInRange = useGameStore(state => state.getEnemiesInRange)
 
-  const [actionMenuPosition, setActionMenuPosition] = useState({ x: 0, y: 0 })
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
   
   // Mobile bottom sheet state
@@ -77,66 +77,7 @@ export function GameHUD() {
   const player1 = players.find((p) => p.id === 'player1')
   const player2 = players.find((p) => p.id === 'player2')
 
-  // Show action menu when a player unit is selected and can be controlled
-  // Hide it when we're in an action mode OR when the unit has no actions remaining
-  const showActionMenu = useCallback(() => {
-    if (!selectedUnit) return false
-    
-    // Hide action menu when in action mode
-    if (actionMode !== 'none') {
-      console.log('Action menu hidden: action mode is', actionMode)
-      return false
-    }
-    
-    // Hide action menu when unit has no actions remaining
-    if (selectedUnit.actionsRemaining <= 0) {
-      console.log('Action menu hidden: unit has no actions remaining')
-      return false
-    }
-    
-    const shouldShow = isPlayerUnit && canControl
-    console.log('Action menu check:', { 
-      selectedUnit: !!selectedUnit, 
-      isPlayerUnit, 
-      canControl, 
-      shouldShow,
-      actionMode,
-      actionsRemaining: selectedUnit.actionsRemaining
-    })
-    return shouldShow
-  }, [selectedUnit, isPlayerUnit, canControl, actionMode])
   
-  // Update action menu position when unit is selected
-  useEffect(() => {
-    if (selectedUnit && isPlayerUnit) {
-      // Get the actual tile size and board offset from the game scene
-      const gameScene = (window as ExtendedWindow).gameScene
-      if (gameScene && gameScene.getTileSize && gameScene.getBoardOffsetX && gameScene.getBoardOffsetY) {
-        const tileSize = gameScene.getTileSize()
-        const boardOffsetX = gameScene.getBoardOffsetX()
-        const boardOffsetY = gameScene.getBoardOffsetY()
-        
-        // Calculate unit center position
-        const unitScreenX = boardOffsetX + (selectedUnit.position.x * tileSize) + (tileSize / 2)
-        const unitScreenY = boardOffsetY + (selectedUnit.position.y * tileSize) + (tileSize / 2)
-        
-        // Simple positioning - ActionMenu will handle smart positioning internally
-        setActionMenuPosition({ x: unitScreenX, y: unitScreenY })
-        
-        console.log('Action menu positioning:', {
-          unitPosition: selectedUnit.position,
-          tileSize,
-          boardOffset: { x: boardOffsetX, y: boardOffsetY },
-          unitScreenPos: { x: unitScreenX, y: unitScreenY },
-          windowSize: { width: window.innerWidth, height: window.innerHeight }
-        })
-      } else {
-        console.log('GameScene not available for positioning, using default position')
-        // Use a default position when GameScene isn't available
-        setActionMenuPosition({ x: 100, y: 100 })
-      }
-    }
-  }, [selectedUnit, isPlayerUnit])
 
   // Reset action mode when selected unit changes or when unit has no actions remaining
   useEffect(() => {
@@ -843,9 +784,9 @@ export function GameHUD() {
       </div>
 
       {/* Action Menu Modal - Show on both mobile and desktop when needed */}
-      {showActionMenu() && selectedUnit && (
+      {actionMenuPosition && actionMenuPosition.isVisible && selectedUnit && (
         <>
-          {console.log('Rendering ActionMenu with:', { showActionMenu, selectedUnit, position: actionMenuPosition })}
+          {console.log('Rendering ActionMenu with:', { actionMenuPosition, selectedUnit })}
           <ActionMenu
             unit={selectedUnit}
             position={actionMenuPosition}
