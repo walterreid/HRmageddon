@@ -244,6 +244,8 @@ export class DataManager {
 
   // Convert Employee data to Unit data for game logic
   public createUnitFromEmployee(employee: Employee, id: string, playerId: string, position: { x: number; y: number }): Unit {
+    const abilities = employee.special_ability ? [employee.special_ability.key || employee.special_ability.name.toLowerCase().replace(/\s+/g, '_')] : []
+    
     return {
       id,
       playerId,
@@ -260,7 +262,7 @@ export class DataManager {
       cost: employee.cost,
       hasMoved: false,
       hasAttacked: false,
-      abilities: employee.special_ability ? [employee.special_ability.name.toLowerCase().replace(/\s+/g, '_')] : [],
+      abilities: abilities,
       abilityCooldowns: {},
       movementUsed: 0,
       remainingMovement: employee.stats.speed,

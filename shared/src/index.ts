@@ -266,6 +266,7 @@ export interface Employee {
     }
   }
   special_ability?: {
+    key?: string
     name: string
     type: string
     target: string

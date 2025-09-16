@@ -43,6 +43,7 @@
           }
         },
         "special_ability": {
+          "key": "urgent_memo",
           "name": "Urgent Memo",
           "type": "buff",
           "target": "ally",

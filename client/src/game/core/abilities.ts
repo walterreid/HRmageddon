@@ -12,23 +12,68 @@ export function getAbilityById(id: string): Ability | undefined {
 
 // Convert DataAbility to legacy Ability format
 function convertDataAbilityToLegacyAbility(dataAbility: DataAbility): Ability {
+  // Determine target type from effects
+  let targetType: TargetType = TargetType.ENEMY // Default
+  if (dataAbility.effects.some(e => e.target === 'ally')) {
+    targetType = TargetType.ALLY
+  } else if (dataAbility.effects.some(e => e.target === 'self')) {
+    targetType = TargetType.SELF
+  }
+
+  // Determine range from range_pattern_key
+  let range = 1 // Default
+  if (dataAbility.range_pattern_key === 'centered_cross_burst') {
+    range = 1 // Cross pattern is 1 tile in each direction
+  } else if (dataAbility.range_pattern_key === 'forward_cone') {
+    range = 3 // Cone abilities typically have longer range
+  } else if (dataAbility.range_pattern_key === 'firewall_line') {
+    range = 4 // Firewall can be placed at distance
+  }
+
+  // Determine targeting type from range pattern
+  let targetingType = AbilityTargetingType.SINGLE_TARGET
+  if (dataAbility.range_pattern_key === 'forward_cone') {
+    targetingType = AbilityTargetingType.AOE_CONE
+  } else if (dataAbility.range_pattern_key === 'centered_cross_burst') {
+    targetingType = AbilityTargetingType.AOE_CIRCLE
+  }
+
   return {
     id: dataAbility.key,
     name: dataAbility.name,
     description: dataAbility.description,
     cost: 1, // Default cost
     cooldown: dataAbility.cooldown_turns,
-    range: 1, // Default range
-    targetType: TargetType.ENEMY, // Default target type
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
+    range: range,
+    targetType: targetType,
+    targetingType: targetingType,
     effect: () => {
       // Process effects from JSON
       const results = dataAbility.effects.map((effect) => {
         switch (effect.type) {
           case 'damage':
             return { damageDealt: effect.value || 0 }
-          case 'apply_status_effect':
-            return { statusApplied: [{ type: effect.status_key as StatusType, duration: 2 }] }
+          case 'apply_status_effect': {
+            // Map status keys to StatusType enum
+            let statusType: StatusType
+            switch (effect.status_key) {
+              case 'increase_speed':
+                statusType = StatusType.INSPIRED // Use inspired as a speed boost
+                break
+              case 'bleeding':
+                statusType = StatusType.POISONED // Use poisoned as bleeding effect
+                break
+              case 'fire':
+                statusType = StatusType.BURNING
+                break
+              default:
+                statusType = StatusType.CONFUSED // Default fallback
+            }
+            return { statusApplied: [{ type: statusType, duration: 2 }] }
+          }
+          case 'create_tile_hazard':
+            // For now, just return success - tile hazards need more complex implementation
+            return { message: `${dataAbility.name} creates a hazard` }
           default:
             return {}
         }
