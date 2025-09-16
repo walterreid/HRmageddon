@@ -9,7 +9,7 @@ import { type Unit, type Coordinate, type Ability, type Tile } from 'shared'
 export interface TargetingContext {
   source: Unit
   ability: Ability
-  board: any[][] // eslint-disable-line @typescript-eslint/no-explicit-any
+  board: Tile[][]
   units: Unit[]
 }
 
@@ -145,7 +145,7 @@ function getConeTargets(context: TargetingContext): TargetingResult {
   const invalidTargets: (Unit | Coordinate)[] = []
   
   const range = ability.range || 1
-  const coneWidth = (ability as any).coneWidth || 1 // eslint-disable-line @typescript-eslint/no-explicit-any
+  const coneWidth = (ability as Ability & { coneWidth?: number }).coneWidth || 1
   
   // For simplicity, implement a basic cone pattern
   // In a real implementation, you'd want more sophisticated cone math
@@ -187,7 +187,7 @@ function getAreaTargets(context: TargetingContext): TargetingResult {
   const invalidTargets: (Unit | Coordinate)[] = []
   
   const range = ability.range || 1
-  // const _areaSize = (ability as any).areaSize || 1 // Currently unused
+  // const _areaSize = (ability as Ability & { areaSize?: number }).areaSize || 1 // Currently unused
   
   // Check all positions within range
   for (let x = 0; x < board[0].length; x++) {
@@ -258,7 +258,7 @@ export function isValidTarget(
   }
   
   // Determine targeting pattern based on ability
-  const pattern = (ability as any).targetingPattern || 'single' // eslint-disable-line @typescript-eslint/no-explicit-any
+  const pattern = (ability as Ability & { targetingPattern?: 'self' | 'single' | 'line' | 'cone' | 'area' }).targetingPattern || 'single'
   const result = getValidTargets(context, pattern)
   
   return result.validTargets.some(validTarget => 

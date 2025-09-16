@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 import { useGameStore } from '../../stores/gameStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useUnitStore } from '../../stores/unitStore'
+import { useBoardStore } from '../../stores/boardStore'
 import { TileType, type Unit, type Tile, type Coordinate, AbilityTargetingType } from 'shared'
 import { getAbilityById, getValidTargets } from '../core/abilities.ts'
 import { getTilesInCone } from '../core/targeting'
@@ -84,6 +86,7 @@ export class GameScene extends Phaser.Scene {
   private unitSprites: Map<string, Phaser.GameObjects.Container> = new Map()
   private unsubscribe?: () => void
   private unsubscribeUI?: () => void
+  private unsubscribeUnits?: () => void
   private isDestroyed: boolean = false
   private lastSelectedAbility?: string // Track ability changes for synchronization
   
@@ -179,10 +182,11 @@ export class GameScene extends Phaser.Scene {
     new GridOverlay(this, this.boardCols, this.boardRows, this.tileSizePx)
     
     // Force initial render after map is ready
-    const initialState = useGameStore.getState()
-    if (initialState.board && initialState.units) {
-      this.drawBoard(initialState.board)
-      this.drawUnits(initialState.units)
+    const initialUnitState = useUnitStore.getState()
+    const initialBoardState = useBoardStore.getState()
+    if (initialBoardState.board && initialUnitState.units) {
+      this.drawBoard(initialBoardState.board)
+      this.drawUnits(initialUnitState.units)
     }
     
             // MapRegistry is now populated with starting positions
@@ -206,8 +210,8 @@ export class GameScene extends Phaser.Scene {
           return
         }
         
-        // Get current game state
-        const gameState = useGameStore.getState()
+        // Get current game state from slice stores
+        const unitState = useUnitStore.getState()
         
         // Update highlights when UI store changes
         console.log('UI store changed, updating highlights:', {
@@ -216,14 +220,35 @@ export class GameScene extends Phaser.Scene {
           selectedAbility: uiState.selectedAbility
         })
         
-        this.updateHighlights(uiState.highlightedTiles, gameState.selectedUnit)
+        this.updateHighlights(uiState.highlightedTiles, unitState.selectedUnit)
       } catch (error) {
         console.error('Error in UI store subscription:', error)
       }
     })
     
+    // Subscribe to unit store changes for unit rendering
+    this.unsubscribeUnits = useUnitStore.subscribe((unitState) => {
+      try {
+        // Check if scene is still valid and has a valid manager
+        if (this.isDestroyed || !this.scene || !this.scene.manager || !this.scene.isActive || !this.scene.isActive()) {
+          console.warn('Scene destroyed or not active, skipping unit render update')
+          return
+        }
+        
+        if (!this.tileGraphics || !this.highlightGraphics || !this.abilityTargetGraphics) {
+          console.warn('Graphics not initialized, skipping unit render update')
+          return
+        }
+        
+        // Redraw units when unit state changes
+        this.drawUnits(unitState.units)
+      } catch (error) {
+        console.error('Error in unit store subscription:', error)
+      }
+    })
+    
     // Subscribe to game store changes
-    this.unsubscribe = useGameStore.subscribe((state) => {
+    this.unsubscribe = useGameStore.subscribe(() => {
       try {
         // Check if scene is still valid and has a valid manager
         if (this.isDestroyed || !this.scene || !this.scene.manager || !this.scene.isActive || !this.scene.isActive()) {
@@ -236,50 +261,54 @@ export class GameScene extends Phaser.Scene {
           return
         }
         
+        // Get current state from slice stores
+        const unitState = useUnitStore.getState()
+        const boardState = useBoardStore.getState()
+        const uiState = useUIStore.getState()
+        
         // Check for ability changes specifically
-        const uiStore = useUIStore.getState()
-        if (uiStore.selectedAbility !== this.lastSelectedAbility) {
+        if (uiState.selectedAbility !== this.lastSelectedAbility) {
           console.log('Ability selection changed:', {
             from: this.lastSelectedAbility,
-            to: uiStore.selectedAbility
+            to: uiState.selectedAbility
           })
-          this.lastSelectedAbility = uiStore.selectedAbility
+          this.lastSelectedAbility = uiState.selectedAbility
           
           // Force complete re-render of highlights
           this.highlightGraphics.clear()
           this.abilityTargetGraphics.clear()
           
-        if (uiStore.selectedAbility) {
+        if (uiState.selectedAbility) {
           console.log('Ability mode active, updating ability targeting')
-          this.updateAbilityTargeting(state.selectedUnit, uiStore.selectedAbility)
+          this.updateAbilityTargeting(unitState.selectedUnit, uiState.selectedAbility)
         } else {
           console.log('Ability mode cleared, updating normal highlights')
-          this.updateHighlights(uiStore.highlightedTiles, state.selectedUnit)
+          this.updateHighlights(uiState.highlightedTiles, unitState.selectedUnit)
         }
         } else {
           // Regular update (no ability change)
           console.log('Regular rendering update:', {
-            board: state.board?.length,
-            units: state.units?.length,
-            highlights: state.highlightedTiles?.size,
-            selectedUnit: !!state.selectedUnit,
-            selectedAbility: !!uiStore.selectedAbility
+            board: boardState.board?.length,
+            units: unitState.units?.length,
+            highlights: uiState.highlightedTiles?.size,
+            selectedUnit: !!unitState.selectedUnit,
+            selectedAbility: !!uiState.selectedAbility
           })
           
-          this.drawBoard(state.board)
-          this.drawUnits(state.units)
+          this.drawBoard(boardState.board)
+          this.drawUnits(unitState.units)
           
           // If an ability is selected, don't show movement highlights
-          if (uiStore.selectedAbility) {
+          if (uiState.selectedAbility) {
             console.log('Ability selected, clearing movement highlights and showing ability range')
             // Clear movement highlights when ability is active
             this.highlightGraphics.clear()
             // Only show ability targeting
-            this.updateAbilityTargeting(state.selectedUnit, uiStore.selectedAbility)
+            this.updateAbilityTargeting(unitState.selectedUnit, uiState.selectedAbility)
           } else {
             console.log('No ability selected, showing normal highlights')
             // Show normal highlights (movement, attack, etc.)
-            this.updateHighlights(uiStore.highlightedTiles, state.selectedUnit)
+            this.updateHighlights(uiState.highlightedTiles, unitState.selectedUnit)
             // Clear ability targeting graphics
             this.abilityTargetGraphics.clear()
           }
@@ -304,7 +333,7 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerout', this.handlePointerOut, this)
     
     // Prevent zoom on mobile devices
-    this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _gameObjects: any[], _deltaX: number, deltaY: number, _deltaZ: number) => {
+    this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number, _deltaZ: number) => {
       void _pointer; void _gameObjects; void _deltaX; void _deltaZ; // Suppress unused parameter warnings
       // Prevent zoom/scroll on mobile
       if (Math.abs(deltaY) > 0) {
@@ -323,15 +352,16 @@ export class GameScene extends Phaser.Scene {
     })
     
     // Initial render
-    const store = useGameStore.getState()
-    this.drawBoard(store.board)
-    this.drawUnits(store.units)
+    const finalUnitState = useUnitStore.getState()
+    const finalBoardState = useBoardStore.getState()
+    this.drawBoard(finalBoardState.board)
+    this.drawUnits(finalUnitState.units)
   }
 
   // In GameScene.ts - replace getTileSize() with:
   public getTileSize(): number {
   // Get tile size from ResponsiveGameManager instead of calculating
-  const responsiveManager = (this.game as any).responsiveManager
+  const responsiveManager = (this.game as Phaser.Game & { responsiveManager?: { getCurrentTileSize(): number } }).responsiveManager
   if (responsiveManager) {
     return responsiveManager.getCurrentTileSize()
   }
@@ -482,7 +512,7 @@ export class GameScene extends Phaser.Scene {
         // Add multiple event listeners for better compatibility
         container.on('pointerdown', () => {
           console.log('Unit clicked:', unit.id) // Debug log
-          const u = useGameStore.getState().units.find((uu) => uu.id === unit.id)
+          const u = useUnitStore.getState().units.find((uu) => uu.id === unit.id)
           if (u) useGameStore.getState().selectUnit(u)
           
           // Add click feedback
@@ -668,8 +698,9 @@ export class GameScene extends Phaser.Scene {
 
     console.log('Found ability:', ability.name, 'with range:', ability.range)
 
-    const store = useGameStore.getState()
-          this.validTargets = getValidTargets(selectedUnit, ability, store.board, store.units)
+    const unitState = useUnitStore.getState()
+    const boardState = useBoardStore.getState()
+    this.validTargets = getValidTargets(selectedUnit, ability, boardState.board, unitState.units)
     this.targetingMode = true
     
     console.log('Valid targets found:', this.validTargets.length)
@@ -693,7 +724,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Show the range area for an ability
-  private showAbilityRange(caster: Unit, ability: any) {
+  private showAbilityRange(caster: Unit, ability: { name: string; range: number; targetType: string }) {
     console.log('showAbilityRange called for:', ability.name, 'with range:', ability.range)
     console.log('Caster position:', caster.position)
     
@@ -740,9 +771,9 @@ export class GameScene extends Phaser.Scene {
           const targetY = caster.position.y + dy
           
           // Check if this position is on the board
-          const store = useGameStore.getState()
-          if (targetX >= 0 && targetX < store.board[0].length && 
-              targetY >= 0 && targetY < store.board.length) {
+          const boardState = useBoardStore.getState()
+          if (targetX >= 0 && targetX < boardState.board[0].length && 
+              targetY >= 0 && targetY < boardState.board.length) {
             
             const { x: px, y: py } = this.tileToWorld(targetX, targetY)
             
@@ -824,7 +855,7 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
-  private showConePreview(caster: Unit, ability: any) {
+  private showConePreview(caster: Unit, ability: { range: number; coneAngle?: number; requiresDirection?: boolean }) {
     // For cone abilities, show a preview of the cone area
     // Check if this is a directional ability awaiting direction input
     const uiStore = useUIStore.getState()
@@ -863,9 +894,9 @@ export class GameScene extends Phaser.Scene {
 
   // NEW METHOD to dynamically draw the cone preview
   private updateConePreview(pointer: Phaser.Input.Pointer) {
-    const store = useGameStore.getState()
+    const unitState = useUnitStore.getState()
     const uiStore = useUIStore.getState()
-    const caster = store.selectedUnit
+    const caster = unitState.selectedUnit
     const abilityId = uiStore.abilityAwaitingDirection
 
     if (!caster || !abilityId) {
@@ -890,7 +921,7 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
-  private showCirclePreview(caster: Unit, ability: any) {
+  private showCirclePreview(caster: Unit, ability: { range: number; aoeRadius?: number }) {
     // For circle AOE abilities, show the area of effect
     const { x: casterX, y: casterY } = this.tileToWorld(caster.position.x, caster.position.y)
     const casterCenterX = casterX + this.tileSizePx / 2
@@ -937,12 +968,13 @@ export class GameScene extends Phaser.Scene {
       return
     }
     
-    const store = useGameStore.getState()
+    const unitState = useUnitStore.getState()
+    const gameState = useGameStore.getState()
     
     // HIGHEST PRIORITY: Check if we are aiming a directional ability
     const uiStore = useUIStore.getState()
-    if (uiStore.abilityAwaitingDirection && store.selectedUnit) {
-      const caster = store.selectedUnit
+    if (uiStore.abilityAwaitingDirection && unitState.selectedUnit) {
+      const caster = unitState.selectedUnit
       const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
 
       // Don't allow clicking on the caster itself to set direction
@@ -952,7 +984,8 @@ export class GameScene extends Phaser.Scene {
       const direction = { x: tileX - caster.position.x, y: tileY - caster.position.y }
 
       // Use the ability, passing the direction as a special target
-      store.useAbility(caster.id, uiStore.abilityAwaitingDirection, { direction } as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      gameState.useAbility(caster.id, uiStore.abilityAwaitingDirection, { direction } as any)
 
       // Reset the aiming state
       useUIStore.getState().setAbilityAwaitingDirection(null)
@@ -973,9 +1006,9 @@ export class GameScene extends Phaser.Scene {
         }
       })
       
-      if (clickedTarget && store.selectedUnit) {
+      if (clickedTarget && unitState.selectedUnit) {
         // Use the ability on the target
-        store.useAbility(store.selectedUnit.id, uiStore.selectedAbility, clickedTarget)
+        gameState.useAbility(unitState.selectedUnit.id, uiStore.selectedAbility, clickedTarget)
         // Clear targeting mode and action mode
         useUIStore.getState().setSelectedAbility(undefined)
         this.actionMode = 'none'
@@ -1002,16 +1035,17 @@ export class GameScene extends Phaser.Scene {
     }
     
     // If we're in action mode, handle tile clicks for movement/attack FIRST
-    if (this.actionMode !== 'none' && store.selectedUnit) {
+    if (this.actionMode !== 'none' && unitState.selectedUnit) {
       const previousActionMode = this.actionMode
-      this.handleActionModeClick(store.selectedUnit, pointer)
+      this.handleActionModeClick(unitState.selectedUnit, pointer)
       
       // If the action wasn't completed, check if we clicked outside valid tiles
       if (this.actionMode === previousActionMode) {
         const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
         
         // Check if clicked outside the board or on an invalid tile
-        const board = store.board
+        const boardState = useBoardStore.getState()
+        const board = boardState.board
         if (tileX < 0 || tileX >= board[0].length || tileY < 0 || tileY >= board.length) {
           // Clicked outside board - cancel action mode
           console.log('Clicked outside board, cancelling action mode')
@@ -1022,9 +1056,11 @@ export class GameScene extends Phaser.Scene {
         // Check if clicked on a tile that's not a valid move/attack/ability target
         let isValidTarget = false
         if (this.actionMode === 'move') {
-          isValidTarget = store.possibleMoves.some(move => move.x === tileX && move.y === tileY)
+          const possibleMoves = gameState.calculatePossibleMoves(unitState.selectedUnit!)
+          isValidTarget = possibleMoves.some((move: Coordinate) => move.x === tileX && move.y === tileY)
         } else if (this.actionMode === 'attack') {
-          isValidTarget = store.possibleTargets.some(target => target.x === tileX && target.y === tileY)
+          const possibleTargets = gameState.calculatePossibleTargets(unitState.selectedUnit!)
+          isValidTarget = possibleTargets.some((target: Coordinate) => target.x === tileX && target.y === tileY)
         } else if (this.actionMode === 'ability') {
           // For abilities, check if this tile is within range and a valid target
           const selectedAbility = uiStore.selectedAbility
@@ -1032,10 +1068,10 @@ export class GameScene extends Phaser.Scene {
             const ability = getAbilityById(selectedAbility)
             if (ability) {
               // Check if tile is within range
-              const distance = Math.abs(tileX - store.selectedUnit!.position.x) + Math.abs(tileY - store.selectedUnit!.position.y)
+              const distance = Math.abs(tileX - unitState.selectedUnit!.position.x) + Math.abs(tileY - unitState.selectedUnit!.position.y)
               if (distance <= ability.range) {
                 // Check if this is a valid target for the ability
-                const validTargets = getValidTargets(store.selectedUnit!, ability, store.board, store.units)
+                const validTargets = getValidTargets(unitState.selectedUnit!, ability, boardState.board, unitState.units)
                 isValidTarget = validTargets.some(target => {
                   if ('x' in target) {
                     return target.x === tileX && target.y === tileY
@@ -1072,29 +1108,31 @@ export class GameScene extends Phaser.Scene {
     for (const [unitId, container] of this.unitSprites) {
       const bounds = container.getBounds()
       if (bounds.contains(pointer.x, pointer.y)) {
-        const unit = store.units.find(u => u.id === unitId)
+        const unit = unitState.units.find(u => u.id === unitId)
         if (unit) {
           // PRIORITY: If we're in action mode and this is a valid target, execute the action
-          if (this.actionMode !== 'none' && store.selectedUnit) {
+          if (this.actionMode !== 'none' && unitState.selectedUnit) {
             if (this.actionMode === 'attack') {
               // Check if this unit is a valid attack target
-              const isValidTarget = store.possibleTargets.some(target => 
+              const possibleTargets = gameState.calculatePossibleTargets(unitState.selectedUnit!)
+              const isValidTarget = possibleTargets.some((target: Coordinate) => 
                 target.x === unit.position.x && target.y === unit.position.y
               )
-              if (isValidTarget && unit.playerId !== store.selectedUnit.playerId) {
+              if (isValidTarget && unit.playerId !== unitState.selectedUnit.playerId) {
                 // Execute attack on this enemy unit
-                store.attackTarget(store.selectedUnit.id, unit.id)
+                gameState.attackTarget(unitState.selectedUnit.id, unit.id)
                 this.actionMode = 'none'
                 return
               }
             } else if (this.actionMode === 'move') {
               // Check if this unit's position is a valid move target
-              const isValidMove = store.possibleMoves.some(move => 
+              const possibleMoves = gameState.calculatePossibleMoves(unitState.selectedUnit!)
+              const isValidMove = possibleMoves.some((move: Coordinate) => 
                 move.x === unit.position.x && move.y === unit.position.y
               )
               if (isValidMove) {
                 // Execute move to this position
-                store.moveUnit(store.selectedUnit.id, unit.position)
+                gameState.moveUnit(unitState.selectedUnit.id, unit.position)
                 this.actionMode = 'none'
                 return
               }
@@ -1105,11 +1143,12 @@ export class GameScene extends Phaser.Scene {
                 const ability = getAbilityById(selectedAbility)
                 if (ability) {
                   // Check if unit is within range
-                  const distance = Math.abs(unit.position.x - store.selectedUnit!.position.x) + 
-                                 Math.abs(unit.position.y - store.selectedUnit!.position.y)
+                  const distance = Math.abs(unit.position.x - unitState.selectedUnit!.position.x) + 
+                                 Math.abs(unit.position.y - unitState.selectedUnit!.position.y)
                   if (distance <= ability.range) {
                     // Check if this is a valid target for the ability
-                    const validTargets = getValidTargets(store.selectedUnit!, ability, store.board, store.units)
+                    const boardState = useBoardStore.getState()
+                    const validTargets = getValidTargets(unitState.selectedUnit!, ability, boardState.board, unitState.units)
                     const isValidTarget = validTargets.some(target => {
                       if ('id' in target) {
                         return target.id === unit.id
@@ -1119,7 +1158,7 @@ export class GameScene extends Phaser.Scene {
                     
                     if (isValidTarget) {
                       // Execute ability on this unit
-                      store.useAbility(store.selectedUnit!.id, selectedAbility, unit)
+                      gameState.useAbility(unitState.selectedUnit!.id, selectedAbility, unit)
                       this.actionMode = 'none'
                       return
                     }
@@ -1136,24 +1175,24 @@ export class GameScene extends Phaser.Scene {
           
           // If not in action mode or not a valid target, proceed with normal unit selection
           // Check if we should execute an action instead of selecting the unit
-          if (store.shouldExecuteActionInsteadOfSelect && 
-              store.shouldExecuteActionInsteadOfSelect(unit, store.selectedUnit)) {
+          if (gameState.shouldExecuteActionInsteadOfSelect && 
+              gameState.shouldExecuteActionInsteadOfSelect(unit, unitState.selectedUnit)) {
             // Execute the action instead of switching units
-            if (store.selectedUnit && store.isValidAttackTarget) {
+            if (unitState.selectedUnit && gameState.isValidAttackTarget) {
               // Double-check that this is a valid attack target
-              if (store.isValidAttackTarget(store.selectedUnit, unit)) {
-                store.attackTarget(store.selectedUnit.id, unit.id)
+              if (gameState.isValidAttackTarget(unitState.selectedUnit, unit)) {
+                gameState.attackTarget(unitState.selectedUnit.id, unit.id)
                 return
               }
             }
           }
 
           // Check if we should execute a move instead of selecting the unit
-          if (store.shouldExecuteMoveInsteadOfSelect && 
-              store.shouldExecuteMoveInsteadOfSelect(unit, store.selectedUnit)) {
+          if (gameState.shouldExecuteMoveInsteadOfSelect && 
+              gameState.shouldExecuteMoveInsteadOfSelect(unit, unitState.selectedUnit)) {
             // Execute the move instead of switching units
-            if (store.selectedUnit) {
-              store.moveUnit(store.selectedUnit.id, unit.position)
+            if (unitState.selectedUnit) {
+              gameState.moveUnit(unitState.selectedUnit.id, unit.position)
               return
             }
           }
@@ -1162,7 +1201,7 @@ export class GameScene extends Phaser.Scene {
           // This prevents the action menu from staying open after a move
           if (this.actionMode === 'none') {
             // Select the unit (this will show the action menu for player units)
-            store.selectUnit(unit)
+            gameState.selectUnit(unit)
           }
           return
         }
@@ -1173,7 +1212,8 @@ export class GameScene extends Phaser.Scene {
     // This should only happen when not in action mode to avoid conflicts
     if (this.actionMode === 'none') {
       const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
-      const board = store.board
+      const boardState = useBoardStore.getState()
+      const board = boardState.board
       
       if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {
         // Emit tile click event for GameHUD to handle
@@ -1183,13 +1223,14 @@ export class GameScene extends Phaser.Scene {
         window.dispatchEvent(event)
         
         // Also handle tile selection in store for backward compatibility
-        store.selectTile({ x: tileX, y: tileY })
+        gameState.selectTile({ x: tileX, y: tileY })
       }
     }
   }
 
   private handleActionModeClick(unit: Unit, pointer: Phaser.Input.Pointer) {
-    const store = useGameStore.getState()
+    const gameState = useGameStore.getState()
+    const unitState = useUnitStore.getState()
     const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
     
     // Emit tile click event for GameHUD to handle
@@ -1201,9 +1242,10 @@ export class GameScene extends Phaser.Scene {
     switch (this.actionMode) {
       case 'move': {
         // Check if the clicked tile is a valid move
-        const isValidMove = store.possibleMoves.some(move => move.x === tileX && move.y === tileY)
+        const possibleMoves = gameState.calculatePossibleMoves(unit)
+        const isValidMove = possibleMoves.some((move: Coordinate) => move.x === tileX && move.y === tileY)
         if (isValidMove) {
-          store.moveUnit(unit.id, { x: tileX, y: tileY })
+          gameState.moveUnit(unit.id, { x: tileX, y: tileY })
           this.actionMode = 'none'
           // Clear highlights after successful move
           this.highlightGraphics.clear()
@@ -1223,9 +1265,9 @@ export class GameScene extends Phaser.Scene {
       }
       case 'attack': {
         // Check if the clicked tile has an enemy unit
-        const targetUnit = store.units.find(u => u.position.x === tileX && u.position.y === tileY && u.playerId !== unit.playerId)
+        const targetUnit = unitState.units.find(u => u.position.x === tileX && u.position.y === tileY && u.playerId !== unit.playerId)
         if (targetUnit) {
-          store.attackTarget(unit.id, targetUnit.id)
+          gameState.attackTarget(unit.id, targetUnit.id)
           this.actionMode = 'none'
           // Clear highlights after successful attack
           this.highlightGraphics.clear()
@@ -1258,17 +1300,20 @@ export class GameScene extends Phaser.Scene {
       // Clear highlights when exiting action mode
       this.highlightGraphics.clear()
       // Restore normal unit highlights
-      const store = useGameStore.getState()
-      if (store.selectedUnit) {
-        this.updateHighlights(useUIStore.getState().highlightedTiles, store.selectedUnit)
+      const unitState = useUnitStore.getState()
+      const uiState = useUIStore.getState()
+      if (unitState.selectedUnit) {
+        this.updateHighlights(uiState.highlightedTiles, unitState.selectedUnit)
       }
     } else if (mode === 'move') {
       // Clear existing highlights and show move highlights
       this.highlightGraphics.clear()
-      const store = useGameStore.getState()
-      if (store.selectedUnit) {
+      const unitState = useUnitStore.getState()
+      const gameState = useGameStore.getState()
+      if (unitState.selectedUnit) {
         // Show move highlights
-        store.possibleMoves.forEach(move => {
+        const possibleMoves = gameState.calculatePossibleMoves(unitState.selectedUnit)
+        possibleMoves.forEach((move: Coordinate) => {
           const { x: px, y: py } = this.tileToWorld(move.x, move.y)
           
           // Draw blue highlight for move targets
@@ -1297,25 +1342,27 @@ export class GameScene extends Phaser.Scene {
     this.actionMode = 'none'
     this.highlightGraphics.clear()
     // Restore normal unit highlights
-    const store = useGameStore.getState()
-    if (store.selectedUnit) {
-      this.updateHighlights(store.highlightedTiles, store.selectedUnit)
+    const unitState = useUnitStore.getState()
+    const uiState = useUIStore.getState()
+    if (unitState.selectedUnit) {
+      this.updateHighlights(uiState.highlightedTiles, unitState.selectedUnit)
     }
   }
 
   // Show attack highlights on enemies in attack range
   private showAttackHighlights() {
-    const store = useGameStore.getState()
-    if (!store.selectedUnit) return
+    const unitState = useUnitStore.getState()
+    const gameState = useGameStore.getState()
+    if (!unitState.selectedUnit) return
 
     // Clear existing highlights
     this.highlightGraphics.clear()
     
     // Get only enemies in attack range (use possibleTargets from store)
-    const possibleTargets = store.possibleTargets
-    const enemies = store.units.filter(u => 
-      u.playerId !== store.selectedUnit!.playerId &&
-      possibleTargets.some(target => target.x === u.position.x && target.y === u.position.y)
+    const possibleTargets = gameState.calculatePossibleTargets(unitState.selectedUnit!)
+    const enemies = unitState.units.filter(u => 
+      u.playerId !== unitState.selectedUnit!.playerId &&
+      possibleTargets.some((target: Coordinate) => target.x === u.position.x && target.y === u.position.y)
     )
     
     // Highlight each enemy position with red
@@ -1332,14 +1379,16 @@ export class GameScene extends Phaser.Scene {
 
   // Show ability highlights on valid targets
   private showAbilityHighlights(abilityId: string) {
-    const store = useGameStore.getState()
-    if (!store.selectedUnit) return
+    const unitState = useUnitStore.getState()
+    const boardState = useBoardStore.getState()
+    if (!unitState.selectedUnit) return
 
     // Clear existing highlights
     this.highlightGraphics.clear()
     
     // Get valid targets for this ability
-    const validTargets = getValidTargets(store.selectedUnit, { id: abilityId } as any, store.board)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const validTargets = getValidTargets(unitState.selectedUnit, { id: abilityId } as any, boardState.board, unitState.units)
     
     // Highlight each valid target with purple
     validTargets.forEach(target => {
@@ -1379,18 +1428,25 @@ export class GameScene extends Phaser.Scene {
       this.unsubscribeUI()
       this.unsubscribeUI = undefined
     }
+    if (this.unsubscribeUnits) {
+      this.unsubscribeUnits()
+      this.unsubscribeUnits = undefined
+    }
     
     // Clear graphics to prevent further operations
     if (this.tileGraphics) {
       this.tileGraphics.destroy()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.tileGraphics = undefined as any
     }
     if (this.highlightGraphics) {
       this.highlightGraphics.destroy()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.highlightGraphics = undefined as any
     }
     if (this.abilityTargetGraphics) {
       this.abilityTargetGraphics.destroy()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.abilityTargetGraphics = undefined as any
     }
     
@@ -1527,9 +1583,9 @@ export class GameScene extends Phaser.Scene {
     }
     
     // Redraw the board with new tile size
-    const currentBoard = useGameStore.getState().board;
-    if (currentBoard) {
-      this.drawBoard(currentBoard);
+    const updateBoardState = useBoardStore.getState();
+    if (updateBoardState.board) {
+      this.drawBoard(updateBoardState.board);
     }
     
     // Update unit positions and sizes
@@ -1544,16 +1600,17 @@ export class GameScene extends Phaser.Scene {
     }
     
     // Get actual board dimensions for logging
-    const gameState = useGameStore.getState()
-    const boardWidth = gameState.board?.[0]?.length || 16
-    const boardHeight = gameState.board?.length || 12
+    const logBoardState = useBoardStore.getState()
+    const boardWidth = logBoardState.board?.[0]?.length || 16
+    const boardHeight = logBoardState.board?.length || 12
     console.log(`GameScene: Tile size update complete. New dimensions: ${boardWidth * newTileSize}x${boardHeight * newTileSize}`);
   }
   
   private updateUnitSprites(): void {
     // Update all unit sprites with new tile size
     this.unitSprites.forEach((container, unitId) => {
-      const unit = useGameStore.getState().units.find(u => u.id === unitId);
+      const unitState = useUnitStore.getState()
+      const unit = unitState.units.find(u => u.id === unitId);
       if (unit) {
         // Update container size
         container.setSize(this.tileSizePx, this.tileSizePx);
@@ -1571,14 +1628,13 @@ export class GameScene extends Phaser.Scene {
         container.setPosition(wx + this.tileSizePx / 2, wy + this.tileSizePx / 2);
         
         // Update unit circle radius proportionally
-        const unitCircle = container.getByName('circle') as Phaser.GameObjects.Graphics;
-        if (unitCircle && unitCircle.clear && typeof unitCircle.clear === 'function') {
+        const unitCircle = container.getByName('circle') as Phaser.GameObjects.Arc;
+        if (unitCircle && unitCircle.setRadius) {
           const newRadius = Math.max(12, this.tileSizePx * 0.4); // Proportional radius with minimum
-          unitCircle.clear();
           // Use existing color logic from VISUAL_CONFIG
           const circleColor = unit.playerId === 'player1' ? VISUAL_CONFIG.COLORS.UNITS.PLAYER1 : VISUAL_CONFIG.COLORS.UNITS.PLAYER2;
-          unitCircle.fillStyle(circleColor, 1);
-          unitCircle.fillCircle(0, 0, newRadius);
+          unitCircle.setRadius(newRadius);
+          unitCircle.setFillStyle(circleColor, 1);
         } else {
           console.warn(`GameScene: unitCircle not found or invalid for unit ${unitId}`);
         }

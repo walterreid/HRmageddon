@@ -99,7 +99,7 @@ export class AIController {
     actions.endTurn()
   }
 
-  private makeDecision(unit: Unit, state: GameState): any {
+  private makeDecision(unit: Unit, state: GameState): { action: string; target?: Unit | { x: number; y: number }; priority: number; type?: string; targetId?: string; position?: { x: number; y: number }; abilityId?: string } | null {
     console.log('makeDecision called for unit:', unit.id, 'at position:', unit.position, 'actions:', unit.actionsRemaining)
     
     // Check if unit can still perform actions
@@ -128,7 +128,13 @@ export class AIController {
       // Sort by HP (attack weakest first)
       enemiesInRange.sort((a, b) => a.hp - b.hp)
       console.log('Attack decision: target', enemiesInRange[0].id)
-      return { type: 'attack', targetId: enemiesInRange[0].id }
+      return { 
+        action: 'attack', 
+        target: enemiesInRange[0], 
+        priority: 8, 
+        type: 'attack', 
+        targetId: enemiesInRange[0].id 
+      }
     }
     
     // Check for capture opportunities (move to cubicles)
@@ -136,7 +142,13 @@ export class AIController {
     console.log('Capturable tiles:', capturableTiles.length)
     if (capturableTiles.length > 0 && unit.actionsRemaining > 0 && !unit.hasMoved) {
       console.log('Move to capture decision: position', capturableTiles[0])
-      return { type: 'move', position: capturableTiles[0] }
+      return { 
+        action: 'move', 
+        target: capturableTiles[0], 
+        priority: 6, 
+        type: 'move', 
+        position: capturableTiles[0] 
+      }
     }
     
     // Move toward nearest objective
@@ -145,7 +157,13 @@ export class AIController {
       console.log('Move target:', moveTarget)
       if (moveTarget) {
         console.log('Move decision: position', moveTarget)
-        return { type: 'move', position: moveTarget }
+        return { 
+          action: 'move', 
+          target: moveTarget, 
+          priority: 4, 
+          type: 'move', 
+          position: moveTarget 
+        }
       }
     }
     
@@ -153,7 +171,7 @@ export class AIController {
     return null
   }
 
-  private evaluateAbilityUsage(unit: Unit, state: GameState): any {
+  private evaluateAbilityUsage(unit: Unit, state: GameState): { action: string; target?: Unit | { x: number; y: number }; priority: number; type?: string; targetId?: string; position?: { x: number; y: number }; abilityId?: string } | null {
     // Check if unit has abilities and enough actions to use them
     if (!unit.abilities || unit.abilities.length === 0 || unit.actionsRemaining < 1) {
       return null
@@ -188,9 +206,11 @@ export class AIController {
 
     if (bestAbility && bestScore > 5) { // Threshold for using ability
       return {
+        action: 'ability',
+        target: bestTarget || undefined,
+        priority: 9,
         type: 'ability',
-        abilityId: bestAbility.id,
-        target: bestTarget
+        abilityId: bestAbility.id
       }
     }
 

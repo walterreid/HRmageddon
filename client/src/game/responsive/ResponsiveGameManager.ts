@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { useGameStore } from '../../stores/gameStore';
+import { useBoardStore } from '../../stores/boardStore';
 import { MAPS } from '../map/registry';
 
 export interface ResponsiveMapConfig {
@@ -98,10 +98,10 @@ export class ResponsiveGameManager {
     const availableWidth = window.innerWidth - 320; // Account for control panel
     const availableHeight = window.innerHeight - 100; // Account for header
     
-    // Get actual board dimensions from game state or use config fallback
-    const gameState = useGameStore.getState()
-    const mapWidth = gameState.board?.[0]?.length || MAPS['OfficeLayout'].width
-    const mapHeight = gameState.board?.length || MAPS['OfficeLayout'].height
+    // Get actual board dimensions from board store or use config fallback
+    const boardState = useBoardStore.getState()
+    const mapWidth = boardState.board?.[0]?.length || MAPS['OfficeLayout'].width
+    const mapHeight = boardState.board?.length || MAPS['OfficeLayout'].height
     
     // Calculate tile size that would fit the map in available space
     const maxTileSizeForWidth = Math.floor(availableWidth / mapWidth);
@@ -176,9 +176,9 @@ export class ResponsiveGameManager {
   
   private resizeGameBoard(): void {
     // Get actual board dimensions for canvas sizing
-    const gameState = useGameStore.getState()
-    const boardWidth = gameState.board?.[0]?.length || MAPS['OfficeLayout'].width
-    const boardHeight = gameState.board?.length || MAPS['OfficeLayout'].height
+    const boardState = useBoardStore.getState()
+    const boardWidth = boardState.board?.[0]?.length || MAPS['OfficeLayout'].width
+    const boardHeight = boardState.board?.length || MAPS['OfficeLayout'].height
     const newWidth = boardWidth * this.currentTileSize;
     const newHeight = boardHeight * this.currentTileSize;
     
@@ -212,12 +212,12 @@ export class ResponsiveGameManager {
   private updateTileSprites(): void {
     // Get the current scene
     const scene = this.game.scene.getScene('GameScene');
-    if (scene && (scene as any).updateTileSprites) {
+    if (scene && 'updateTileSprites' in scene && typeof (scene as { updateTileSprites: (tileSize: number) => void }).updateTileSprites === 'function') {
       try {
         // Add a small delay to ensure the scene is fully ready
         setTimeout(() => {
-          if (scene && (scene as any).updateTileSprites) {
-            (scene as any).updateTileSprites(this.currentTileSize);
+          if (scene && 'updateTileSprites' in scene && typeof (scene as { updateTileSprites: (tileSize: number) => void }).updateTileSprites === 'function') {
+            (scene as { updateTileSprites: (tileSize: number) => void }).updateTileSprites(this.currentTileSize);
           }
         }, 100);
       } catch (error) {
@@ -231,10 +231,10 @@ export class ResponsiveGameManager {
   }
   
   public getBoardDimensions(): { width: number, height: number } {
-    // Get actual board dimensions from game state
-    const gameState = useGameStore.getState()
-    const boardWidth = gameState.board?.[0]?.length || MAPS['OfficeLayout'].width
-    const boardHeight = gameState.board?.length || MAPS['OfficeLayout'].height
+    // Get actual board dimensions from board store
+    const boardState = useBoardStore.getState()
+    const boardWidth = boardState.board?.[0]?.length || MAPS['OfficeLayout'].width
+    const boardHeight = boardState.board?.length || MAPS['OfficeLayout'].height
     return {
       width: boardWidth * this.currentTileSize,
       height: boardHeight * this.currentTileSize

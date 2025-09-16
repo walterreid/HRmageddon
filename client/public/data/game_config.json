@@ -1,0 +1,12 @@
+{
+    "game_version": "0.1.0",
+    "draft_config": {
+      "starting_funds": 1000,
+      "timer_seconds": 60,
+      "picks_per_player": 5
+    },
+    "gameplay_rules": {
+      "max_team_size": 4,
+      "turn_limit": 50
+    }
+  }

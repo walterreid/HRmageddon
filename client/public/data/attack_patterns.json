@@ -1,0 +1,43 @@
+{
+    "attack_patterns": [
+      {
+        "key": "single_target_melee",
+        "type": "directional",
+        "pattern": [
+          [0, 1],
+          [0, 2]
+        ]
+      },
+      {
+        "key": "forward_cone",
+        "type": "directional",
+        "pattern": [
+          [0, 0, 1, 1, 0, 0],
+          [0, 1, 1, 1, 0, 0],
+          [2, 1, 1, 0, 0, 0],
+          [0, 1, 1, 1, 0, 0],
+          [0, 0, 1, 1, 0, 0]
+        ]
+      },
+      {
+        "key": "centered_cross_burst",
+        "type": "centered",
+        "pattern": [
+          [0, 0, 1, 0, 0],
+          [0, 0, 1, 0, 0],
+          [1, 1, 2, 1, 1],
+          [0, 0, 1, 0, 0],
+          [0, 0, 1, 0, 0]
+        ]
+      },
+      {
+        "key": "firewall_line",
+        "type": "directional",
+        "pattern": [
+          [0, 0, 0],
+          [1, 1, 1],
+          [0, 2, 0]
+        ]
+      }
+    ]
+  }

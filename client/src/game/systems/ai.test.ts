@@ -1,11 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { AIController } from './ai'
 import { createMockUnit, createMockGameState } from '../test/helpers.ts'
-import { TileType } from 'shared'
+import { TileType, type Unit } from 'shared'
 
 describe('AI Controller', () => {
   let aiController: AIController
-  let mockActions: any
+  let mockActions: {
+    moveUnit: (unitId: string, to: { x: number; y: number }) => void
+    attackTarget: (attackerId: string, targetId: string) => void
+    captureCubicle: (unitId: string, coord: { x: number; y: number }) => void
+    useAbility: (unitId: string, abilityId: string, target?: Unit | { x: number; y: number }) => void
+    endTurn: () => void
+  }
   let mockGetState: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
@@ -230,8 +236,8 @@ describe('AI Controller', () => {
       
       expect(possibleMoves.length).toBeGreaterThan(0)
       // Should not include obstacle positions
-      expect(possibleMoves.some((move: any) => move.x === 1 && move.y === 0)).toBe(false)
-      expect(possibleMoves.some((move: any) => move.x === 1 && move.y === 2)).toBe(false)
+      expect(possibleMoves.some((move: { x: number; y: number }) => move.x === 1 && move.y === 0)).toBe(false)
+      expect(possibleMoves.some((move: { x: number; y: number }) => move.x === 1 && move.y === 2)).toBe(false)
     })
 
     it('should find best move position based on objectives', () => {

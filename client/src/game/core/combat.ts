@@ -65,13 +65,16 @@ export function isValidAttack(attacker: Unit, target: Unit, state: CombatState):
  * @param target - The target unit
  * @returns The damage amount
  */
-export function calculateDamage(attacker: Unit, _target: Unit): number {
-  void _target; // Suppress unused parameter warning
+export function calculateDamage(attacker: Unit, target: Unit): number {
   // Base damage is the attacker's attack damage
   const baseDamage = attacker.attackDamage
   
   // Simple damage calculation - can be enhanced later
   // For now, just return the base damage, ensuring it's at least 1
+  // Target parameter is available for future damage calculations based on target stats
+  // Currently not using target stats, but keeping parameter for future enhancements
+  void target // Suppress unused parameter warning
+  
   return Math.max(1, baseDamage)
 }
 

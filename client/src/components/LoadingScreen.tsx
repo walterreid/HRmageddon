@@ -68,10 +68,10 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
       const tilemapData = await response.json();
       
       // Parse starting positions from the "StartingPoints" layer
-      const startingPointsLayer = tilemapData.layers.find((layer: any) => layer.name === 'StartingPoints');
+      const startingPointsLayer = tilemapData.layers.find((layer: { name: string; data?: number[]; width: number; height: number }) => layer.name === 'StartingPoints');
       
       if (startingPointsLayer && startingPointsLayer.data) {
-        const startingPositionsData: any[] = [];
+        const startingPositionsData: { x: number; y: number; gid: number }[] = [];
         
         // Convert 1D array to 2D grid and find non-zero tiles
         for (let y = 0; y < startingPointsLayer.height; y++) {
@@ -103,10 +103,10 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
       }
 
       // Parse capture points from the "CapturePoints" layer
-      const capturePointsLayer = tilemapData.layers.find((layer: any) => layer.name === 'CapturePoints');
+      const capturePointsLayer = tilemapData.layers.find((layer: { name: string; data?: number[]; width: number; height: number }) => layer.name === 'CapturePoints');
       
       if (capturePointsLayer && capturePointsLayer.data) {
-        const capturePointsData: any[] = [];
+        const capturePointsData: { x: number; y: number; gid: number }[] = [];
         
         // Convert 1D array to 2D grid and find non-zero tiles
         for (let y = 0; y < capturePointsLayer.height; y++) {
@@ -130,10 +130,10 @@ export function LoadingScreen({ onLoadingComplete, minDisplayTime = 2000 }: Load
       }
 
       // Parse blocked tiles from the "Foreground" layer
-      const foregroundLayer = tilemapData.layers.find((layer: any) => layer.name === 'Foreground');
+      const foregroundLayer = tilemapData.layers.find((layer: { name: string; data?: number[]; width: number; height: number }) => layer.name === 'Foreground');
       
       if (foregroundLayer && foregroundLayer.data) {
-        const blockedTilesData: any[] = [];
+        const blockedTilesData: { x: number; y: number; gid: number }[] = [];
         
         // Convert 1D array to 2D grid and find non-zero tiles (these are obstacles)
         for (let y = 0; y < foregroundLayer.height; y++) {

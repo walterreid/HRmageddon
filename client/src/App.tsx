@@ -7,10 +7,12 @@ import { DraftScreen } from './components/DraftScreen'
 import { LoadingScreen } from './components/LoadingScreen'
 import { TileSizeTestPage } from './components/test/TileSizeTestPage'
 import { useGameStore } from './stores/gameStore'
+import { usePlayerStore } from './stores/playerStore'
 import { GamePhase } from 'shared'
 
 export default function App() {
-  const { gameMode, phase, winner, returnToMenu } = useGameStore()
+  const { gameMode, returnToMenu } = useGameStore()
+  const { phase, winner } = usePlayerStore()
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -69,9 +71,9 @@ export default function App() {
                 Game Over!
               </h2>
               <div className="text-lg sm:text-xl mb-6">
-                {winner === 'player1' ? (
+                {winner?.id === 'player1' ? (
                   <span className="text-blue-400">Blue Team Wins! 🎉</span>
-                ) : winner === 'player2' ? (
+                ) : winner?.id === 'player2' ? (
                   <span className="text-red-400">Red Team Wins! 🎉</span>
                 ) : (
                   <span>Unknown Winner</span>

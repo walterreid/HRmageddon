@@ -1,0 +1,52 @@
+{
+    "abilities": [
+      {
+        "key": "thousand_papercuts",
+        "name": "A Thousand Papercuts",
+        "description": "Unleashes a cone of sharp paper, dealing initial damage and causing targets to bleed.",
+        "cooldown_turns": 3,
+        "range_pattern_key": "forward_cone",
+        "effects": [
+          {
+            "type": "damage",
+            "target": "enemy",
+            "value": 15,
+            "damage_type": "physical"
+          },
+          {
+            "type": "apply_status_effect",
+            "target": "enemy",
+            "status_key": "bleeding",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "firewall",
+        "name": "Firewall",
+        "description": "Creates a wall of fire that burns any who pass through it.",
+        "cooldown_turns": 4,
+        "range_pattern_key": "firewall_line",
+        "effects": [
+          {
+            "type": "create_tile_hazard",
+            "hazard_details": {
+              "name": "Burning Ground",
+              "duration_in_turns": 3,
+              "visual_effect": "ground_flames",
+              "on_turn_end": {
+                "type": "damage",
+                "value": 20,
+                "damage_type": "fire"
+              },
+              "on_enter": {
+                "type": "apply_status_effect",
+                "status_key": "fire",
+                "chance": 1.0
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }

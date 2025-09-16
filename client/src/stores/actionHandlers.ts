@@ -1,5 +1,7 @@
 import { useGameStore } from './gameStore'
 import { useUIStore } from './uiStore'
+import { useUnitStore } from './unitStore'
+import { useBoardStore } from './boardStore'
 import { ABILITIES, getValidTargets } from '../game/core/abilities'
 import { type Unit, type Coordinate } from 'shared'
 
@@ -55,7 +57,6 @@ export const actionHandlers = {
    * Enter ability mode - calculate valid targets and highlight them
    */
   enterAbilityMode: (unit: Unit, abilityId: string) => {
-    const gameStore = useGameStore.getState()
     const uiStore = useUIStore.getState()
     
     const ability = ABILITIES[abilityId]
@@ -71,7 +72,9 @@ export const actionHandlers = {
     }
     
     // Calculate valid targets for the ability
-    const validTargets = getValidTargets(unit, ability, gameStore.board, gameStore.units)
+    const unitState = useUnitStore.getState()
+    const boardState = useBoardStore.getState()
+    const validTargets = getValidTargets(unit, ability, boardState.board, unitState.units)
     
     // Create highlights map
     const highlights = new Map<string, string>()

@@ -1,7 +1,7 @@
 import { type GameState, type Unit, type Coordinate, TileType, type Ability } from 'shared'
 import { getUnitAbilities, canUseAbility, getValidTargets } from '../core/abilities'
 import { GameQueries, type GameState as QueryGameState } from './gameStateQueries'
-import { type MainStoreState } from '../../stores/mainStore'
+// import { type MainStoreState } from '../../stores/mainStore' // TODO: Remove when mainStore is implemented
 import { calculatePossibleMoves, findNearestCoordinate } from '../core/movement'
 
 interface AIActions {
@@ -27,111 +27,15 @@ export class AIController {
     void _difficulty; // Suppress unused parameter warning
   }
 
-  takeTurnWithMainStore(mainStore: MainStoreState): void {
-    const gameState = mainStore.getGameState()
-    const queryState: QueryGameState = {
-      units: gameState.units,
-      board: gameState.board,
-      players: gameState.players,
-      currentPlayerId: gameState.currentPlayerId,
-      phase: gameState.phase,
-      turnNumber: gameState.turnNumber
-    }
-    
-    const myUnits = GameQueries.getMyUnits(queryState)
-    console.log('AI takeTurn called with', myUnits.length, 'units')
-    
-    // Process each unit
-    for (const unit of myUnits) {
-      console.log('Processing AI unit:', unit.id, 'actions remaining:', unit.actionsRemaining)
-      
-      // Process this unit until it has no actions left
-      let shouldContinue = true
-      let iterationCount = 0
-      const maxIterations = 5 // Safety limit to detect infinite loops
-      
-      while (shouldContinue) {
-        iterationCount++
-        
-        if (iterationCount > maxIterations) {
-          console.error('🚨 INFINITE LOOP DETECTED! Unit', unit.id, 'has been processed', iterationCount, 'times without consuming actions')
-          console.error('This indicates a bug in the action execution or state update logic')
-          shouldContinue = false
-          break
-        }
-        
-        // Get fresh state before making decision
-        const freshGameState = mainStore.getGameState()
-        const freshQueryState: QueryGameState = {
-          units: freshGameState.units,
-          board: freshGameState.board,
-          players: freshGameState.players,
-          currentPlayerId: freshGameState.currentPlayerId,
-          phase: freshGameState.phase,
-          turnNumber: freshGameState.turnNumber
-        }
-        
-        const currentUnit = GameQueries.getUnitById(freshQueryState, unit.id)
-        
-        if (!currentUnit || currentUnit.actionsRemaining <= 0) {
-          console.log('Unit', unit.id, 'has no actions remaining or was destroyed, moving to next unit')
-          break
-        }
-        
-        const decision = this.makeDecisionWithQueries(currentUnit, freshQueryState)
-        console.log('AI decision for unit', currentUnit.id, ':', decision)
-        
-        if (!decision) {
-          console.log('No decision found for unit', currentUnit.id)
-          break
-        }
-        
-        // Execute the decision through the main store
-        this.executeDecisionWithMainStore(decision, currentUnit, mainStore)
-      }
-    }
-    
-    console.log('AI turn completed')
-    // End the AI turn to return control to the player
-    mainStore.endTurn()
-  }
+  // TODO: Implement when mainStore is available
+  // takeTurnWithMainStore(mainStore: MainStoreState): void {
+  //   // Implementation will be added when mainStore is implemented
+  // }
 
-  private executeDecisionWithMainStore(decision: AIAction, unit: Unit, mainStore: MainStoreState): void {
-    console.log('Executing AI decision:', decision, 'for unit:', unit.id)
-    
-    switch (decision.type) {
-      case 'move':
-        if (decision.target) {
-          console.log('AI moving unit', unit.id, 'to', decision.target)
-          mainStore.moveUnit(unit.id, decision.target)
-        }
-        break
-        
-      case 'attack':
-        if (decision.targetId) {
-          console.log('AI attacking with unit', unit.id, 'target:', decision.targetId)
-          mainStore.attackUnit(unit.id, decision.targetId)
-        }
-        break
-        
-      case 'ability':
-        if (decision.abilityId && decision.target) {
-          console.log('AI using ability', decision.abilityId, 'with unit', unit.id, 'target:', decision.target)
-          mainStore.useAbility(unit.id, decision.abilityId, decision.target)
-        }
-        break
-        
-      case 'capture':
-        if (decision.target) {
-          console.log('AI capturing cubicle with unit', unit.id, 'at', decision.target)
-          mainStore.captureCubicle(unit.id, decision.target)
-        }
-        break
-        
-      default:
-        console.warn('Unknown AI decision type:', decision)
-    }
-  }
+  // TODO: Implement when mainStore is available
+  // private executeDecisionWithMainStore(decision: AIAction, unit: Unit, mainStore: MainStoreState): void {
+  //   // Implementation will be added when mainStore is implemented
+  // }
 
   takeTurn(state: GameState, actions: AIActions, getState: () => GameState): void {
     const queryState: QueryGameState = {

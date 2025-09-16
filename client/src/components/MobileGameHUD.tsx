@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useGameStore } from '../stores/gameStore'
+import { useUnitStore } from '../stores/unitStore'
+import { usePlayerStore } from '../stores/playerStore'
 import { BottomSheet } from './BottomSheet'
 
 export function MobileGameHUD() {
   // Use selectors to prevent unnecessary re-renders
-  const players = useGameStore(state => state.players)
-  const selectedUnit = useGameStore(state => state.selectedUnit)
-  const currentPlayerId = useGameStore(state => state.currentPlayerId)
-  const turnNumber = useGameStore(state => state.turnNumber)
+  const players = usePlayerStore(state => state.players)
+  const selectedUnit = useUnitStore(state => state.selectedUnit)
+  const currentPlayerId = usePlayerStore(state => state.currentPlayerId)
+  const turnNumber = usePlayerStore(state => state.turnNumber)
   
   // Actions don't need selectors as they don't cause re-renders
   const endTurn = useGameStore(state => state.endTurn)

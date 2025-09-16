@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useGameStore } from '../stores/gameStore'
 import { useUIStore } from '../stores/uiStore'
+import { useUnitStore } from '../stores/unitStore'
+import { usePlayerStore } from '../stores/playerStore'
 import { actionHandlers } from '../stores/actionHandlers'
 import { ActionMenu } from './ActionMenu'
 import { BottomSheet } from './BottomSheet'
@@ -26,12 +28,15 @@ import { HUD_CONFIG } from '../config/hudConfig'
 
 export function GameHUD() {
   // Use selectors to prevent unnecessary re-renders
-  const selectedUnit = useGameStore(state => state.selectedUnit)
-  const currentPlayerId = useGameStore(state => state.currentPlayerId)
-  const players = useGameStore(state => state.players)
-  const turnNumber = useGameStore(state => state.turnNumber)
-  const possibleMoves = useGameStore(state => state.possibleMoves)
-  const possibleTargets = useGameStore(state => state.possibleTargets)
+  const selectedUnit = useUnitStore(state => state.selectedUnit)
+  const currentPlayerId = usePlayerStore(state => state.currentPlayerId)
+  const players = usePlayerStore(state => state.players)
+  const turnNumber = usePlayerStore(state => state.turnNumber)
+  
+  // Calculate possible moves and targets using orchestrator methods
+  const gameStore = useGameStore()
+  const possibleMoves = selectedUnit ? gameStore.calculatePossibleMoves(selectedUnit) : []
+  const possibleTargets = selectedUnit ? gameStore.calculatePossibleTargets(selectedUnit) : []
   
   // UI state from UI store
   const actionMode = useUIStore(state => state.actionMode)
@@ -69,8 +74,8 @@ export function GameHUD() {
   const isPlayerTurn = currentPlayerId === 'player1'
 
   // Get player references
-  const player1 = players.find(p => p.id === 'player1')
-  const player2 = players.find(p => p.id === 'player2')
+  const player1 = players.find((p) => p.id === 'player1')
+  const player2 = players.find((p) => p.id === 'player2')
 
   // Show action menu when a player unit is selected and can be controlled
   // Hide it when we're in an action mode OR when the unit has no actions remaining
@@ -206,7 +211,7 @@ export function GameHUD() {
     switch (actionMode) {
       case 'move': {
         // Check if this is a valid move
-        const isValidMove = possibleMoves.some(move => move.x === coord.x && move.y === coord.y)
+        const isValidMove = possibleMoves.some((move) => move.x === coord.x && move.y === coord.y)
         if (isValidMove) {
           console.log('Executing move to:', coord)
           actionHandlers.executeMove(selectedUnit, coord)
@@ -228,8 +233,8 @@ export function GameHUD() {
 
       case 'attack': {
         // Check if this tile has a valid attack target
-        const isValidTarget = possibleTargets.some(target => target.x === coord.x && target.y === coord.y)
-        const targetUnit = useGameStore.getState().units.find(u => 
+        const isValidTarget = possibleTargets.some((target) => target.x === coord.x && target.y === coord.y)
+        const targetUnit = useUnitStore.getState().units.find((u) => 
           u.position.x === coord.x && 
           u.position.y === coord.y && 
           u.playerId !== selectedUnit.playerId

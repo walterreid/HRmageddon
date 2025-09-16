@@ -1,0 +1,55 @@
+{
+    "status_effects": [
+      {
+        "key": "slow",
+        "name": "Slowed",
+        "description": "Reduces target's speed.",
+        "type": "debuff",
+        "duration_in_turns": 2,
+        "modifiers": {
+          "stat": "speed",
+          "operation": "multiply",
+          "value": 0.5
+        },
+        "visual_effect": "slow_aura"
+      },
+      {
+        "key": "fire",
+        "name": "On Fire",
+        "description": "Deals damage each turn.",
+        "type": "debuff",
+        "duration_in_turns": 2,
+        "tick_effect": {
+          "type": "damage",
+          "value": 10
+        },
+        "visual_effect": "flames_particle"
+      },
+      {
+        "key": "freeze",
+        "name": "Frozen",
+        "description": "Target cannot take action.",
+        "type": "debuff",
+        "duration_in_turns": 1,
+        "modifiers": {
+          "stat": "can_act",
+          "operation": "set",
+          "value": false
+        },
+        "visual_effect": "ice_block"
+      },
+      {
+        "key": "increase_speed",
+        "name": "Hasted",
+        "description": "Increases target's speed.",
+        "type": "buff",
+        "duration_in_turns": 3,
+        "modifiers": {
+          "stat": "speed",
+          "operation": "multiply",
+          "value": 1.2
+        },
+        "visual_effect": "speed_lines"
+      }
+    ]
+  }

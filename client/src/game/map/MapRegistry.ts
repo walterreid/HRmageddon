@@ -9,7 +9,7 @@ export class MapRegistry {
   private static instance: MapRegistry
   private maps: Map<string, MapSpec> = new Map()
   private startingPositions: Map<string, MapStartingPositions> = new Map()
-  private capturePoints: Map<string, any[]> = new Map()
+  private capturePoints: Map<string, StartingPosition[]> = new Map()
   private blockedTiles: Map<string, { x: number; y: number }[]> = new Map()
   private isLoaded = false
 
@@ -41,12 +41,12 @@ export class MapRegistry {
   }
 
   // Set capture points for a map
-  setCapturePoints(mapId: string, points: any[]): void {
+  setCapturePoints(mapId: string, points: StartingPosition[]): void {
     this.capturePoints.set(mapId, points)
   }
 
   // Get capture points for a map
-  getCapturePoints(mapId: string): any[] | undefined {
+  getCapturePoints(mapId: string): StartingPosition[] | undefined {
     return this.capturePoints.get(mapId)
   }
 

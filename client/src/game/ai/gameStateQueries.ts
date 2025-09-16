@@ -1,4 +1,4 @@
-import { type Unit, type Coordinate, type Tile, type GamePhase, type Player } from 'shared'
+import { type Unit, type Coordinate, type Tile, type GamePhase, type Player, TileType, GamePhase as GamePhaseEnum } from 'shared'
 import { calculatePossibleMoves, calculatePossibleTargets, findNearestUnit, findNearestCoordinate, getDistance } from '../core/movement'
 import { getEnemiesInRange, getWeakestEnemyInRange, getStrongestEnemyInRange, canAttackAnyEnemy, getUnitsThatCanAttack, calculateTotalDamageToTarget, canKillTargetThisTurn } from '../core/combat'
 import { getValuableCapturePoints, getCapturePointStats, checkCloseToVictory } from '../core/victory'
@@ -140,7 +140,7 @@ export const GameQueries: GameStateQueries = {
     
     // Check if it's a capture point
     const tile = state.board[position.y]?.[position.x]
-    if (tile?.type === 'CUBICLE' as any) {
+    if (tile?.type === TileType.CUBICLE) {
       value += 10
       
       // Higher value if unclaimed or enemy-controlled
@@ -175,7 +175,7 @@ export const GameQueries: GameStateQueries = {
   
   getTurnNumber: (state) => state.turnNumber,
   
-  isGameOver: (state) => state.phase === 'GAME_OVER' as any
+  isGameOver: (state) => state.phase === GamePhaseEnum.GAME_OVER
 }
 
 /**
