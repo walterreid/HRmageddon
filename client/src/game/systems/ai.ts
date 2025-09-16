@@ -1,6 +1,6 @@
 import { type GameState, type Unit, type Coordinate, TileType } from 'shared'
 import { type Ability } from 'shared'
-import { getUnitAbilities, canUseAbility, getValidTargets } from './abilities'
+import { getUnitAbilities, canUseAbility, getValidTargets } from '../core/abilities'
 
 interface AIActions {
   moveUnit: (unitId: string, to: Coordinate) => void
@@ -177,7 +177,7 @@ export class AIController {
       return null
     }
 
-    const availableAbilities = getUnitAbilities(unit.type).filter(ability => 
+    const availableAbilities = getUnitAbilities(unit).filter(ability => 
       canUseAbility(unit, ability.id)
     )
 

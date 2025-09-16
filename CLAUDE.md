@@ -51,7 +51,7 @@ client
 │   │   │   ├── aiDraft.ts         # AI draft logic
 │   │   │   └── gameStateQueries.ts # Game state query interface
 │   │   ├── core/                  # ⚙️ Pure game engine rules
-│   │   │   ├── abilities.ts       # Ability definitions and logic
+│   │   │   ├── abilities.ts       # Data-driven ability system (JSON-based)
 │   │   │   ├── abilities.test.ts  # Ability tests
 │   │   │   ├── combat.ts          # Combat calculations
 │   │   │   ├── movement.ts        # Movement logic
@@ -72,7 +72,6 @@ client
 │   │   ├── scenes/
 │   │   │   └── GameScene.ts
 │   │   ├── systems/               # 🔄 Legacy system files (being phased out)
-│   │   │   ├── abilities.ts       # Legacy ability system
 │   │   │   ├── abilities.test.ts  # Legacy ability tests
 │   │   │   ├── ai.ts              # Legacy AI system
 │   │   │   └── ai.test.ts         # Legacy AI tests
@@ -161,17 +160,17 @@ client
 
 ### `src/stores`
 
-  * **`src/stores/gameStore.ts`**: **Pure Orchestrator** - No longer holds duplicated state. Instead, it coordinates between slice stores to execute complex game actions. Manages only orchestrator-specific state (memoization cache, pending captures, highlights) and delegates all data operations to the appropriate slice stores. This eliminates state duplication and creates a true Single Source of Truth architecture.
-  * **`src/stores/uiStore.ts`**: Dedicated store for UI-specific state management. Handles highlighted tiles, action modes, ability targeting, and other UI interactions. Separates UI concerns from core game logic for better maintainability and cleaner code organization.
-  * **`src/stores/actionHandlers.ts`**: Coordination layer between UI and game stores. Provides clean action handlers that manage the flow between UI interactions and game state changes, ensuring proper separation of concerns.
-  * **`src/stores/unitStore.ts`**: **Single Source of Truth for Units** - The only place that holds the `units` array and `selectedUnit`. Handles unit data, movement, combat, and unit-specific queries. Provides granular subscriptions for better performance and eliminates duplication with gameStore.
-  * **`src/stores/boardStore.ts`**: **Single Source of Truth for Board** - The only place that holds the `board` 2D array and board dimensions. Handles board creation, tile updates, capture points, and board validation. Optimized for board-specific operations and eliminates duplication with gameStore.
-  * **`src/stores/playerStore.ts`**: **Single Source of Truth for Players** - The only place that holds `players`, `currentPlayerId`, `gamePhase`, and `turnNumber`. Handles players, game phases, turns, and victory conditions. Manages game flow and player data without duplication.
+  * **`src/stores/gameStore.ts`**: **Pure Orchestrator** - Coordinates complex game actions by delegating to slice stores. Contains NO duplicated state, only orchestrator-specific state (memoization cache, pending captures). Implements true Single Source of Truth architecture.
+  * **`src/stores/unitStore.ts`**: **Single Source of Truth for Units** - The ONLY place that holds `units[]` and `selectedUnit`. Handles unit data, movement, combat, and queries with granular subscriptions.
+  * **`src/stores/boardStore.ts`**: **Single Source of Truth for Board** - The ONLY place that holds `board[][]` and dimensions. Handles board creation, tile updates, and capture points.
+  * **`src/stores/playerStore.ts`**: **Single Source of Truth for Players** - The ONLY place that holds `players[]`, `currentPlayerId`, `gamePhase`, and `turnNumber`. Manages game flow and victory conditions.
+  * **`src/stores/uiStore.ts`**: **Single Source of Truth for UI** - Handles highlighted tiles, action modes, ability targeting, and visual feedback. Separates UI concerns from core game logic.
+  * **`src/stores/actionHandlers.ts`**: **Action Coordination Layer** - Manages flow between UI interactions and game state changes, ensuring proper separation of concerns.
 
 ### `src/game`
 
 #### **Data Management System (`src/game/data/`)**
-  * **`src/game/data/DataManager.ts`**: **Centralized Data Management** - A singleton class that loads and manages all game data from JSON configuration files. Handles employees, abilities, attack patterns, status effects, and game configuration. Provides a clean API for accessing game data and converts employee data to unit data for game logic. Implements lazy loading and caching for optimal performance.
+  * **`src/game/data/DataManager.ts`**: **Complete Data-Driven System** - A singleton class that loads and manages ALL game data from JSON configuration files. Handles 18 abilities, 8 attack patterns, 14 status effects, 4 employee types, and game configuration. Provides centralized ability-to-unit mapping and converts employee data to unit data with proper ability assignments. Implements lazy loading and caching for optimal performance. **Zero hardcoded content** - all game data externalized to JSON.
 
 #### **AI System (`src/game/ai/`)**
   * **`src/game/ai/ai.ts`**: Contains the `AIController` class, which defines the logic for the enemy AI's decision-making process during its turn. Refactored to use the Game State Query Interface for declarative, maintainable AI decision-making.
@@ -180,7 +179,7 @@ client
   * **`src/game/ai/gameStateQueries.ts`**: A comprehensive query interface that provides a clean, declarative API for accessing game state. Abstracts data structure from AI decision-making and makes code more readable and maintainable.
 
 #### **Core Game Engine (`src/game/core/`)**
-  * **`src/game/core/abilities.ts`**: Defines all the special abilities ("speak attacks") units can perform, including their effects, costs, and targeting rules. Supports both single-target and directional abilities with cone targeting.
+  * **`src/game/core/abilities.ts`**: **Data-Driven Ability System** - Converts JSON ability definitions to game logic. Handles 18 abilities from `abilities.json`, maps status effects, and provides targeting calculations. **Zero hardcoded abilities** - all content loaded from JSON via DataManager. Supports single-target, AOE, and directional abilities with proper effect application.
   * **`src/game/core/abilities.test.ts`**: Unit tests for all special abilities, ensuring they function correctly and have proper effects.
   * **`src/game/core/combat.ts`**: Pure utility functions for combat calculations including attack targeting, damage calculation, and enemy detection. Provides a clean API for both player and AI combat logic.
   * **`src/game/core/movement.ts`**: Pure utility functions for movement calculations including pathfinding, move validation, and unit positioning. Used by both the game store and AI system to ensure consistent behavior.
@@ -193,7 +192,6 @@ client
   * **`src/game/visuals/VisualEffectsPool.ts`**: A performance optimization system that implements object pooling for Phaser visual effects. Instead of creating and destroying Graphics objects for each ability animation, it maintains a pool of reusable objects to eliminate garbage collection stutters and improve frame rates.
 
 #### **Legacy Systems (`src/game/systems/`)**
-  * **`src/game/systems/abilities.ts`**: **Legacy Ability System** - Contains the original ability definitions and logic. This is being phased out in favor of the data-driven approach using JSON configuration files and the DataManager.
   * **`src/game/systems/abilities.test.ts`**: Unit tests for the legacy ability system.
   * **`src/game/systems/ai.ts`**: **Legacy AI System** - Contains an alternative AI implementation. This is being phased out in favor of the more sophisticated AI system in the `ai/` directory.
   * **`src/game/systems/ai.test.ts`**: Unit tests for the legacy AI system.
@@ -392,81 +390,44 @@ This system enables rich, strategic abilities that require player skill and posi
 
 ## 📊 Data-Driven Architecture
 
-### **JSON Configuration System**
+### **Complete JSON Configuration System (Final)**
 
-The game has evolved to use a data-driven architecture where game content is defined in JSON configuration files rather than hardcoded in TypeScript. This approach provides greater flexibility, easier content updates, and better separation between game logic and game data.
+The game uses a fully data-driven architecture where ALL content is defined in JSON files, with zero hardcoded game logic. This enables easy updates without code changes and complete separation of content from code.
 
 #### **Configuration Files (`public/data/`)**
 
-**`employees.json`** - Employee/Unit Definitions
-- Defines all available employee types with their stats, costs, and abilities
-- Includes health, attack power, defense, speed, and special abilities
-- Maps employee keys to unit types for game logic
-- Supports status effects and attack patterns
+- **`abilities.json`**: **18 abilities** with effects, cooldowns, and targeting patterns
+- **`attack_patterns.json`**: **8 attack patterns** for different ability types
+- **`status_effects.json`**: **14 status effects** with duration and magnitude
+- **`employees.json`**: **4 employee types** with stats, costs, and ability assignments
+- **`game_config.json`**: Game-wide settings (draft config, timers, team limits)
 
-**`abilities.json`** - Ability System Configuration
-- Defines special abilities with effects, cooldowns, and targeting patterns
-- Supports complex ability effects including damage, status effects, and area-of-effect
-- Includes visual and audio effect references
-- Configurable range patterns and targeting types
+#### **DataManager System (Enhanced)**
 
-**`attack_patterns.json`** - Attack Pattern Definitions
-- Defines different attack patterns and their properties
-- Supports various targeting types (single, cone, line, area)
-- Configurable damage types and status effect applications
+**Centralized Data Access**
+- Singleton pattern with lazy loading and caching
+- Type-safe TypeScript interfaces for all data
+- `loadAll()`: Parallel loading of all configuration files
+- `getEmployee(key)`, `getAbility(key)`: Direct data access
+- `createUnitFromEmployee()`: Convert employee data to game units with ability mapping
+- `getAbilitiesForUnitType()`: Map unit types to their abilities
 
-**`status_effects.json`** - Status Effect Definitions
-- Defines all status effects and their properties
-- Includes duration, magnitude, and visual/audio effects
-- Supports both positive and negative status effects
+**Legacy Code Elimination**
+- **Removed**: All hardcoded `ABILITIES` object (500+ lines)
+- **Removed**: Hardcoded `UNIT_ABILITIES` mapping
+- **Removed**: Legacy conversion functions
+- **Deleted**: Obsolete `src/game/systems/abilities.ts` and test files
 
-**`game_config.json`** - Game Configuration Settings
-- Contains game-wide settings like draft configuration
-- Defines starting funds, timer settings, and team size limits
-- Centralized configuration for easy balancing and updates
+#### **Final Architecture Benefits**
 
-#### **DataManager System**
-
-The `DataManager` class provides a centralized interface for accessing all game data:
-
-**Singleton Pattern**: Ensures only one instance manages all data
-**Lazy Loading**: Data is loaded only when needed
-**Type Safety**: Full TypeScript support with proper interfaces
-**Caching**: Efficient data access with Map-based storage
-**Error Handling**: Graceful handling of missing or invalid data
-
-**Key Features:**
-- `loadAll()`: Loads all configuration files in parallel
-- `getEmployee(key)`: Retrieve employee data by key
-- `getAbility(key)`: Retrieve ability data by key
-- `createUnitFromEmployee()`: Convert employee data to game units
-- `isDataLoaded()`: Check if data is ready for use
-
-#### **Benefits of Data-Driven Architecture**
-
-**Content Management**
-- Easy to add new employees, abilities, and effects
-- Non-programmers can update game content
-- Version control for game balance changes
-- A/B testing of different configurations
-
-**Performance**
-- Data loaded once and cached
-- Efficient lookups with Map-based storage
-- Reduced bundle size through external data
-- Lazy loading prevents unnecessary data loading
-
-**Maintainability**
-- Clear separation between code and content
-- Easy to modify game balance without code changes
-- Centralized data management
-- Type-safe data access
-
-**Scalability**
-- Easy to add new data types
-- Support for multiple languages/localization
-- Modular data loading system
-- Extensible configuration format
+- **🎯 Zero Hardcoded Content**: All game content externalized to JSON
+- **📝 Content Management**: Non-programmers can modify game content
+- **🔄 Version Control**: All changes tracked in JSON files
+- **🧪 A/B Testing**: Easy to test different configurations
+- **📦 Smaller Bundle**: Reduced JavaScript bundle size
+- **🚀 Faster Development**: New content without code changes
+- **🔧 Maintainability**: Clear separation between code and content
+- **📈 Scalability**: Easy to add new data types and localization support
 
 -----
 
@@ -1430,46 +1391,108 @@ npm run test:all
 
 ## 🏆 Recent Architectural Improvements
 
-### **Single Source of Truth Refactoring (Latest)**
+### **Single Source of Truth Architecture (Latest)**
 
-The codebase has undergone a major architectural refactoring to implement a true Single Source of Truth pattern, eliminating state duplication and creating a more maintainable, bug-resistant architecture.
+The codebase has been completely refactored to implement a true Single Source of Truth pattern, eliminating state duplication and creating a clean, data-driven architecture.
 
-#### **Key Changes Made:**
+#### **Core Architecture Changes:**
 
-**1. Eliminated State Duplication**
-- Removed duplicated `units`, `board`, `players`, and `currentPlayerId` from `gameStore`
-- Each slice store is now the single source of truth for its data
-- No more risk of inconsistent state between stores
+**Pure Orchestration Pattern**
+- `gameStore.ts` is now a pure orchestrator with NO duplicated state
+- Coordinates complex actions by delegating to specialized slice stores
+- Manages only orchestrator-specific state (memoization, pending captures)
 
-**2. Pure Orchestration Pattern**
-- `gameStore` is now a pure orchestrator that coordinates between slice stores
-- All complex actions delegate to appropriate slice stores
-- Clear separation between orchestration logic and data management
+**Slice Store Authority**
+- **`unitStore`**: Single source of truth for `units[]` and `selectedUnit`
+- **`boardStore`**: Single source of truth for `board[][]` and dimensions
+- **`playerStore`**: Single source of truth for `players[]`, `currentPlayerId`, `gamePhase`
+- **`uiStore`**: Single source of truth for UI state (highlights, action modes, targeting)
 
-**3. Enhanced Type Safety**
-- All slice stores have explicit type definitions
-- Clear interfaces prevent type mismatches
-- Better IntelliSense and error detection
-
-**4. Improved AI Integration**
-- AI can now be told "use `unitStore` for unit data" - much clearer!
-- No confusion about which store holds the "real" data
-- Easier to debug and maintain AI decision-making
-
-**5. Complete Component Migration**
-- **React Components**: `App.tsx`, `GameHUD.tsx`, `MobileGameHUD.tsx` updated to use slice stores
-- **Visual Managers**: `HighlightManager.ts`, `UnitManager.ts` updated to use slice stores
-- **Game Systems**: `ResponsiveGameManager.ts`, `actionHandlers.ts` updated to use slice stores
-- **AI System**: `ai.ts` and `ai.test.ts` fully implemented and tested
-- **GameScene**: Fully refactored to follow the Golden Rule (read from slice stores, write via orchestrator)
+**Complete Data-Driven System**
+- All game content defined in JSON configuration files (`public/data/`)
+- `DataManager.ts` provides centralized, type-safe data access
+- Abilities, employees, status effects, and game config externalized
+- Easy content updates without code changes
 
 #### **Benefits Achieved:**
 
-- **🔒 Bug Prevention**: Eliminated state synchronization bugs
-- **🧹 Cleaner Code**: Clear data authority and responsibility
-- **🚀 Better Performance**: Reduced state updates and better subscriptions
-- **🧪 Easier Testing**: Individual slice stores can be tested in isolation
-- **📚 Better Documentation**: Clear patterns and responsibilities
-- **🔧 Easier Maintenance**: Changes to data structure only need to be made in one place
+- **🔒 Zero State Duplication**: Eliminated inconsistent state bugs
+- **📊 Full Data-Driven**: Content updates via JSON, no code changes needed
+- **🧹 Clean Architecture**: Clear data authority and responsibility
+- **🚀 Better Performance**: Optimized subscriptions and reduced re-renders
+- **🧪 Easier Testing**: Slice stores can be tested in isolation
+- **🔧 Maintainable**: Changes to data structure only need to be made in one place
 
-This refactoring represents a significant improvement in code quality, maintainability, and developer experience while maintaining full backward compatibility.
+This represents a major architectural improvement enabling scalable, maintainable game development with clean separation between code and content.
+
+### **Complete Data-Driven Architecture Migration (Final)**
+
+The game has been fully migrated to a pure data-driven architecture, eliminating all hardcoded content and centralizing UI configuration.
+
+#### **Final Migration Achievements:**
+
+**Complete JSON Configuration System**
+- **18 Abilities**: All hardcoded abilities migrated to `abilities.json`
+- **8 Attack Patterns**: Comprehensive pattern system in `attack_patterns.json`
+- **14 Status Effects**: Complete status effect definitions in `status_effects.json`
+- **4 Employee Types**: All unit definitions in `employees.json`
+- **Centralized Config**: Game settings in `game_config.json`
+
+**Eliminated Legacy Code**
+- **Removed**: 500+ lines of hardcoded `ABILITIES` object
+- **Removed**: Hardcoded `UNIT_ABILITIES` mapping
+- **Removed**: Legacy `convertDataAbilityToLegacyAbility()` function
+- **Deleted**: Obsolete `src/game/systems/abilities.ts` and test files
+
+**Centralized UI Configuration**
+- **ActionMenu Styling**: Moved from local `TOOLTIP_CONFIG` to `UI_CONFIG.ACTION_MENU`
+- **Consistent Theming**: All UI styling centralized in `uiConfig.ts`
+- **Maintainable Design**: Single source of truth for all visual styling
+
+**Enhanced Data Management**
+- **DataManager**: Now handles all ability-to-unit mapping
+- **Type Safety**: Full TypeScript compliance with JSON data
+- **Performance**: Optimized data loading and caching
+- **Extensibility**: Easy to add new abilities, units, and effects
+
+#### **Final Architecture Benefits:**
+
+- **🎯 True Data-Driven**: Zero hardcoded game content
+- **📝 Content Management**: Non-programmers can modify game content
+- **🔄 Version Control**: All changes tracked in JSON files
+- **🧪 A/B Testing**: Easy to test different configurations
+- **📦 Smaller Bundle**: Reduced JavaScript bundle size
+- **🚀 Faster Development**: New content without code changes
+- **🎨 Consistent UI**: Centralized styling system
+- **🔧 Easy Maintenance**: Clear separation of code and content
+
+This completes the transformation to a fully data-driven, maintainable game architecture that scales with content needs while maintaining clean code organization.
+
+## 🎯 **Architecture Evolution Summary**
+
+The HRmageddon codebase has undergone a complete transformation from a hardcoded, tightly-coupled system to a modern, data-driven architecture:
+
+### **Phase 1: Single Source of Truth (Previous)**
+- Eliminated state duplication across stores
+- Implemented pure orchestration pattern
+- Created slice store authority
+
+### **Phase 2: Complete Data-Driven Migration (Current)**
+- **18 Abilities**: Migrated from hardcoded TypeScript to JSON
+- **8 Attack Patterns**: Externalized to configuration files
+- **14 Status Effects**: Defined in JSON with full type safety
+- **4 Employee Types**: Complete unit definitions in JSON
+- **UI Configuration**: Centralized styling system
+- **Legacy Elimination**: Removed 500+ lines of hardcoded content
+
+### **Final Architecture Benefits:**
+- **🎯 Zero Hardcoded Content**: All game data externalized
+- **📝 Content Management**: Non-programmers can modify game
+- **🔄 Version Control**: All changes tracked in JSON
+- **🧪 A/B Testing**: Easy configuration testing
+- **📦 Smaller Bundle**: Reduced JavaScript size
+- **🚀 Faster Development**: New content without code changes
+- **🎨 Consistent UI**: Centralized styling system
+- **🔧 Easy Maintenance**: Clear code/content separation
+
+The game now represents a **best-practice example** of modern game architecture with complete data-driven content management, clean code organization, and scalable design patterns.

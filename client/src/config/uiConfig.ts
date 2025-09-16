@@ -61,6 +61,26 @@ export const UI_CONFIG = {
     BUTTON_PRESS_SCALE: 0.95,
     BUTTON_PRESS_DURATION: 150,
     TRANSITION_DURATION: 'duration-200',
+  },
+  // Action Menu Configuration
+  ACTION_MENU: {
+    STYLE: {
+      BACKGROUND: 'bg-yellow-200',
+      BORDER: 'border-2 border-black',
+      TEXT: 'text-black',
+      HOVER: 'hover:bg-yellow-300',
+      END_BUTTON: 'bg-pink-200 hover:bg-pink-300',
+      SEPARATOR: 'border-black',
+    },
+    POSITIONING: {
+      OFFSET: 20,
+      MARGIN: 10,
+      MIN_WIDTH: 140,
+    },
+    FONT: {
+      FAMILY: 'serif',
+      SIZE: '14px',
+    }
   }
 }
 // ===== END CONFIGURATION =====

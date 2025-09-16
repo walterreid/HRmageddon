@@ -244,7 +244,8 @@ export class DataManager {
 
   // Convert Employee data to Unit data for game logic
   public createUnitFromEmployee(employee: Employee, id: string, playerId: string, position: { x: number; y: number }): Unit {
-    const abilities = employee.special_ability ? [employee.special_ability.key || employee.special_ability.name.toLowerCase().replace(/\s+/g, '_')] : []
+    // Get abilities based on unit type mapping
+    const abilities = this.getAbilitiesForUnitType(this.mapEmployeeKeyToUnitType(employee.key))
     
     return {
       id,
@@ -267,6 +268,22 @@ export class DataManager {
       movementUsed: 0,
       remainingMovement: employee.stats.speed,
     }
+  }
+
+  // Get abilities for a specific unit type based on the UNIT_ABILITIES mapping
+  private getAbilitiesForUnitType(unitType: UnitType): string[] {
+    const abilityMapping: Record<UnitType, string[]> = {
+      [UnitType.INTERN]: ['fetch_coffee', 'overtime'],
+      [UnitType.SECRETARY]: ['file_it'],
+      [UnitType.SALES_REP]: ['harass'],
+      [UnitType.HR_MANAGER]: ['pink_slip', 'mediation'],
+      [UnitType.IT_SPECIALIST]: ['hack_system', 'tech_support'],
+      [UnitType.ACCOUNTANT]: ['audit', 'creative_accounting'],
+      [UnitType.LEGAL_COUNSEL]: ['legal_threat', 'contract_negotiation'],
+      [UnitType.EXECUTIVE]: ['executive_order', 'corporate_restructuring', 'paperclip_storm'],
+    }
+    
+    return abilityMapping[unitType] || []
   }
 
   // Map employee keys to UnitType enum

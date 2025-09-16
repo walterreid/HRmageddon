@@ -1,28 +1,7 @@
 import { useGameStore } from '../stores/gameStore'
 import { getUnitAbilities, canUseAbility } from '../game/core/abilities.ts'
 import { type Unit } from 'shared'
-
-// ===== TOOLTIP ACTION MENU CONFIG =====
-const TOOLTIP_CONFIG = {
-  STYLE: {
-    BACKGROUND: 'bg-yellow-200',
-    BORDER: 'border-2 border-black',
-    TEXT: 'text-black',
-    HOVER: 'hover:bg-yellow-300',
-    END_BUTTON: 'bg-pink-200 hover:bg-pink-300',
-    SEPARATOR: 'border-black',
-  },
-  POSITIONING: {
-    OFFSET: 20,
-    MARGIN: 10,
-    MIN_WIDTH: 140,
-  },
-  FONT: {
-    FAMILY: 'serif',
-    SIZE: '14px',
-  }
-}
-// ===== END CONFIG =====
+import { UI_CONFIG } from '../config/uiConfig'
 
 interface ActionMenuProps {
   unit: Unit
@@ -41,22 +20,22 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
   // Smart positioning logic - position tooltip to avoid screen edges
   const getTooltipPosition = () => {
     const { x, y } = position
-    const tooltipWidth = TOOLTIP_CONFIG.POSITIONING.MIN_WIDTH
+    const tooltipWidth = UI_CONFIG.ACTION_MENU.POSITIONING.MIN_WIDTH
     const tooltipHeight = 200 // Estimate based on content
-    const margin = TOOLTIP_CONFIG.POSITIONING.MARGIN
+    const margin = UI_CONFIG.ACTION_MENU.POSITIONING.MARGIN
     
     // Default to bottom-right
-    let posX = x + TOOLTIP_CONFIG.POSITIONING.OFFSET
-    let posY = y + TOOLTIP_CONFIG.POSITIONING.OFFSET
+    let posX = x + UI_CONFIG.ACTION_MENU.POSITIONING.OFFSET
+    let posY = y + UI_CONFIG.ACTION_MENU.POSITIONING.OFFSET
     
     // If too close to right edge, show on left
     if (x + tooltipWidth + margin > window.innerWidth) {
-      posX = x - tooltipWidth - TOOLTIP_CONFIG.POSITIONING.OFFSET
+      posX = x - tooltipWidth - UI_CONFIG.ACTION_MENU.POSITIONING.OFFSET
     }
     
     // If too close to bottom edge, show above  
     if (y + tooltipHeight + margin > window.innerHeight) {
-      posY = y - tooltipHeight - TOOLTIP_CONFIG.POSITIONING.OFFSET
+      posY = y - tooltipHeight - UI_CONFIG.ACTION_MENU.POSITIONING.OFFSET
     }
     
     return { left: posX, top: posY }
@@ -73,12 +52,12 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
 
   return (
     <div 
-      className={`fixed z-50 ${TOOLTIP_CONFIG.STYLE.BACKGROUND} ${TOOLTIP_CONFIG.STYLE.BORDER} rounded shadow-lg p-2 min-w-[${TOOLTIP_CONFIG.POSITIONING.MIN_WIDTH}px]`}
+      className={`fixed z-50 ${UI_CONFIG.ACTION_MENU.STYLE.BACKGROUND} ${UI_CONFIG.ACTION_MENU.STYLE.BORDER} rounded shadow-lg p-2 min-w-[${UI_CONFIG.ACTION_MENU.POSITIONING.MIN_WIDTH}px]`}
       style={{
         left: tooltipPos.left,
         top: tooltipPos.top,
-        fontFamily: TOOLTIP_CONFIG.FONT.FAMILY,
-        fontSize: TOOLTIP_CONFIG.FONT.SIZE
+        fontFamily: UI_CONFIG.ACTION_MENU.FONT.FAMILY,
+        fontSize: UI_CONFIG.ACTION_MENU.FONT.SIZE
       }}
     >
       {/* Action Buttons - Simple List */}
@@ -88,7 +67,7 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
         {canMove && (
           <button
             onClick={() => onActionSelect('move')}
-            className={`w-full text-left px-2 py-1 ${TOOLTIP_CONFIG.STYLE.HOVER} ${TOOLTIP_CONFIG.STYLE.TEXT} font-medium`}
+            className={`w-full text-left px-2 py-1 ${UI_CONFIG.ACTION_MENU.STYLE.HOVER} ${UI_CONFIG.ACTION_MENU.STYLE.TEXT} font-medium`}
           >
             Move
           </button>
@@ -98,7 +77,7 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
         {canAttack && (
           <button
             onClick={() => onActionSelect('attack')}
-            className={`w-full text-left px-2 py-1 ${TOOLTIP_CONFIG.STYLE.HOVER} ${TOOLTIP_CONFIG.STYLE.TEXT} font-medium`}
+            className={`w-full text-left px-2 py-1 ${UI_CONFIG.ACTION_MENU.STYLE.HOVER} ${UI_CONFIG.ACTION_MENU.STYLE.TEXT} font-medium`}
           >
             Attack
           </button>
@@ -113,7 +92,7 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
             <button
               key={ability.id}
               onClick={() => onActionSelect(ability.id)}
-              className={`w-full text-left px-2 py-1 ${TOOLTIP_CONFIG.STYLE.HOVER} ${TOOLTIP_CONFIG.STYLE.TEXT} font-medium`}
+              className={`w-full text-left px-2 py-1 ${UI_CONFIG.ACTION_MENU.STYLE.HOVER} ${UI_CONFIG.ACTION_MENU.STYLE.TEXT} font-medium`}
             >
               {ability.name}
             </button>
@@ -121,12 +100,12 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
         })}
         
         {/* Separator Line */}
-        <div className={`border-t ${TOOLTIP_CONFIG.STYLE.SEPARATOR} my-1`}></div>
+        <div className={`border-t ${UI_CONFIG.ACTION_MENU.STYLE.SEPARATOR} my-1`}></div>
         
         {/* End Turn Button */}
         <button
           onClick={onClose}
-          className={`w-full text-left px-2 py-1 ${TOOLTIP_CONFIG.STYLE.END_BUTTON} ${TOOLTIP_CONFIG.STYLE.TEXT} font-medium`}
+          className={`w-full text-left px-2 py-1 ${UI_CONFIG.ACTION_MENU.STYLE.END_BUTTON} ${UI_CONFIG.ACTION_MENU.STYLE.TEXT} font-medium`}
         >
           End
         </button>

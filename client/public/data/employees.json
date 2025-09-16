@@ -21,6 +21,15 @@
             "duration": 2,
             "magnitude": 0.5
           }
+        },
+        "special_ability": {
+          "key": "harass",
+          "name": "Harass",
+          "type": "debuff",
+          "target": "enemy",
+          "effect": "harassed",
+          "magnitude": 1.0,
+          "duration": 2
         }
       },
       {
@@ -73,6 +82,15 @@
             "duration": 2,
             "damage_per_turn": 10
           }
+        },
+        "special_ability": {
+          "key": "pink_slip",
+          "name": "Pink Slip",
+          "type": "execution",
+          "target": "enemy",
+          "effect": "damage",
+          "magnitude": 999,
+          "duration": 1
         }
       },
       {
@@ -95,6 +113,15 @@
             "chance": 0.20,
             "duration": 1
           }
+        },
+        "special_ability": {
+          "key": "hack_system",
+          "name": "Hack System",
+          "type": "debuff",
+          "target": "enemy",
+          "effect": "confused",
+          "magnitude": 1.0,
+          "duration": 2
         }
       }
     ]

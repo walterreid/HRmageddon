@@ -1,6 +1,234 @@
 {
     "abilities": [
       {
+        "key": "fetch_coffee",
+        "name": "Fetch Coffee",
+        "description": "Grant \"On Deadline\" to an adjacent ally",
+        "cooldown_turns": 1,
+        "range_pattern_key": "single_target_melee",
+        "effects": [
+          {
+            "type": "apply_status_effect",
+            "target": "ally",
+            "status_key": "on_deadline",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "overtime",
+        "name": "Overtime",
+        "description": "Gain +1 action but become Exhausted next turn",
+        "cooldown_turns": 2,
+        "range_pattern_key": "self_target",
+        "effects": [
+          {
+            "type": "action_bonus",
+            "value": 1
+          },
+          {
+            "type": "apply_status_effect",
+            "target": "self",
+            "status_key": "exhausted",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "file_it",
+        "name": "File It",
+        "description": "Apply \"Written Up\" to target",
+        "cooldown_turns": 2,
+        "range_pattern_key": "single_target_ranged",
+        "effects": [
+          {
+            "type": "apply_status_effect",
+            "target": "enemy",
+            "status_key": "written_up",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "harass",
+        "name": "Harass",
+        "description": "Apply \"Harassed\" status preventing capture",
+        "cooldown_turns": 1,
+        "range_pattern_key": "single_target_ranged",
+        "effects": [
+          {
+            "type": "apply_status_effect",
+            "target": "enemy",
+            "status_key": "harassed",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "pink_slip",
+        "name": "Pink Slip",
+        "description": "Execute an adjacent enemy at ≤2 HP",
+        "cooldown_turns": -1,
+        "range_pattern_key": "single_target_melee",
+        "effects": [
+          {
+            "type": "damage",
+            "target": "enemy",
+            "value": 999,
+            "damage_type": "execution"
+          }
+        ]
+      },
+      {
+        "key": "mediation",
+        "name": "Mediation",
+        "description": "Cleanse status and heal 1 HP",
+        "cooldown_turns": 2,
+        "range_pattern_key": "single_target_melee",
+        "effects": [
+          {
+            "type": "heal",
+            "target": "ally",
+            "value": 1
+          },
+          {
+            "type": "cleanse_status",
+            "target": "ally"
+          }
+        ]
+      },
+      {
+        "key": "hack_system",
+        "name": "Hack System",
+        "description": "Apply \"Confused\" status to enemy",
+        "cooldown_turns": 2,
+        "range_pattern_key": "single_target_ranged",
+        "effects": [
+          {
+            "type": "apply_status_effect",
+            "target": "enemy",
+            "status_key": "confused",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "tech_support",
+        "name": "Tech Support",
+        "description": "Remove negative status from ally",
+        "cooldown_turns": 2,
+        "range_pattern_key": "single_target_ranged",
+        "effects": [
+          {
+            "type": "cleanse_status",
+            "target": "ally"
+          }
+        ]
+      },
+      {
+        "key": "audit",
+        "name": "Audit",
+        "description": "Apply \"Focused\" status to self",
+        "cooldown_turns": 2,
+        "range_pattern_key": "self_target",
+        "effects": [
+          {
+            "type": "apply_status_effect",
+            "target": "self",
+            "status_key": "focused",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "creative_accounting",
+        "name": "Creative Accounting",
+        "description": "Gain +1 action this turn",
+        "cooldown_turns": 3,
+        "range_pattern_key": "self_target",
+        "effects": [
+          {
+            "type": "action_bonus",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "key": "legal_threat",
+        "name": "Legal Threat",
+        "description": "Apply \"Stunned\" status to enemy",
+        "cooldown_turns": 3,
+        "range_pattern_key": "single_target_ranged",
+        "effects": [
+          {
+            "type": "apply_status_effect",
+            "target": "enemy",
+            "status_key": "stunned",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "contract_negotiation",
+        "name": "Contract Negotiation",
+        "description": "Apply \"Shielded\" status to ally",
+        "cooldown_turns": 2,
+        "range_pattern_key": "single_target_ranged",
+        "effects": [
+          {
+            "type": "apply_status_effect",
+            "target": "ally",
+            "status_key": "shielded",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "executive_order",
+        "name": "Executive Order",
+        "description": "Apply \"Inspired\" to all allies",
+        "cooldown_turns": 4,
+        "range_pattern_key": "all_allies",
+        "effects": [
+          {
+            "type": "apply_status_effect",
+            "target": "all_allies",
+            "status_key": "inspired",
+            "chance": 1.0
+          }
+        ]
+      },
+      {
+        "key": "corporate_restructuring",
+        "name": "Corporate Restructuring",
+        "description": "Deal 2 damage to all enemies in range",
+        "cooldown_turns": 4,
+        "range_pattern_key": "all_enemies",
+        "effects": [
+          {
+            "type": "damage",
+            "target": "all_enemies",
+            "value": 2,
+            "damage_type": "corporate"
+          }
+        ]
+      },
+      {
+        "key": "paperclip_storm",
+        "name": "Paperclip Storm",
+        "description": "Launch a storm of paperclips in a cone direction",
+        "cooldown_turns": 3,
+        "range_pattern_key": "forward_cone",
+        "effects": [
+          {
+            "type": "damage",
+            "target": "enemy",
+            "value": 1,
+            "damage_type": "physical"
+          }
+        ]
+      },
+      {
         "key": "thousand_papercuts",
         "name": "A Thousand Papercuts",
         "description": "Unleashes a cone of sharp paper, dealing initial damage and causing targets to bleed.",

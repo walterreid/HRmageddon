@@ -1,6 +1,123 @@
 {
     "status_effects": [
       {
+        "key": "on_deadline",
+        "name": "On Deadline",
+        "description": "Increased focus and productivity.",
+        "type": "buff",
+        "duration_in_turns": 2,
+        "modifiers": {
+          "stat": "attack_power",
+          "operation": "multiply",
+          "value": 1.2
+        },
+        "visual_effect": "deadline_glow"
+      },
+      {
+        "key": "exhausted",
+        "name": "Exhausted",
+        "description": "Reduced effectiveness from overwork.",
+        "type": "debuff",
+        "duration_in_turns": 1,
+        "modifiers": {
+          "stat": "actions_remaining",
+          "operation": "subtract",
+          "value": 1
+        },
+        "visual_effect": "exhausted_aura"
+      },
+      {
+        "key": "written_up",
+        "name": "Written Up",
+        "description": "Formal reprimand reduces morale.",
+        "type": "debuff",
+        "duration_in_turns": 2,
+        "modifiers": {
+          "stat": "attack_power",
+          "operation": "multiply",
+          "value": 0.8
+        },
+        "visual_effect": "paper_trail"
+      },
+      {
+        "key": "harassed",
+        "name": "Harassed",
+        "description": "Prevents capturing cubicles.",
+        "type": "debuff",
+        "duration_in_turns": 2,
+        "modifiers": {
+          "stat": "can_capture",
+          "operation": "set",
+          "value": false
+        },
+        "visual_effect": "harass_aura"
+      },
+      {
+        "key": "confused",
+        "name": "Confused",
+        "description": "Reduces accuracy and effectiveness.",
+        "type": "debuff",
+        "duration_in_turns": 2,
+        "modifiers": {
+          "stat": "attack_power",
+          "operation": "multiply",
+          "value": 0.7
+        },
+        "visual_effect": "confusion_swirl"
+      },
+      {
+        "key": "focused",
+        "name": "Focused",
+        "description": "Increased concentration and accuracy.",
+        "type": "buff",
+        "duration_in_turns": 2,
+        "modifiers": {
+          "stat": "attack_power",
+          "operation": "multiply",
+          "value": 1.3
+        },
+        "visual_effect": "focus_aura"
+      },
+      {
+        "key": "stunned",
+        "name": "Stunned",
+        "description": "Cannot take actions this turn.",
+        "type": "debuff",
+        "duration_in_turns": 1,
+        "modifiers": {
+          "stat": "can_act",
+          "operation": "set",
+          "value": false
+        },
+        "visual_effect": "stun_stars"
+      },
+      {
+        "key": "shielded",
+        "name": "Shielded",
+        "description": "Reduces incoming damage.",
+        "type": "buff",
+        "duration_in_turns": 2,
+        "modifiers": {
+          "stat": "defense",
+          "operation": "multiply",
+          "value": 1.5
+        },
+        "visual_effect": "shield_aura"
+      },
+      {
+        "key": "inspired",
+        "name": "Inspired",
+        "description": "Motivated by leadership.",
+        "type": "buff",
+        "duration_in_turns": 2,
+        "modifiers": {
+          "stat": "attack_power",
+          "operation": "multiply",
+          "value": 1.25
+        },
+        "visual_effect": "inspiration_glow"
+      },
+      {
         "key": "slow",
         "name": "Slowed",
         "description": "Reduces target's speed.",
@@ -50,6 +167,18 @@
           "value": 1.2
         },
         "visual_effect": "speed_lines"
+      },
+      {
+        "key": "bleeding",
+        "name": "Bleeding",
+        "description": "Takes damage over time.",
+        "type": "debuff",
+        "duration_in_turns": 3,
+        "tick_effect": {
+          "type": "damage",
+          "value": 5
+        },
+        "visual_effect": "blood_drops"
       }
     ]
   }

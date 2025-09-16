@@ -1,7 +1,7 @@
-import { type Unit, StatusType, UnitType, type Coordinate, type Ability, TargetType, AbilityTargetingType, type Tile, type DataAbility } from 'shared'
+import { type Unit, StatusType, type Coordinate, type Ability, TargetType, AbilityTargetingType, type Tile, type DataAbility } from 'shared'
 import { dataManager } from '../data/DataManager'
 
-// Get ability from DataManager or fallback to legacy
+// Get ability from DataManager
 export function getAbilityById(id: string): Ability | undefined {
   console.log(`🔍 getAbilityById: Looking for ability "${id}"`)
   
@@ -13,14 +13,8 @@ export function getAbilityById(id: string): Ability | undefined {
     return converted
   }
   
-  const legacyAbility = ABILITIES[id]
-  if (legacyAbility) {
-    console.log(`✅ getAbilityById: Found legacy ability for "${id}":`, legacyAbility)
-  } else {
-    console.log(`❌ getAbilityById: No ability found for "${id}"`)
-  }
-  
-  return legacyAbility
+  console.log(`❌ getAbilityById: No ability found for "${id}"`)
+  return undefined
 }
 
 // Convert DataAbility to legacy Ability format
@@ -31,6 +25,10 @@ function convertDataAbilityToLegacyAbility(dataAbility: DataAbility): Ability {
     targetType = TargetType.ALLY
   } else if (dataAbility.effects.some(e => e.target === 'self')) {
     targetType = TargetType.SELF
+  } else if (dataAbility.effects.some(e => e.target === 'all_allies')) {
+    targetType = TargetType.ALL_ALLIES
+  } else if (dataAbility.effects.some(e => e.target === 'all_enemies')) {
+    targetType = TargetType.ALL_ENEMIES
   }
 
   // Determine range from range_pattern_key
@@ -41,6 +39,12 @@ function convertDataAbilityToLegacyAbility(dataAbility: DataAbility): Ability {
     range = 3 // Cone abilities typically have longer range
   } else if (dataAbility.range_pattern_key === 'firewall_line') {
     range = 4 // Firewall can be placed at distance
+  } else if (dataAbility.range_pattern_key === 'single_target_ranged') {
+    range = 3 // Ranged abilities
+  } else if (dataAbility.range_pattern_key === 'self_target') {
+    range = 0 // Self-targeting abilities
+  } else if (dataAbility.range_pattern_key === 'all_allies' || dataAbility.range_pattern_key === 'all_enemies') {
+    range = 0 // Global abilities
   }
 
   // Determine targeting type from range pattern
@@ -49,6 +53,12 @@ function convertDataAbilityToLegacyAbility(dataAbility: DataAbility): Ability {
     targetingType = AbilityTargetingType.AOE_CONE
   } else if (dataAbility.range_pattern_key === 'centered_cross_burst') {
     targetingType = AbilityTargetingType.AOE_CIRCLE
+  } else if (dataAbility.range_pattern_key === 'all_allies') {
+    targetingType = AbilityTargetingType.ALL_ALLIES
+  } else if (dataAbility.range_pattern_key === 'all_enemies') {
+    targetingType = AbilityTargetingType.ALL_ENEMIES
+  } else if (dataAbility.range_pattern_key === 'self_target') {
+    targetingType = AbilityTargetingType.SELF_BUFF
   }
 
   return {
@@ -66,10 +76,41 @@ function convertDataAbilityToLegacyAbility(dataAbility: DataAbility): Ability {
         switch (effect.type) {
           case 'damage':
             return { damageDealt: effect.value || 0 }
+          case 'heal':
+            return { healingDone: effect.value || 0 }
+          case 'action_bonus':
+            return { actionBonus: effect.value || 0 }
           case 'apply_status_effect': {
             // Map status keys to StatusType enum
             let statusType: StatusType
             switch (effect.status_key) {
+              case 'on_deadline':
+                statusType = StatusType.ON_DEADLINE
+                break
+              case 'exhausted':
+                statusType = StatusType.EXHAUSTED
+                break
+              case 'written_up':
+                statusType = StatusType.WRITTEN_UP
+                break
+              case 'harassed':
+                statusType = StatusType.HARASSED
+                break
+              case 'confused':
+                statusType = StatusType.CONFUSED
+                break
+              case 'focused':
+                statusType = StatusType.FOCUSED
+                break
+              case 'stunned':
+                statusType = StatusType.STUNNED
+                break
+              case 'shielded':
+                statusType = StatusType.SHIELDED
+                break
+              case 'inspired':
+                statusType = StatusType.INSPIRED
+                break
               case 'increase_speed':
                 statusType = StatusType.INSPIRED // Use inspired as a speed boost
                 break
@@ -84,6 +125,8 @@ function convertDataAbilityToLegacyAbility(dataAbility: DataAbility): Ability {
             }
             return { statusApplied: [{ type: statusType, duration: 2 }] }
           }
+          case 'cleanse_status':
+            return { message: `Status effects cleansed` }
           case 'create_tile_hazard':
             // For now, just return success - tile hazards need more complex implementation
             return { message: `${dataAbility.name} creates a hazard` }
@@ -103,301 +146,11 @@ function convertDataAbilityToLegacyAbility(dataAbility: DataAbility): Ability {
   }
 }
 
-// Legacy abilities for backward compatibility during transition
-export const ABILITIES: Record<string, Ability> = {
-  // Intern abilities
-  fetch_coffee: {
-    id: 'fetch_coffee',
-    name: 'Fetch Coffee',
-    description: 'Grant "On Deadline" to an adjacent ally',
-    cost: 0,
-    cooldown: 1,
-    range: 1,
-    targetType: TargetType.ALLY,
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
-    effect: (caster, target) => {
-      const t = target as Unit | undefined
-      if (!t || t.playerId !== caster.playerId) return { success: false, message: 'Must target an ally' }
-      return { success: true, statusApplied: [{ type: StatusType.ON_DEADLINE, duration: 2 }], message: 'On Deadline granted' }
-    },
-    visualEffect: 'coffee_steam',
-    soundEffect: 'coffee_pour',
-  },
-  overtime: {
-    id: 'overtime',
-    name: 'Overtime',
-    description: 'Gain +1 action but become Exhausted next turn',
-    cost: 1,
-    cooldown: 2,
-    range: 0,
-    targetType: TargetType.SELF,
-    targetingType: AbilityTargetingType.SELF_BUFF,
-    effect: () => ({ 
-      success: true, 
-      actionBonus: 1, 
-      statusApplied: [{ type: StatusType.EXHAUSTED, duration: 1 }], 
-      message: 'Working overtime' 
-    }),
-    visualEffect: 'overtime_glow',
-    soundEffect: 'clock_tick',
-  },
-
-  // Secretary abilities
-  file_it: {
-    id: 'file_it',
-    name: 'File It',
-    description: 'Apply "Written Up" to target',
-    cost: 1,
-    cooldown: 2,
-    range: 3,
-    targetType: TargetType.ENEMY,
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
-    effect: (caster, target) => {
-      const t = target as Unit | undefined
-      if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
-      return { success: true, statusApplied: [{ type: StatusType.WRITTEN_UP, duration: 2 }], message: 'Written up!' }
-    },
-    visualEffect: 'paper_flying',
-    soundEffect: 'paper_rustle',
-  },
-
-  // Sales Rep abilities
-  harass: {
-    id: 'harass',
-    name: 'Harass',
-    description: 'Apply "Harassed" status preventing capture',
-    cost: 1,
-    cooldown: 1,
-    range: 2,
-    targetType: TargetType.ENEMY,
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
-    effect: (caster, target) => {
-      const t = target as Unit | undefined
-      if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
-      return { success: true, statusApplied: [{ type: StatusType.HARASSED, duration: 2 }], message: 'Harassed!' }
-    },
-    visualEffect: 'harass_aura',
-    soundEffect: 'phone_ring',
-  },
-
-
-  // HR Manager abilities
-  pink_slip: {
-    id: 'pink_slip',
-    name: 'Pink Slip',
-    description: 'Execute an adjacent enemy at ≤2 HP',
-    cost: 2,
-    cooldown: -1, // One-time use
-    range: 1,
-    targetType: TargetType.ENEMY,
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
-    effect: (caster, target) => {
-      const t = target as Unit | undefined
-      if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
-      if (t.hp > 2) return { success: false, message: 'Target has too much HP' }
-      return { success: true, damageDealt: t.hp, message: 'Terminated!' }
-    },
-    visualEffect: 'pink_slip_flash',
-    soundEffect: 'paper_tear',
-  },
-  mediation: {
-    id: 'mediation',
-    name: 'Mediation',
-    description: 'Cleanse status and heal 1 HP',
-    cost: 1,
-    cooldown: 2,
-    range: 1,
-    targetType: TargetType.ALLY,
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
-    effect: (caster, target) => {
-      const t = target as Unit | undefined
-      if (!t || t.playerId !== caster.playerId) return { success: false, message: 'Must target an ally' }
-      return { success: true, healingDone: 1, message: 'Mediation successful' }
-    },
-    visualEffect: 'peace_aura',
-    soundEffect: 'gentle_chime',
-  },
-
-  // IT Specialist abilities
-  hack_system: {
-    id: 'hack_system',
-    name: 'Hack System',
-    description: 'Apply "Confused" status to enemy',
-    cost: 1,
-    cooldown: 2,
-    range: 3,
-    targetType: TargetType.ENEMY,
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
-    effect: (caster, target) => {
-      const t = target as Unit | undefined
-      if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
-      return { success: true, statusApplied: [{ type: StatusType.CONFUSED, duration: 2 }], message: 'System hacked!' }
-    },
-    visualEffect: 'hack_glitch',
-    soundEffect: 'keyboard_clack',
-  },
-  tech_support: {
-    id: 'tech_support',
-    name: 'Tech Support',
-    description: 'Remove negative status from ally',
-    cost: 1,
-    cooldown: 2,
-    range: 2,
-    targetType: TargetType.ALLY,
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
-    effect: (caster, target) => {
-      const t = target as Unit | undefined
-      if (!t || t.playerId !== caster.playerId) return { success: false, message: 'Must target an ally' }
-      return { success: true, message: 'Tech support provided' }
-    },
-    visualEffect: 'tech_repair',
-    soundEffect: 'computer_beep',
-  },
-
-  // Accountant abilities
-  audit: {
-    id: 'audit',
-    name: 'Audit',
-    description: 'Apply "Focused" status to self',
-    cost: 1,
-    cooldown: 2,
-    range: 0,
-    targetType: TargetType.SELF,
-    targetingType: AbilityTargetingType.SELF_BUFF,
-    effect: () => ({ 
-      success: true, 
-      statusApplied: [{ type: StatusType.FOCUSED, duration: 2 }], 
-      message: 'Audit completed' 
-    }),
-    visualEffect: 'audit_glow',
-    soundEffect: 'calculator_tap',
-  },
-  creative_accounting: {
-    id: 'creative_accounting',
-    name: 'Creative Accounting',
-    description: 'Gain +1 action this turn',
-    cost: 2,
-    cooldown: 3,
-    range: 0,
-    targetType: TargetType.SELF,
-    targetingType: AbilityTargetingType.SELF_BUFF,
-    effect: () => ({ 
-      success: true, 
-      actionBonus: 1, 
-      message: 'Creative accounting successful' 
-    }),
-    visualEffect: 'money_sparkle',
-    soundEffect: 'cash_register',
-  },
-
-  // Legal Counsel abilities
-  legal_threat: {
-    id: 'legal_threat',
-    name: 'Legal Threat',
-    description: 'Apply "Stunned" status to enemy',
-    cost: 2,
-    cooldown: 3,
-    range: 3,
-    targetType: TargetType.ENEMY,
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
-    effect: (caster, target) => {
-      const t = target as Unit | undefined
-      if (!t || t.playerId === caster.playerId) return { success: false, message: 'Must target an enemy' }
-      return { success: true, statusApplied: [{ type: StatusType.STUNNED, duration: 1 }], message: 'Legal threat delivered!' }
-    },
-    visualEffect: 'legal_document',
-    soundEffect: 'gavel_bang',
-  },
-  contract_negotiation: {
-    id: 'contract_negotiation',
-    name: 'Contract Negotiation',
-    description: 'Apply "Shielded" status to ally',
-    cost: 1,
-    cooldown: 2,
-    range: 2,
-    targetType: TargetType.ALLY,
-    targetingType: AbilityTargetingType.SINGLE_TARGET,
-    effect: (caster, target) => {
-      const t = target as Unit | undefined
-      if (!t || t.playerId !== caster.playerId) return { success: false, message: 'Must target an ally' }
-      return { success: true, statusApplied: [{ type: StatusType.SHIELDED, duration: 2 }], message: 'Contract negotiated!' }
-    },
-    visualEffect: 'shield_aura',
-    soundEffect: 'pen_signature',
-  },
-
-  // Executive abilities
-  executive_order: {
-    id: 'executive_order',
-    name: 'Executive Order',
-    description: 'Apply "Inspired" to all allies',
-    cost: 3,
-    cooldown: 4,
-    range: 0,
-    targetType: TargetType.ALL_ALLIES,
-    targetingType: AbilityTargetingType.ALL_ALLIES,
-    effect: () => ({ 
-      success: true, 
-      statusApplied: [{ type: StatusType.INSPIRED, duration: 2 }], 
-      message: 'Executive order issued!' 
-    }),
-    visualEffect: 'executive_aura',
-    soundEffect: 'executive_bell',
-  },
-  corporate_restructuring: {
-    id: 'corporate_restructuring',
-    name: 'Corporate Restructuring',
-    description: 'Deal 2 damage to all enemies in range',
-    cost: 3,
-    cooldown: 4,
-    range: 3,
-    targetType: TargetType.ALL_ENEMIES,
-    targetingType: AbilityTargetingType.ALL_ENEMIES,
-    effect: () => ({ 
-      success: true, 
-      damageDealt: 2, 
-      message: 'Corporate restructuring initiated!' 
-    }),
-    visualEffect: 'restructure_blast',
-    soundEffect: 'office_chaos',
-  },
-  paperclip_storm: {
-    id: 'paperclip_storm',
-    name: 'Paperclip Storm',
-    description: 'Launch a storm of paperclips in a cone direction',
-    cost: 2,
-    cooldown: 3,
-    range: 4,
-    targetType: TargetType.ENEMY,
-    targetingType: AbilityTargetingType.AOE_CONE,
-    requiresDirection: true, // New property for directional abilities
-    coneAngle: 90, // Cone angle in degrees
-    effect: () => ({ 
-      success: true, 
-      damage: 1, 
-      message: 'Paperclip storm unleashed!' 
-    }),
-    visualEffect: 'paperclip_storm',
-    soundEffect: 'paperclip_clatter',
-  },
-}
-
-// Unit ability mappings
-export const UNIT_ABILITIES: Record<UnitType, string[]> = {
-  [UnitType.INTERN]: ['fetch_coffee', 'overtime'],
-  [UnitType.SECRETARY]: ['file_it'],
-  [UnitType.SALES_REP]: ['harass'],
-  [UnitType.HR_MANAGER]: ['pink_slip', 'mediation'],
-  [UnitType.IT_SPECIALIST]: ['hack_system', 'tech_support'],
-  [UnitType.ACCOUNTANT]: ['audit', 'creative_accounting'],
-  [UnitType.LEGAL_COUNSEL]: ['legal_threat', 'contract_negotiation'],
-  [UnitType.EXECUTIVE]: ['executive_order', 'corporate_restructuring', 'paperclip_storm'],
-}
 
 // Helper functions for ability system
 
 export function getUnitAbilities(unit: Unit): Ability[] {
-  // Get abilities from unit's abilities array (now stored from employee data)
+  // Get abilities from unit's abilities array (populated by DataManager)
   return unit.abilities.map(abilityId => getAbilityById(abilityId)).filter((ability): ability is Ability => ability !== undefined)
 }
 

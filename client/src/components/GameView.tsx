@@ -180,7 +180,7 @@ export function GameView() {
       
       {/* Debug info for responsive testing */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-2 right-2 bg-slate-800 text-slate-200 text-xs p-2 rounded border border-slate-600">
+        <div className="absolute bottom-2 left-2 bg-slate-800 text-slate-200 text-xs p-2 rounded border border-slate-600">
           <div>Tile Size: {currentTileSize}px</div>
           <div>Board: {gameRef.current?.scale.width || 0}×{gameRef.current?.scale.height || 0}</div>
           <div>Screen: {window.innerWidth}×{window.innerHeight}</div>
