@@ -59,6 +59,12 @@ export function GameView() {
     game.events.once('ready', () => {
       console.log('Game ready, initializing ResponsiveGameManager')
       responsiveManagerRef.current = new ResponsiveGameManager(game)
+      
+      // Also try to attach GameScene when game is ready
+      const readyScene = game.scene.getScene('GameScene') as ExtendedGameScene
+      if (readyScene && !window.gameScene) {
+        attachGameScene(readyScene, 'game ready event')
+      }
     })
 
     // Multiple ways to detect when GameScene is ready
@@ -66,9 +72,6 @@ export function GameView() {
       if (scene && scene.key === 'GameScene') {
         console.log(`GameScene ready via ${method}, attaching to window.gameScene`)
         window.gameScene = scene
-        
-
-        
         return true
       }
       return false
@@ -106,7 +109,12 @@ export function GameView() {
         setTimeout(checkScene, 100)
       } else {
         console.warn('GameScene not available after 5 seconds - action menu may not work')
-
+        // Try one more time with a different approach
+        const finalScene = game.scene.getScene('GameScene') as ExtendedGameScene
+        if (finalScene) {
+          console.log('Final attempt: Found GameScene, forcing attachment')
+          window.gameScene = finalScene
+        }
       }
     }
     

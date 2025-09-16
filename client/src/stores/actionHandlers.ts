@@ -2,7 +2,7 @@ import { useGameStore } from './gameStore'
 import { useUIStore } from './uiStore'
 import { useUnitStore } from './unitStore'
 import { useBoardStore } from './boardStore'
-import { ABILITIES, getValidTargets } from '../game/core/abilities'
+import { getAbilityById, getValidTargets } from '../game/core/abilities'
 import { type Unit, type Coordinate } from 'shared'
 
 /**
@@ -59,8 +59,11 @@ export const actionHandlers = {
   enterAbilityMode: (unit: Unit, abilityId: string) => {
     const uiStore = useUIStore.getState()
     
-    const ability = ABILITIES[abilityId]
-    if (!ability) return
+    const ability = getAbilityById(abilityId)
+    if (!ability) {
+      console.log('Ability not found:', abilityId)
+      return
+    }
     
     // Check if this is a directional ability
     if (ability.requiresDirection) {

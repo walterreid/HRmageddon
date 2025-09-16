@@ -36,15 +36,22 @@ export const useUnitStore = create<UnitStore>((set, get) => ({
   },
 
   updateUnit: (unitId, updates) => {
-    set((state) => ({
-      units: state.units.map((unit) =>
+    set((state) => {
+      const newUnits = state.units.map((unit) =>
         unit.id === unitId ? { ...unit, ...updates } : unit
-      ),
-      // Update selectedUnit if it's the one being updated
-      selectedUnit: state.selectedUnit?.id === unitId 
+      )
+
+      const newSelectedUnit = state.selectedUnit?.id === unitId
         ? { ...state.selectedUnit, ...updates }
         : state.selectedUnit
-    }))
+
+      console.log('unitStore: updateUnit called.', { unitId, updates, newSelectedUnitActions: newSelectedUnit?.actionsRemaining })
+
+      return {
+        units: newUnits,
+        selectedUnit: newSelectedUnit,
+      }
+    })
   },
 
   removeUnit: (unitId) => {

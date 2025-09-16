@@ -33,10 +33,8 @@ export function GameHUD() {
   const players = usePlayerStore(state => state.players)
   const turnNumber = usePlayerStore(state => state.turnNumber)
   
-  // Calculate possible moves and targets using orchestrator methods
+  // Get game store for calculations
   const gameStore = useGameStore()
-  const possibleMoves = selectedUnit ? gameStore.calculatePossibleMoves(selectedUnit) : []
-  const possibleTargets = selectedUnit ? gameStore.calculatePossibleTargets(selectedUnit) : []
   
   // UI state from UI store
   const actionMode = useUIStore(state => state.actionMode)
@@ -130,17 +128,28 @@ export function GameHUD() {
       actionHandlers.enterAbilityMode(selectedUnit, action)
     }
 
-    // Set GameScene action mode
-    const gameScene = (window as ExtendedWindow).gameScene
-    if (gameScene && gameScene.setActionMode) {
-      if (action !== 'move' && action !== 'attack') {
-        gameScene.setActionMode('ability', action)
+    // Set GameScene action mode with retry mechanism
+    const setGameSceneActionMode = (retryCount = 0) => {
+      const gameScene = (window as ExtendedWindow).gameScene
+      
+      if (gameScene && gameScene.setActionMode) {
+        if (action !== 'move' && action !== 'attack') {
+          gameScene.setActionMode('ability', action)
+        } else {
+          gameScene.setActionMode(action)
+        }
+      } else if (retryCount < 3) {
+        // Retry after a short delay if GameScene isn't ready yet
+        setTimeout(() => setGameSceneActionMode(retryCount + 1), 100)
       } else {
-        gameScene.setActionMode(action)
+        console.log('GameScene not available after retries, action mode set locally only')
       }
-    } else {
-      console.log('GameScene not available, but action mode set locally')
     }
+    
+    setGameSceneActionMode()
+    
+    // Immediately hide the action menu after action selection
+    useUIStore.getState().setActionMenu(null)
   }
 
   // Handle tile clicks for actions
@@ -148,6 +157,10 @@ export function GameHUD() {
     if (!selectedUnit || !canControl) return
 
     console.log('Tile clicked:', coord, 'Action mode:', actionMode)
+
+    // Calculate possible moves and targets inside the callback
+    const possibleMoves = gameStore.calculatePossibleMoves(selectedUnit)
+    const possibleTargets = gameStore.calculatePossibleTargets(selectedUnit)
 
     switch (actionMode) {
       case 'move': {
@@ -232,7 +245,7 @@ export function GameHUD() {
         break
       }
     }
-  }, [selectedUnit, canControl, actionMode, possibleMoves, possibleTargets, selectedAbility, getAbilityTargets])
+  }, [selectedUnit, canControl, actionMode, selectedAbility, getAbilityTargets, gameStore])
 
   // Listen for tile clicks from the game scene
   useEffect(() => {

@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { type Unit } from 'shared'
 import { useGameStore } from '../../stores/gameStore'
 import { useUnitStore } from '../../stores/unitStore'
+import { useUIStore } from '../../stores/uiStore'
 
 // Visual configuration for units
 const UNIT_VISUAL_CONFIG = {
@@ -146,10 +147,22 @@ export class UnitManager {
     
     // Add multiple event listeners for better compatibility
     container.on('pointerdown', () => {
+      // --- START OF CRITICAL FIX ---
+      const uiState = useUIStore.getState()
+      if (uiState.actionMode !== 'none') {
+        // If we're already in an action mode (move, attack, ability),
+        // let the GameScene's master handleClick handle it. Do nothing here.
+        console.log('UnitManager: Click ignored, action mode is active.')
+        return
+      }
+      // --- END OF CRITICAL FIX ---
+
       console.log('Unit clicked:', unit.id)
       const u = useUnitStore.getState().units.find((uu) => uu.id === unit.id)
-      if (u) useGameStore.getState().selectUnit(u)
-      
+      if (u) {
+        useGameStore.getState().selectUnit(u)
+      }
+
       // Add click feedback
       circle.setScale(UNIT_VISUAL_CONFIG.ANIMATION.CLICK_SCALE_FACTOR)
       this.scene.time.delayedCall(UNIT_VISUAL_CONFIG.ANIMATION.CLICK_SCALE_DURATION, () => {

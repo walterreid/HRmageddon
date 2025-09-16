@@ -3,11 +3,24 @@ import { dataManager } from '../data/DataManager'
 
 // Get ability from DataManager or fallback to legacy
 export function getAbilityById(id: string): Ability | undefined {
+  console.log(`🔍 getAbilityById: Looking for ability "${id}"`)
+  
   const dataAbility = dataManager.getAbility(id)
   if (dataAbility) {
-    return convertDataAbilityToLegacyAbility(dataAbility)
+    console.log(`✅ getAbilityById: Found data ability for "${id}":`, dataAbility)
+    const converted = convertDataAbilityToLegacyAbility(dataAbility)
+    console.log(`🔄 getAbilityById: Converted ability:`, converted)
+    return converted
   }
-  return ABILITIES[id]
+  
+  const legacyAbility = ABILITIES[id]
+  if (legacyAbility) {
+    console.log(`✅ getAbilityById: Found legacy ability for "${id}":`, legacyAbility)
+  } else {
+    console.log(`❌ getAbilityById: No ability found for "${id}"`)
+  }
+  
+  return legacyAbility
 }
 
 // Convert DataAbility to legacy Ability format

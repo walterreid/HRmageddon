@@ -7,6 +7,7 @@ import {
   TileType,
   UnitType,
   type DraftState,
+  StatusType,
 } from 'shared'
 import { AIController } from '../game/ai/ai.ts'
 import { generateAIDraft } from '../game/ai/aiDraft.ts'
@@ -21,6 +22,17 @@ import { useBoardStore } from './boardStore'
 import { usePlayerStore } from './playerStore'
 import { useUIStore } from './uiStore'
 import { dataManager } from '../game/data/DataManager'
+import { actionHandlers } from './actionHandlers'
+
+// Type for window.gameScene
+interface GameScene {
+  tileToWorld: (x: number, y: number) => { x: number; y: number }
+}
+
+// Extended window interface
+interface ExtendedWindow extends Window {
+  gameScene?: GameScene
+}
 
 // Helper functions for memoization
 
@@ -485,156 +497,52 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   selectUnit: (unit) => {
     const unitStore = useUnitStore.getState()
-    const playerStore = usePlayerStore.getState()
     const uiStore = useUIStore.getState()
-    
+    const playerStore = usePlayerStore.getState()
+
     if (!unit) {
       unitStore.selectUnit(null)
-      uiStore.clearHighlights()
-      uiStore.setActionMenu(null)
+      uiStore.clearActionMode() // Use clearActionMode for a full reset
       return
     }
-    
-    // Check if we're trying to select a different unit while one is already selected
-    const currentSelectedUnit = unitStore.selectedUnit
-    if (currentSelectedUnit && currentSelectedUnit.id !== unit.id) {
-      // Check if the currently selected unit is in action mode
-      const isCurrentUnitInActionMode = currentSelectedUnit.actionsRemaining > 0 && 
-                                      currentSelectedUnit.playerId === playerStore.currentPlayerId
-      
-      if (isCurrentUnitInActionMode) {
-        // Check if the new unit is a valid target for the current action
-        const isEnemy = unit.playerId !== currentSelectedUnit.playerId
-        const inAttackRange = get().calculatePossibleTargets(currentSelectedUnit)
-          .some(target => target.x === unit.position.x && target.y === unit.position.y)
-        
-        if (isEnemy && inAttackRange) {
-          // This is a valid attack target - execute the attack instead of switching units
-          get().attackTarget(currentSelectedUnit.id, unit.id)
-          get().checkVictoryConditions()
-          return
-        } else {
-          // Not a valid target and current unit is in action mode - don't allow switching
-          console.log('Cannot switch units while current unit is in action mode')
-          
-          // Emit event to notify UI that unit selection is blocked
-          if (typeof window !== 'undefined') {
-            const event = new CustomEvent('unitSelectionBlocked')
-            window.dispatchEvent(event)
-          }
-          
-          return
-        }
-      }
-    }
-    
-    // Simply select the unit - no automatic highlighting
-    const canControl = unit.playerId === playerStore.currentPlayerId && 
-                      playerStore.currentPlayerId === 'player1' && 
-                      unit.actionsRemaining > 0
-    
-    if (canControl) {
-      // Calculate possible moves/targets but DON'T show highlights yet
-      const moves = get().calculatePossibleMoves(unit)
-      const targets = get().calculatePossibleTargets(unit)
-      
-      console.log('selectUnit called:', {
-        unitId: unit.id,
-        moveCount: moves.length,
-        targetCount: targets.length,
-        note: 'Highlights will appear when user chooses an action'
-      })
 
-      // Set unit selection WITHOUT showing highlights
-      unitStore.selectUnit(unit)
-      uiStore.clearHighlights()
+    // --- START OF CRITICAL FIX ---
+
+    // Select the unit in the unitStore
+    unitStore.selectUnit(unit)
+    uiStore.clearHighlights()
+
+    // Check if the selected unit can be controlled
+    const isPlayerUnit = unit.playerId === playerStore.currentPlayerId
+    const canControl = isPlayerUnit && unit.actionsRemaining > 0
+
+    if (canControl) {
+      // If it can be controlled, tell the GameScene to position the action menu
+      if (typeof window !== 'undefined' && (window as ExtendedWindow).gameScene) {
+        console.log(`Setting action menu position for unit: ${unit.id}`)
+        const scene = (window as ExtendedWindow).gameScene!
+        const screenPos = scene.tileToWorld(unit.position.x, unit.position.y)
+        uiStore.setActionMenu(screenPos)
+      }
     } else {
-      unitStore.selectUnit(unit)
-      uiStore.clearHighlights()
+      // If the unit can't be controlled (e.g., an enemy unit or no actions left), ensure the menu is hidden.
+      uiStore.setActionMenu(null)
     }
+    // --- END OF CRITICAL FIX ---
   },
 
   selectTile: (coord) => {
     const unitStore = useUnitStore.getState()
-    const playerStore = usePlayerStore.getState()
-    
-    const selectedUnit = unitStore.selectedUnit
+    const unitAtCoord = unitStore.getUnitAt(coord)
 
-    // If no unit is selected, check if we clicked on a unit to select it
-    if (!selectedUnit) {
-      const unit = get().getUnitAt(coord)
-      if (unit) {
-        get().selectUnit(unit)
-      }
-      return
+    if (unitAtCoord) {
+      // If a tile with a unit is clicked, defer to the selectUnit logic.
+      get().selectUnit(unitAtCoord)
+    } else {
+      // If an empty tile is clicked, deselect the current unit.
+      console.log('Empty tile clicked, deselecting unit.')
+      get().selectUnit(null)
     }
-
-    // Check if this unit can be controlled (has actions remaining)
-    const canControl = selectedUnit.playerId === playerStore.currentPlayerId && 
-                      playerStore.currentPlayerId === 'player1' && 
-                      selectedUnit.actionsRemaining > 0
-    
-    if (!canControl) {
-      // If unit can't be controlled, allow selecting a different unit
-      const newUnit = get().getUnitAt(coord)
-      if (newUnit) {
-        get().selectUnit(newUnit)
-      }
-      return
-    }
-
-    // PRIORITY: Check if this is a valid move for the currently selected unit
-    const possibleMoves = get().calculatePossibleMoves(selectedUnit)
-    if (possibleMoves.some((m) => m.x === coord.x && m.y === coord.y)) {
-      get().moveUnit(selectedUnit.id, coord)
-      get().checkVictoryConditions()
-      return
-    }
-
-    // PRIORITY: Check if this is a valid attack target for the currently selected unit
-    const targetUnit = get().getUnitAt(coord)
-    const possibleTargets = get().calculatePossibleTargets(selectedUnit)
-    if (targetUnit && possibleTargets.some((t) => t.x === coord.x && t.y === coord.y)) {
-      // Ensure we're not trying to attack our own unit
-      if (targetUnit.playerId !== selectedUnit.playerId) {
-        get().attackTarget(selectedUnit.id, targetUnit.id)
-        get().checkVictoryConditions()
-        return
-      }
-    }
-
-    // PRIORITY: Check if this is a valid cubicle capture for the currently selected unit
-    const tile = get().getTileAt(coord)
-    if (tile?.type === TileType.CUBICLE && tile.owner !== selectedUnit.playerId) {
-      get().captureCubicle(selectedUnit.id, coord)
-      return
-    }
-
-    // If we clicked on a different unit while one is already selected and in action mode,
-    // prioritize the current action over unit selection
-    const clickedUnit = get().getUnitAt(coord)
-    if (clickedUnit && clickedUnit.id !== selectedUnit.id) {
-      // Check if the clicked unit is an enemy that could be a valid attack target
-      if (clickedUnit.playerId !== selectedUnit.playerId && 
-          possibleTargets.some((t) => t.x === coord.x && t.y === coord.y)) {
-        // This is a valid attack target - execute the attack
-        get().attackTarget(selectedUnit.id, clickedUnit.id)
-        get().checkVictoryConditions()
-        return
-      }
-      
-      // If we're not in a specific action mode and clicked on a different unit,
-      // allow switching selection (but only if the new unit can be controlled)
-      if (clickedUnit.playerId === playerStore.currentPlayerId && 
-          clickedUnit.actionsRemaining > 0) {
-        get().selectUnit(clickedUnit)
-        return
-      }
-    }
-
-    // If none of the above conditions were met, deselect the current unit
-    // This allows the player to click elsewhere to cancel actions
-    get().selectUnit(undefined)
   },
 
   moveUnit: (unitId, to) => {
@@ -660,6 +568,14 @@ export const useGameStore = create<GameStore>((set, get) => {
       hasMoved: true, 
       actionsRemaining: unit.actionsRemaining - 1 
     })
+
+    // --- START OF CRITICAL FIX ---
+    const finalUnitState = useUnitStore.getState().getUnitById(unitId)
+    if (finalUnitState && finalUnitState.actionsRemaining <= 0) {
+      console.log(`Unit ${unitId} has no actions left. Deselecting.`)
+      useUnitStore.getState().selectUnit(null)
+    }
+    // --- END OF CRITICAL FIX ---
 
       // Clear memoization cache when units move
     clearMemoizationCache(get().memoCache)
@@ -742,6 +658,14 @@ export const useGameStore = create<GameStore>((set, get) => {
     } else {
       unitStore.removeUnit(targetId)
     }
+
+    // --- START OF CRITICAL FIX ---
+    const finalAttackerState = useUnitStore.getState().getUnitById(attackerId)
+    if (finalAttackerState && finalAttackerState.actionsRemaining <= 0) {
+      console.log(`Unit ${attackerId} has no actions left. Deselecting.`)
+      useUnitStore.getState().selectUnit(null)
+    }
+    // --- END OF CRITICAL FIX ---
 
     // Clear memoization cache
     clearMemoizationCache(get().memoCache)
@@ -1077,89 +1001,122 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   useAbility: (unitId: string, abilityId: string, target?: Unit | Coordinate) => {
     const unitStore = useUnitStore.getState()
-    const uiStore = useUIStore.getState()
-    
+
     const unit = unitStore.getUnitById(unitId)
     if (!unit) return
 
-    // Get ability from DataManager or legacy system
     const ability = getAbilityById(abilityId)
-    
     if (!ability || !canUseAbility(unit, abilityId)) return
-    
-    // Execute ability effect
+
+    // Execute the ability's effect function to get the result
     const result = ability.effect(unit, target)
+
     if (result.success) {
-      // Apply ability effects
-      if (result.statusApplied) {
-        // Apply status effects to target
-        if (target && 'id' in target) {
-          const targetUnit = target as Unit
+      // --- START OF CRITICAL FIX ---
+
+      // 1. Apply Status Effects
+      if (result.statusApplied && target && 'id' in target) {
+        const targetUnit = unitStore.getUnitById(target.id)
+        if (targetUnit) {
+          // Look up the full status effect definition from the DataManager
+          const statusKey = result.statusApplied[0].type // This will be 'increase_speed'
+          const statusEffectData = dataManager.getStatusEffect(statusKey)
+
+          if (statusEffectData) {
+            // Map the status key to the appropriate StatusType enum value
+            let statusType: StatusType
+            switch (statusEffectData.key) {
+              case 'increase_speed':
+                statusType = StatusType.INSPIRED
+                break
+              case 'bleeding':
+                statusType = StatusType.POISONED
+                break
+              case 'fire':
+                statusType = StatusType.BURNING
+                break
+              default:
+                statusType = StatusType.CONFUSED
+            }
+            
+            const newStatus = {
+              type: statusType,
+              key: statusEffectData.key,
+              name: statusEffectData.name,
+              duration: statusEffectData.duration_in_turns,
+            }
+            // Note: A full implementation would also apply modifiers
+            unitStore.updateUnit(targetUnit.id, {
+              status: [...targetUnit.status, newStatus]
+            })
+            console.log(`Applied status '${newStatus.name}' to ${targetUnit.id}`)
+          }
+        }
+      }
+
+      // 2. Apply Damage
+      if (result.damageDealt && target && 'id' in target) {
+        const targetUnit = unitStore.getUnitById(target.id)
+        if (targetUnit) {
+          const newHp = Math.max(0, targetUnit.hp - result.damageDealt)
+          if (newHp === 0) {
+            unitStore.removeUnit(targetUnit.id)
+          } else {
+            unitStore.updateUnit(targetUnit.id, { hp: newHp })
+          }
+        }
+      }
+
+      // 3. Apply Healing
+      if (result.healingDone && target && 'id' in target) {
+        const targetUnit = unitStore.getUnitById(target.id)
+        if (targetUnit) {
           unitStore.updateUnit(targetUnit.id, { 
-            status: [...targetUnit.status, ...result.statusApplied!] 
+            hp: Math.min(targetUnit.maxHp, targetUnit.hp + result.healingDone)
           })
         }
       }
-      
-      if (result.damageDealt && target && 'id' in target) {
-        // Apply damage to target
-        const targetUnit = target as Unit
-        unitStore.updateUnit(targetUnit.id, { 
-          hp: Math.max(0, targetUnit.hp - result.damageDealt!) 
-        })
-      }
-      
-      if (result.healingDone && target && 'id' in target) {
-        // Apply healing to target
-        const targetUnit = target as Unit
-        unitStore.updateUnit(targetUnit.id, { 
-          hp: Math.min(targetUnit.maxHp, targetUnit.hp + result.healingDone!) 
-        })
-      }
-      
+
+      // 4. Apply Action Bonus to Caster
       if (result.actionBonus) {
-        // Grant bonus actions
-        unitStore.updateUnit(unitId, { 
-          actionsRemaining: unit.actionsRemaining + result.actionBonus! 
+        unitStore.updateUnit(unitId, {
+          actionsRemaining: unit.actionsRemaining + result.actionBonus
         })
-      }
-      
-      // Set cooldown
-      if (ability.cooldown > 0) {
-        unitStore.updateUnit(unitId, { 
-                abilityCooldowns: { 
-            ...unit.abilityCooldowns, 
-                  [abilityId]: ability.cooldown 
-                } 
-        })
-      }
-      
-      // Consume action points (abilities cost 1 action, not coffee cost)
-      unitStore.updateUnit(unitId, { 
-        actionsRemaining: unit.actionsRemaining - 1 
-      })
-      
-      // Get the updated unit to recalculate moves and targets
-      const updatedUnit = unitStore.getUnitById(unitId)
-      if (updatedUnit) {
-      // Recalculate possible moves and targets for the updated unit
-        const moves = get().calculatePossibleMoves(updatedUnit)
-        const targets = get().calculatePossibleTargets(updatedUnit)
-      
-      const highlights = new Map<string, string>()
-      moves.forEach((m) => highlights.set(`${m.x},${m.y}`, 'movement'))
-      targets.forEach((t) => highlights.set(`${t.x},${t.y}`, 'attack'))
-        
-        uiStore.setHighlightedTiles(highlights)
       }
 
-      // Emit action completed event
+      // --- END OF CRITICAL FIX ---
+
+      // 5. Set Cooldown on Caster
+      if (ability.cooldown > 0) {
+        unitStore.updateUnit(unitId, { 
+          abilityCooldowns: { 
+            ...unit.abilityCooldowns, 
+            [abilityId]: ability.cooldown 
+          } 
+        })
+      }
+
+      // 6. Consume Action Points from Caster
+      unitStore.updateUnit(unitId, { 
+        actionsRemaining: unit.actionsRemaining - (ability.cost || 1)
+      })
+
+      // --- START OF CRITICAL FIX ---
+      const finalUnitState = useUnitStore.getState().getUnitById(unitId)
+      if (finalUnitState && finalUnitState.actionsRemaining <= 0) {
+        console.log(`Unit ${unitId} has no actions left. Deselecting.`)
+        useUnitStore.getState().selectUnit(null)
+      }
+      // --- END OF CRITICAL FIX ---
+
+      // Emit event and clean up UI
       if (typeof window !== 'undefined') {
         const event = new CustomEvent('actionCompleted', {
-          detail: { actionType: 'ability', unitId, abilityId, remainingActions: updatedUnit?.actionsRemaining || 0 }
+          detail: { actionType: 'ability', unitId, abilityId }
         })
         window.dispatchEvent(event)
       }
+      actionHandlers.cancelAction()
     }
   },
 

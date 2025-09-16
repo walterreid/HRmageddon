@@ -69,22 +69,7 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
   const enemiesInRange = getEnemiesInRange(unit)
   const canAttack = canUnitAttack(unit) && enemiesInRange.length > 0
 
-  const handleActionClick = (action: 'move' | 'attack' | string) => {
-    console.log('ActionMenu: handleActionClick called with action:', action)
-    
-    // Call the action handler
-    onActionSelect(action)
-    
-    // DO NOT deselect the unit - just let the action mode handle it
-    // The GameHUD will hide the action menu when actionMode !== 'none'
-  }
-
-  const handleEndTurn = () => {
-    console.log('End turn clicked for unit:', unit.id)
-    // Mark unit as done and close menu
-    onClose()
-    // You might want to add logic here to mark unit as "done" visually
-  }
+  // Removed handleActionClick and handleEndTurn - now using direct prop calls
 
   return (
     <div 
@@ -102,7 +87,7 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
         {/* Move Button */}
         {canMove && (
           <button
-            onClick={() => handleActionClick('move')}
+            onClick={() => onActionSelect('move')}
             className={`w-full text-left px-2 py-1 ${TOOLTIP_CONFIG.STYLE.HOVER} ${TOOLTIP_CONFIG.STYLE.TEXT} font-medium`}
           >
             Move
@@ -112,7 +97,7 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
         {/* Attack Button */}
         {canAttack && (
           <button
-            onClick={() => handleActionClick('attack')}
+            onClick={() => onActionSelect('attack')}
             className={`w-full text-left px-2 py-1 ${TOOLTIP_CONFIG.STYLE.HOVER} ${TOOLTIP_CONFIG.STYLE.TEXT} font-medium`}
           >
             Attack
@@ -127,7 +112,7 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
           return (
             <button
               key={ability.id}
-              onClick={() => handleActionClick(ability.id)}
+              onClick={() => onActionSelect(ability.id)}
               className={`w-full text-left px-2 py-1 ${TOOLTIP_CONFIG.STYLE.HOVER} ${TOOLTIP_CONFIG.STYLE.TEXT} font-medium`}
             >
               {ability.name}
@@ -140,7 +125,7 @@ export function ActionMenu({ unit, position, onActionSelect, onClose }: ActionMe
         
         {/* End Turn Button */}
         <button
-          onClick={handleEndTurn}
+          onClick={onClose}
           className={`w-full text-left px-2 py-1 ${TOOLTIP_CONFIG.STYLE.END_BUTTON} ${TOOLTIP_CONFIG.STYLE.TEXT} font-medium`}
         >
           End

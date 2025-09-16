@@ -10,6 +10,7 @@ import { MAPS } from '../map/registry'
 import { MapManager } from '../map/MapManager'
 import { GridOverlay } from '../debug/GridOverlay'
 import { VisualEffectsPool } from '../visuals/VisualEffectsPool'
+import { actionHandlers } from '../../stores/actionHandlers'
 
 // ===== GAME SCENE CONFIGURATION =====
 const VISUAL_CONFIG = {
@@ -93,7 +94,6 @@ export class GameScene extends Phaser.Scene {
   // Action menu integration
   private actionMode: 'none' | 'move' | 'attack' | 'ability' = 'none'
   private validTargets: (Unit | Coordinate)[] = []
-  private targetingMode: boolean = false
   private abilityTargetGraphics!: Phaser.GameObjects.Graphics
 
   // Map management
@@ -553,7 +553,7 @@ export class GameScene extends Phaser.Scene {
       
       // Check ability state FIRST
       const uiStore = useUIStore.getState()
-      if (uiStore.selectedAbility && uiStore.targetingMode) {
+      if (uiStore.selectedAbility) {
         console.log('Ability mode active, showing ability highlights only')
         // Only render highlights with type 'ability'
         highlighted.forEach((type, coordKey) => {
@@ -570,7 +570,6 @@ export class GameScene extends Phaser.Scene {
       
       console.log('updateHighlights:', {
         hasAbility: !!uiStore.selectedAbility,
-        targetingMode: uiStore.targetingMode,
         highlightCount: highlighted.size,
         highlightTypes: Array.from(highlighted.values())
       })
@@ -685,7 +684,6 @@ export class GameScene extends Phaser.Scene {
     
     if (!selectedUnit || !selectedAbility) {
       console.log('No unit or ability selected, clearing targeting')
-      this.targetingMode = false
       this.validTargets = []
       return
     }
@@ -701,7 +699,6 @@ export class GameScene extends Phaser.Scene {
     const unitState = useUnitStore.getState()
     const boardState = useBoardStore.getState()
     this.validTargets = getValidTargets(selectedUnit, ability, boardState.board, unitState.units)
-    this.targetingMode = true
     
     console.log('Valid targets found:', this.validTargets.length)
 
@@ -962,351 +959,79 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleClick(pointer: Phaser.Input.Pointer) {
-    // Validate scene state before processing clicks
-    if (this.isDestroyed || !this.scene || !this.scene.manager || !this.scene.isActive || !this.scene.isActive()) {
-      console.warn('Scene destroyed or not active, ignoring click')
-      return
-    }
-    
+    if (this.isDestroyed) return
+
+    const uiState = useUIStore.getState()
     const unitState = useUnitStore.getState()
     const gameState = useGameStore.getState()
-    
-    // HIGHEST PRIORITY: Check if we are aiming a directional ability
-    const uiStore = useUIStore.getState()
-    if (uiStore.abilityAwaitingDirection && unitState.selectedUnit) {
-      const caster = unitState.selectedUnit
-      const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
-
-      // Don't allow clicking on the caster itself to set direction
-      if (tileX === caster.position.x && tileY === caster.position.y) return
-
-      // The clicked tile determines the direction vector
-      const direction = { x: tileX - caster.position.x, y: tileY - caster.position.y }
-
-      // Use the ability, passing the direction as a special target
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      gameState.useAbility(caster.id, uiStore.abilityAwaitingDirection, { direction } as any)
-
-      // Reset the aiming state
-      useUIStore.getState().setAbilityAwaitingDirection(null)
-      useUIStore.getState().clearHighlights()
-      return // End the click handling here
-    }
-    
-    // If we're in ability targeting mode, handle ability target selection
-    if (this.targetingMode && uiStore.selectedAbility) {
-      const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
-      
-      // Check if clicked on a valid target
-      const clickedTarget = this.validTargets.find(target => {
-        if ('x' in target) {
-          return target.x === tileX && target.y === tileY
-        } else {
-          return target.position.x === tileX && target.position.y === tileY
-        }
-      })
-      
-      if (clickedTarget && unitState.selectedUnit) {
-        // Use the ability on the target
-        gameState.useAbility(unitState.selectedUnit.id, uiStore.selectedAbility, clickedTarget)
-        // Clear targeting mode and action mode
-        useUIStore.getState().setSelectedAbility(undefined)
-        this.actionMode = 'none'
-        
-        // CRITICAL: Notify GameHUD that ability was used
-        if (typeof window !== 'undefined') {
-          const event = new CustomEvent('abilityUsed', { detail: { abilityId: uiStore.selectedAbility } })
-          window.dispatchEvent(event)
-        }
-        return
-      }
-      
-      // If clicked outside valid targets, cancel targeting
-      console.log('Clicked outside ability range, cancelling ability')
-      useUIStore.getState().setSelectedAbility(undefined)
-      this.actionMode = 'none'
-      
-      // CRITICAL: Notify GameHUD that ability was cancelled
-      if (typeof window !== 'undefined') {
-        const event = new CustomEvent('abilityCancelled')
-        window.dispatchEvent(event)
-      }
-      return
-    }
-    
-    // If we're in action mode, handle tile clicks for movement/attack FIRST
-    if (this.actionMode !== 'none' && unitState.selectedUnit) {
-      const previousActionMode = this.actionMode
-      this.handleActionModeClick(unitState.selectedUnit, pointer)
-      
-      // If the action wasn't completed, check if we clicked outside valid tiles
-      if (this.actionMode === previousActionMode) {
-        const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
-        
-        // Check if clicked outside the board or on an invalid tile
-        const boardState = useBoardStore.getState()
-        const board = boardState.board
-        if (tileX < 0 || tileX >= board[0].length || tileY < 0 || tileY >= board.length) {
-          // Clicked outside board - cancel action mode
-          console.log('Clicked outside board, cancelling action mode')
-          this.setActionMode('none')
-          return
-        }
-        
-        // Check if clicked on a tile that's not a valid move/attack/ability target
-        let isValidTarget = false
-        if (this.actionMode === 'move') {
-          const possibleMoves = gameState.calculatePossibleMoves(unitState.selectedUnit!)
-          isValidTarget = possibleMoves.some((move: Coordinate) => move.x === tileX && move.y === tileY)
-        } else if (this.actionMode === 'attack') {
-          const possibleTargets = gameState.calculatePossibleTargets(unitState.selectedUnit!)
-          isValidTarget = possibleTargets.some((target: Coordinate) => target.x === tileX && target.y === tileY)
-        } else if (this.actionMode === 'ability') {
-          // For abilities, check if this tile is within range and a valid target
-          const selectedAbility = uiStore.selectedAbility
-          if (selectedAbility) {
-            const ability = getAbilityById(selectedAbility)
-            if (ability) {
-              // Check if tile is within range
-              const distance = Math.abs(tileX - unitState.selectedUnit!.position.x) + Math.abs(tileY - unitState.selectedUnit!.position.y)
-              if (distance <= ability.range) {
-                // Check if this is a valid target for the ability
-                const validTargets = getValidTargets(unitState.selectedUnit!, ability, boardState.board, unitState.units)
-                isValidTarget = validTargets.some(target => {
-                  if ('x' in target) {
-                    return target.x === tileX && target.y === tileY
-                  }
-                  return false
-                })
-              }
-            }
-          }
-        }
-        
-        if (!isValidTarget) {
-          // Clicked on invalid tile - cancel action mode
-          console.log('Clicked on invalid target, cancelling action mode')
-          
-          // If this was an ability, notify GameHUD
-          if (this.actionMode === 'ability' && uiStore.selectedAbility) {
-            console.log('Cancelling ability due to invalid target')
-            useUIStore.getState().setSelectedAbility(undefined)
-            if (typeof window !== 'undefined') {
-              const event = new CustomEvent('abilityCancelled')
-              window.dispatchEvent(event)
-            }
-          }
-          
-          this.setActionMode('none')
-          return
-        }
-      }
-      return
-    }
-    
-    // Check if we clicked on a unit
-    for (const [unitId, container] of this.unitSprites) {
-      const bounds = container.getBounds()
-      if (bounds.contains(pointer.x, pointer.y)) {
-        const unit = unitState.units.find(u => u.id === unitId)
-        if (unit) {
-          // PRIORITY: If we're in action mode and this is a valid target, execute the action
-          if (this.actionMode !== 'none' && unitState.selectedUnit) {
-            if (this.actionMode === 'attack') {
-              // Check if this unit is a valid attack target
-              const possibleTargets = gameState.calculatePossibleTargets(unitState.selectedUnit!)
-              const isValidTarget = possibleTargets.some((target: Coordinate) => 
-                target.x === unit.position.x && target.y === unit.position.y
-              )
-              if (isValidTarget && unit.playerId !== unitState.selectedUnit.playerId) {
-                // Execute attack on this enemy unit
-                gameState.attackTarget(unitState.selectedUnit.id, unit.id)
-                this.actionMode = 'none'
-                return
-              }
-            } else if (this.actionMode === 'move') {
-              // Check if this unit's position is a valid move target
-              const possibleMoves = gameState.calculatePossibleMoves(unitState.selectedUnit!)
-              const isValidMove = possibleMoves.some((move: Coordinate) => 
-                move.x === unit.position.x && move.y === unit.position.y
-              )
-              if (isValidMove) {
-                // Execute move to this position
-                gameState.moveUnit(unitState.selectedUnit.id, unit.position)
-                this.actionMode = 'none'
-                return
-              }
-            } else if (this.actionMode === 'ability') {
-              // Check if this unit is a valid ability target
-              const selectedAbility = uiStore.selectedAbility
-              if (selectedAbility) {
-                const ability = getAbilityById(selectedAbility)
-                if (ability) {
-                  // Check if unit is within range
-                  const distance = Math.abs(unit.position.x - unitState.selectedUnit!.position.x) + 
-                                 Math.abs(unit.position.y - unitState.selectedUnit!.position.y)
-                  if (distance <= ability.range) {
-                    // Check if this is a valid target for the ability
-                    const boardState = useBoardStore.getState()
-                    const validTargets = getValidTargets(unitState.selectedUnit!, ability, boardState.board, unitState.units)
-                    const isValidTarget = validTargets.some(target => {
-                      if ('id' in target) {
-                        return target.id === unit.id
-                      }
-                      return false
-                    })
-                    
-                    if (isValidTarget) {
-                      // Execute ability on this unit
-                      gameState.useAbility(unitState.selectedUnit!.id, selectedAbility, unit)
-                      this.actionMode = 'none'
-                      return
-                    }
-                  }
-                }
-              }
-              
-              // If we get here, the unit is not a valid ability target
-              console.log('Clicked on invalid ability target, cancelling action mode')
-              this.setActionMode('none')
-              return
-            }
-          }
-          
-          // If not in action mode or not a valid target, proceed with normal unit selection
-          // Check if we should execute an action instead of selecting the unit
-          if (gameState.shouldExecuteActionInsteadOfSelect && 
-              gameState.shouldExecuteActionInsteadOfSelect(unit, unitState.selectedUnit)) {
-            // Execute the action instead of switching units
-            if (unitState.selectedUnit && gameState.isValidAttackTarget) {
-              // Double-check that this is a valid attack target
-              if (gameState.isValidAttackTarget(unitState.selectedUnit, unit)) {
-                gameState.attackTarget(unitState.selectedUnit.id, unit.id)
-                return
-              }
-            }
-          }
-
-          // Check if we should execute a move instead of selecting the unit
-          if (gameState.shouldExecuteMoveInsteadOfSelect && 
-              gameState.shouldExecuteMoveInsteadOfSelect(unit, unitState.selectedUnit)) {
-            // Execute the move instead of switching units
-            if (unitState.selectedUnit) {
-              gameState.moveUnit(unitState.selectedUnit.id, unit.position)
-              return
-            }
-          }
-          
-          // Don't re-select the unit if we just completed an action
-          // This prevents the action menu from staying open after a move
-          if (this.actionMode === 'none') {
-            // Select the unit (this will show the action menu for player units)
-            gameState.selectUnit(unit)
-            
-            // Calculate and set the action menu position for player units
-            if (unit.playerId === 'player1') {
-              const { x: wx, y: wy } = this.tileToWorld(unit.position.x, unit.position.y)
-              const screenX = wx + this.tileSizePx / 2
-              const screenY = wy + this.tileSizePx / 2
-              
-              console.log('Setting action menu position for unit:', {
-                unitId: unit.id,
-                unitPosition: unit.position,
-                screenPosition: { x: screenX, y: screenY },
-                tileSize: this.tileSizePx
-              })
-              
-              useUIStore.getState().setActionMenu({ x: screenX, y: screenY })
-            }
-          }
-          return
-        }
-      }
-    }
-    
-    // Fall back to tile selection - emit event for GameHUD to handle
-    // This should only happen when not in action mode to avoid conflicts
-    if (this.actionMode === 'none') {
-      const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
-      const boardState = useBoardStore.getState()
-      const board = boardState.board
-      
-      if (tileX >= 0 && tileX < board[0].length && tileY >= 0 && tileY < board.length) {
-        // Emit tile click event for GameHUD to handle
-        const event = new CustomEvent('gameTileClick', {
-          detail: { coord: { x: tileX, y: tileY } }
-        })
-        window.dispatchEvent(event)
-        
-        // Also handle tile selection in store for backward compatibility
-        gameState.selectTile({ x: tileX, y: tileY })
-      }
-    }
-  }
-
-  private handleActionModeClick(unit: Unit, pointer: Phaser.Input.Pointer) {
-    const gameState = useGameStore.getState()
-    const unitState = useUnitStore.getState()
     const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
-    
-    // Emit tile click event for GameHUD to handle
-    const event = new CustomEvent('gameTileClick', {
-      detail: { coord: { x: tileX, y: tileY } }
-    })
-    window.dispatchEvent(event)
-    
-    switch (this.actionMode) {
-      case 'move': {
-        // Check if the clicked tile is a valid move
-        const possibleMoves = gameState.calculatePossibleMoves(unit)
-        const isValidMove = possibleMoves.some((move: Coordinate) => move.x === tileX && move.y === tileY)
-        if (isValidMove) {
-          gameState.moveUnit(unit.id, { x: tileX, y: tileY })
-          this.actionMode = 'none'
-          // Clear highlights after successful move
-          this.highlightGraphics.clear()
-          
-          // Clear action mode in GameScene
-          this.clearActionMode()
-          
-          // Emit action completed event
-          if (typeof window !== 'undefined') {
-            const actionEvent = new CustomEvent('actionCompleted', {
-              detail: { actionType: 'move', unitId: unit.id }
-            })
-            window.dispatchEvent(actionEvent)
-          }
-        }
-        break
-      }
-      case 'attack': {
-        // Check if the clicked tile has an enemy unit
-        const targetUnit = unitState.units.find(u => u.position.x === tileX && u.position.y === tileY && u.playerId !== unit.playerId)
-        if (targetUnit) {
-          gameState.attackTarget(unit.id, targetUnit.id)
-          this.actionMode = 'none'
-          // Clear highlights after successful attack
-          this.highlightGraphics.clear()
-          
-          // Clear action mode in GameScene
-          this.clearActionMode()
-          
-          // Emit action completed event
-          if (typeof window !== 'undefined') {
-            const actionEvent = new CustomEvent('actionCompleted', {
-              detail: { actionType: 'attack', unitId: unit.id }
-            })
-            window.dispatchEvent(actionEvent)
-          }
-        }
-        break
-      }
-      case 'ability': {
-        // Handle ability targeting (already handled above)
-        break
-      }
+
+    // Check if the click is outside the board boundaries
+    const boardState = useBoardStore.getState()
+    if (tileX < 0 || tileX >= boardState.board[0].length || tileY < 0 || tileY >= boardState.board.length) {
+        console.log('Clicked outside board, cancelling action.')
+        actionHandlers.cancelAction()
+        gameState.selectUnit(null) // Deselect unit
+        return
     }
+
+    // --- START OF NEW LOGIC ---
+
+    // Step 1: Handle clicks when an action mode is active
+    if (uiState.actionMode !== 'none' && unitState.selectedUnit) {
+      const targetCoord = { x: tileX, y: tileY }
+
+      if (uiState.actionMode === 'move') {
+        actionHandlers.executeMove(unitState.selectedUnit, targetCoord)
+      } else if (uiState.actionMode === 'attack') {
+        const targetUnit = unitState.getUnitAt(targetCoord)
+        if (targetUnit) {
+          actionHandlers.executeAttack(unitState.selectedUnit, targetUnit)
+        } else {
+          console.log("Invalid attack target.")
+          actionHandlers.cancelAction()
+        }
+      } else if (uiState.actionMode === 'ability') {
+        // This logic is already correctly implemented from the previous prompt.
+        // The click is handled by the block at the top of the function.
+        const ability = getAbilityById(uiState.selectedAbility!)
+        if (ability) {
+          const validTargets = getValidTargets(unitState.selectedUnit, ability, boardState.board, unitState.units)
+          const clickedTarget = validTargets.find(target => {
+            if ('id' in target) { // It's a Unit
+              return target.position.x === tileX && target.position.y === tileY
+            } else { // It's a Coordinate
+              return target.x === tileX && target.y === tileY
+            }
+          })
+
+          if (clickedTarget) {
+            console.log(`Executing ability '${uiState.selectedAbility}' on valid target.`)
+            gameState.useAbility(unitState.selectedUnit.id, uiState.selectedAbility!, clickedTarget)
+            actionHandlers.cancelAction()
+            return
+          } else {
+            console.log("Invalid target clicked for ability. Cancelling action.")
+            actionHandlers.cancelAction()
+            return
+          }
+        }
+      }
+      return // Action has been handled or cancelled.
+    }
+
+    // Step 2: Handle clicks when NO action mode is active (i.e., selecting things)
+    const unitAtClick = unitState.getUnitAt({ x: tileX, y: tileY })
+    if (unitAtClick) {
+      // A unit was clicked, so select it.
+      gameState.selectUnit(unitAtClick)
+    } else {
+      // An empty tile was clicked, so deselect everything.
+      gameState.selectUnit(null)
+    }
+    // --- END OF NEW LOGIC ---
   }
+
 
   // Public method to set action mode from the ActionMenu
   setActionMode(mode: 'none' | 'move' | 'attack' | 'ability', abilityId?: string) {
