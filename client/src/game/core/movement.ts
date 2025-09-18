@@ -22,7 +22,7 @@ export interface CombatState {
  * @returns Array of valid move coordinates
  */
 export function calculatePossibleMoves(unit: Unit, state: MovementState): Coordinate[] {
-  if (unit.hasMoved || unit.actionsRemaining === 0) return []
+  if (unit.remainingMovement <= 0 || unit.actionsRemaining === 0) return []
 
   const { board, units } = state
   const moves: Coordinate[] = []
@@ -39,7 +39,7 @@ export function calculatePossibleMoves(unit: Unit, state: MovementState): Coordi
     if (visited.has(key)) continue
     visited.add(key)
 
-    if (distance > 0 && distance <= unit.moveRange) {
+    if (distance > 0 && distance <= unit.remainingMovement) {
       const tile = board[coord.y]?.[coord.x]
       const occupant = units.find((u) => u.position.x === coord.x && u.position.y === coord.y)
       const isBlockedByTilemap = blockedSet.has(`${coord.x},${coord.y}`)
@@ -50,7 +50,7 @@ export function calculatePossibleMoves(unit: Unit, state: MovementState): Coordi
       }
     }
 
-    if (distance < unit.moveRange) {
+    if (distance < unit.remainingMovement) {
       const neighbors = [
         { x: coord.x + 1, y: coord.y },
         { x: coord.x - 1, y: coord.y },
@@ -74,6 +74,7 @@ export function calculatePossibleMoves(unit: Unit, state: MovementState): Coordi
     unitId: unit.id,
     position: unit.position,
     moveRange: unit.moveRange,
+    remainingMovement: unit.remainingMovement,
     totalMoves: moves.length,
     blockedTilesCount: blockedTiles.length,
     boardObstacles: board.flat().filter(t => t.type === TileType.OBSTACLE).length
@@ -116,6 +117,27 @@ export function getUnitsInRange(position: Coordinate, range: number, units: Unit
  */
 export function getDistance(from: Coordinate, to: Coordinate): number {
   return Math.abs(to.x - from.x) + Math.abs(to.y - from.y)
+}
+
+/**
+ * Calculate the direction from one coordinate to another
+ * @param from - Starting coordinate
+ * @param to - Target coordinate
+ * @returns Direction as 'up', 'down', 'left', or 'right'
+ */
+export function getDirection(from: Coordinate, to: Coordinate): 'up' | 'down' | 'left' | 'right' {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  
+  // If no movement, return current direction or default
+  if (dx === 0 && dy === 0) return 'down'
+  
+  // Determine primary direction based on larger delta
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx > 0 ? 'right' : 'left'
+  } else {
+    return dy > 0 ? 'down' : 'up'
+  }
 }
 
 /**

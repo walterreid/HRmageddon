@@ -1,8 +1,6 @@
 import Phaser from 'phaser'
 import { type Unit } from 'shared'
-import { useGameStore } from '../../stores/gameStore'
 import { useUnitStore } from '../../stores/unitStore'
-import { useUIStore } from '../../stores/uiStore'
 
 // Visual configuration for units
 const UNIT_VISUAL_CONFIG = {
@@ -97,12 +95,17 @@ export class UnitManager {
     const circle = container.getByName('circle') as Phaser.GameObjects.Graphics
     const label = container.getByName('label') as Phaser.GameObjects.Text
     const hpBg = container.getByName('hpBg') as Phaser.GameObjects.Rectangle
+    const directionIndicator = container.getByName('directionIndicator') as Phaser.GameObjects.Triangle
     
     const alpha = unit.actionsRemaining === 0 ? 0.5 : 1.0
     if (circle) circle.setAlpha(alpha)
     if (label) label.setAlpha(alpha)
     if (hpBg) hpBg.setAlpha(alpha)
     if (hpFill) hpFill.setAlpha(alpha)
+    if (directionIndicator) {
+      directionIndicator.setAlpha(alpha)
+      this.updateDirectionIndicator(directionIndicator, unit.direction)
+    }
   }
 
   private createNewUnit(unit: Unit, targetX: number, targetY: number) {
@@ -123,6 +126,10 @@ export class UnitManager {
       .setOrigin(0, 0.5)
       .setName('hpFill')
     
+    // Add direction indicator (small triangle)
+    const directionIndicator = this.scene.add.triangle(0, 0, 0, -15, -8, 8, 8, 8, 0xffffff).setName('directionIndicator')
+    this.updateDirectionIndicator(directionIndicator, unit.direction)
+    
     // Set transparency for units with no actions remaining (visual "done" state)
     if (unit.actionsRemaining === 0) {
       circle.setAlpha(0.5)
@@ -136,7 +143,7 @@ export class UnitManager {
       hpFill.setAlpha(1.0)
     }
     
-    container.add([circle, label, hpBg, hpFill])
+    container.add([circle, label, hpBg, hpFill, directionIndicator])
     
     // Make the container interactive with proper hit area
     container.setSize(this.tileSizePx, this.tileSizePx)
@@ -146,6 +153,7 @@ export class UnitManager {
     container.setInteractive(new Phaser.Geom.Rectangle(-this.tileSizePx/2, -this.tileSizePx/2, this.tileSizePx, this.tileSizePx), Phaser.Geom.Rectangle.Contains)
     
     // Add multiple event listeners for better compatibility
+    /* NOTE: This is commented out because it is handled in GameScene
     container.on('pointerdown', () => {
       // --- START OF CRITICAL FIX ---
       const uiState = useUIStore.getState()
@@ -169,6 +177,7 @@ export class UnitManager {
         circle.setScale(1)
       })
     })
+    */
     
     // Add visual feedback for interactivity
     container.on('pointerover', () => {
@@ -229,6 +238,23 @@ export class UnitManager {
 
   getUnitSprites(): Map<string, Phaser.GameObjects.Container> {
     return this.unitSprites
+  }
+
+  private updateDirectionIndicator(indicator: Phaser.GameObjects.Triangle, direction: 'up' | 'down' | 'left' | 'right') {
+    switch (direction) {
+      case 'up':
+        indicator.setRotation(Math.PI) // 180 degrees
+        break
+      case 'down':
+        indicator.setRotation(0)
+        break
+      case 'left':
+        indicator.setRotation(Math.PI / 2) // 90 degrees
+        break
+      case 'right':
+        indicator.setRotation(-Math.PI / 2) // -90 degrees
+        break
+    }
   }
 
   destroy() {

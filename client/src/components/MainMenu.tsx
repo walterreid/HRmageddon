@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../stores/gameStore'
 import Hero from "./layout/Hero"
 import { HowItWorksModal } from './HowItWorksModal'
+import { dataManager } from '../game/data/DataManager'
 
 export function MainMenu() {
   // Actions don't need selectors as they don't cause re-renders
@@ -10,14 +11,25 @@ export function MainMenu() {
   const initializeGame = useGameStore(state => state.initializeGame)
   const [showHowItWorks, setShowHowItWorks] = useState(false)
 
-  const handleStartGame = (mode: 'ai' | 'multiplayer') => {
-    setGameMode(mode)
-    initializeDraft()
+  const handleStartGame = async (mode: 'ai' | 'multiplayer') => {
+    try {
+      await dataManager.ensureLoaded() // Wait for data
+      setGameMode(mode)
+      initializeDraft() // Now this is safe to call
+    } catch (error) {
+      console.error("Failed to start game due to data loading error:", error)
+      // Optionally, show an error message to the user here
+    }
   }
 
-  const handleQuickStart = () => {
-    setGameMode('ai')
-    initializeGame()
+  const handleQuickStart = async () => {
+    try {
+      await dataManager.ensureLoaded() // Wait for data
+      setGameMode('ai')
+      initializeGame() // Now this is safe to call
+    } catch (error) {
+      console.error("Failed to quick start due to data loading error:", error)
+    }
   }
 
   return (

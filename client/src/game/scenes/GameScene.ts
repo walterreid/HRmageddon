@@ -63,9 +63,9 @@ const VISUAL_CONFIG = {
   // Highlight Properties
   HIGHLIGHT: {
     MOVEMENT_ALPHA: 0.4,
-    ATTACK_ALPHA: 0.3,
-    ATTACK_RANGE_ALPHA: 0.2,
-    ABILITY_ALPHA: 0.3,
+    ATTACK_ALPHA: 0.4,
+    ATTACK_RANGE_ALPHA: 0.4,
+    ABILITY_ALPHA: 0.4,
     AOE_ALPHA: 0.4,
     BORDER_WIDTH: 2,
     TILE_BORDER_ALPHA: 0.5,
@@ -92,7 +92,6 @@ export class GameScene extends Phaser.Scene {
   private lastSelectedAbility?: string // Track ability changes for synchronization
   
   // Action menu integration
-  private actionMode: 'none' | 'move' | 'attack' | 'ability' = 'none'
   private validTargets: (Unit | Coordinate)[] = []
   private abilityTargetGraphics!: Phaser.GameObjects.Graphics
 
@@ -688,7 +687,7 @@ export class GameScene extends Phaser.Scene {
       return
     }
 
-    const ability = getAbilityById(selectedAbility)
+    const ability = getAbilityById(selectedAbility, selectedUnit)
     if (!ability) {
       console.log('Ability not found:', selectedAbility)
       return
@@ -715,7 +714,7 @@ export class GameScene extends Phaser.Scene {
         break
       case AbilityTargetingType.SINGLE_TARGET:
       default:
-        this.showStandardTargeting()
+        this.showStandardTargeting(selectedUnit)
         break
     }
   }
@@ -793,7 +792,7 @@ export class GameScene extends Phaser.Scene {
     console.log(`Range highlighting complete. Tiles highlighted: ${tilesHighlighted}`)
   }
 
-  private showStandardTargeting() {
+  private showStandardTargeting(selectedUnit: Unit) {
     // Highlight valid targets with standard targeting
     this.validTargets.forEach(target => {
       if ('x' in target) {
@@ -801,7 +800,7 @@ export class GameScene extends Phaser.Scene {
         const { x: px, y: py } = this.tileToWorld(target.x, target.y)
         
         // Determine if this is a positive or negative ability
-        const ability = getAbilityById(useUIStore.getState().selectedAbility || '')
+        const ability = getAbilityById(useUIStore.getState().selectedAbility || '', selectedUnit)
         const isNegativeAbility = ability?.targetType === 'enemy'
         
         // Use appropriate colors for target highlighting
@@ -827,7 +826,7 @@ export class GameScene extends Phaser.Scene {
         const { x: px, y: py } = this.tileToWorld(target.position.x, target.position.y)
         
         // Determine if this is a positive or negative ability
-        const ability = getAbilityById(useUIStore.getState().selectedAbility || '')
+        const ability = getAbilityById(useUIStore.getState().selectedAbility || '', selectedUnit)
         const isNegativeAbility = ability?.targetType === 'enemy'
         
         // Use appropriate colors for target highlighting
@@ -902,7 +901,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.abilityTargetGraphics.clear() // Clear previous preview
-    const ability = getAbilityById(abilityId)
+    const ability = getAbilityById(abilityId, caster)
     if (!ability) return
 
     const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
@@ -981,8 +980,22 @@ export class GameScene extends Phaser.Scene {
     if (uiState.actionMode !== 'none' && unitState.selectedUnit) {
       const targetCoord = { x: tileX, y: tileY }
 
+      /*
       if (uiState.actionMode === 'move') {
         actionHandlers.executeMove(unitState.selectedUnit, targetCoord)
+      } 
+      */
+      
+      if (uiState.actionMode === 'move') {
+        const isValidMove = gameState.isValidMove(unitState.selectedUnit, targetCoord);
+
+        if (isValidMove) {
+          actionHandlers.executeMove(unitState.selectedUnit, targetCoord);
+        } else {
+          // THIS IS THE FIX: Handle clicks on invalid tiles during move mode
+          console.log("Invalid move target clicked. Cancelling move action.");
+          actionHandlers.cancelAction();
+        }
       } else if (uiState.actionMode === 'attack') {
         const targetUnit = unitState.getUnitAt(targetCoord)
         if (targetUnit) {
@@ -994,7 +1007,7 @@ export class GameScene extends Phaser.Scene {
       } else if (uiState.actionMode === 'ability') {
         // This logic is already correctly implemented from the previous prompt.
         // The click is handled by the block at the top of the function.
-        const ability = getAbilityById(uiState.selectedAbility!)
+        const ability = getAbilityById(uiState.selectedAbility!, unitState.selectedUnit)
         if (ability) {
           const validTargets = getValidTargets(unitState.selectedUnit, ability, boardState.board, unitState.units)
           const clickedTarget = validTargets.find(target => {
@@ -1035,7 +1048,11 @@ export class GameScene extends Phaser.Scene {
 
   // Public method to set action mode from the ActionMenu
   setActionMode(mode: 'none' | 'move' | 'attack' | 'ability', abilityId?: string) {
-    this.actionMode = mode
+    const uiStore = useUIStore.getState()
+    uiStore.setActionMode(mode)
+    if (abilityId) {
+      uiStore.setSelectedAbility(abilityId)
+    }
     
     if (mode === 'none') {
       // Clear highlights when exiting action mode
@@ -1075,12 +1092,12 @@ export class GameScene extends Phaser.Scene {
 
   // Public getter for action mode
   getActionMode(): 'none' | 'move' | 'attack' | 'ability' {
-    return this.actionMode
+    return useUIStore.getState().actionMode
   }
 
   // Public method to clear action mode
   clearActionMode() {
-    this.actionMode = 'none'
+    useUIStore.getState().clearActionMode()
     this.highlightGraphics.clear()
     // Restore normal unit highlights
     const unitState = useUnitStore.getState()
@@ -1210,7 +1227,7 @@ export class GameScene extends Phaser.Scene {
   // Ability visual effects
   playAbilityEffect(abilityId: string, target: Unit | Coordinate) {
     try {
-      const ability = getAbilityById(abilityId)
+      const ability = getAbilityById(abilityId, undefined)
       if (!ability) return
 
       switch (ability.visualEffect) {

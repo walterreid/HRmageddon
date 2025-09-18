@@ -14,7 +14,7 @@ import { generateAIDraft } from '../game/ai/aiDraft.ts'
 import { canUseAbility, getValidTargets, getAbilityById } from '../game/core/abilities.ts'
 import { mapRegistry } from '../game/map/MapRegistry'
 import { MAPS } from '../game/map/registry'
-import { calculatePossibleMoves as calcMoves, isValidMove as isValidMoveUtil } from '../game/core/movement'
+import { calculatePossibleMoves as calcMoves, isValidMove as isValidMoveUtil, getDistance, getDirection } from '../game/core/movement'
 import { calculatePossibleTargets as calcTargets, isValidAttack as isValidAttackUtil, calculateDamage } from '../game/core/combat'
 import { checkVictoryConditions as checkVictory } from '../game/core/victory'
 import { useUnitStore } from './unitStore'
@@ -299,6 +299,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         abilityCooldowns: {},
         movementUsed: 0,
         remainingMovement: 3,
+        direction: 'down',
       })
     }
 
@@ -436,6 +437,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         abilityCooldowns: {},
         movementUsed: 0,
           remainingMovement: 3,
+          direction: 'down',
         }
       }
       
@@ -472,6 +474,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         abilityCooldowns: {},
         movementUsed: 0,
           remainingMovement: 3,
+          direction: 'down',
         }
       }
       
@@ -554,20 +557,33 @@ export const useGameStore = create<GameStore>((set, get) => {
     const unit = unitStore.getUnitById(unitId)
     if (!unit || !get().isValidMove(unit, to)) return
 
-      console.log('Moving unit:', {
-        unitId,
-        from: unit.position,
-        to,
-        hasMoved: unit.hasMoved,
-        actionsRemaining: unit.actionsRemaining
-      })
-
-    // Update unit position and actions
-    unitStore.updateUnit(unitId, { 
-      position: to, 
-      hasMoved: true, 
-      actionsRemaining: unit.actionsRemaining - 1 
+    // Calculate the distance of this move
+    const moveDistance = getDistance(unit.position, to)
+    const newRemainingMovement = unit.remainingMovement - moveDistance
+    
+    console.log('Moving unit:', {
+      unitId,
+      from: unit.position,
+      to,
+      moveDistance,
+      remainingMovement: unit.remainingMovement,
+      newRemainingMovement,
+      actionsRemaining: unit.actionsRemaining
     })
+
+    // Update unit position and movement
+    const updates: Partial<Unit> = { 
+      position: to,
+      remainingMovement: newRemainingMovement
+    }
+    
+    // Only consume an action point if movement is exhausted
+    if (newRemainingMovement <= 0) {
+      updates.actionsRemaining = unit.actionsRemaining - 1
+      updates.hasMoved = true
+    }
+    
+    unitStore.updateUnit(unitId, updates)
 
     // --- START OF CRITICAL FIX ---
     const finalUnitState = useUnitStore.getState().getUnitById(unitId)
@@ -643,12 +659,15 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     if (!attacker || !target || !get().isValidAttack(attacker, target)) return
 
-      const damage = calculateDamage(attacker, target)
+    // Calculate direction from attacker to target
+    const direction = getDirection(attacker.position, target.position)
+    const damage = calculateDamage(attacker, target)
 
-    // Update attacker
+    // Update attacker with new direction
     unitStore.updateUnit(attackerId, { 
       actionsRemaining: attacker.actionsRemaining - 1, 
-      hasAttacked: true 
+      hasAttacked: true,
+      direction: direction
     })
 
     // Update target
@@ -1005,8 +1024,20 @@ export const useGameStore = create<GameStore>((set, get) => {
     const unit = unitStore.getUnitById(unitId)
     if (!unit) return
 
-    const ability = getAbilityById(abilityId)
+    const ability = getAbilityById(abilityId, unit)
     if (!ability || !canUseAbility(unit, abilityId)) return
+
+    // Calculate direction if target is provided
+    let direction = unit.direction
+    if (target) {
+      if ('x' in target) {
+        // Target is a coordinate
+        direction = getDirection(unit.position, target)
+      } else {
+        // Target is a unit
+        direction = getDirection(unit.position, target.position)
+      }
+    }
 
     // Execute the ability's effect function to get the result
     const result = ability.effect(unit, target)
@@ -1096,9 +1127,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         })
       }
 
-      // 6. Consume Action Points from Caster
+      // 6. Consume Action Points from Caster and update direction
       unitStore.updateUnit(unitId, { 
-        actionsRemaining: unit.actionsRemaining - (ability.cost || 1)
+        actionsRemaining: unit.actionsRemaining - (ability.cost || 1),
+        direction: direction
       })
 
       // --- START OF CRITICAL FIX ---
@@ -1127,7 +1159,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     const unit = unitStore.getUnitById(unitId)
     if (!unit) return []
     
-    const ability = getAbilityById(abilityId)
+    const ability = getAbilityById(abilityId, unit)
     if (!ability) return []
     return getValidTargets(unit, ability, boardStore.board, unitStore.units)
   },
@@ -1142,7 +1174,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   // New helper functions for smart action availability
   canUnitMove: (unit: Unit) => {
-    return unit.actionsRemaining > 0 && !unit.hasMoved;
+    return unit.actionsRemaining > 0 && unit.remainingMovement > 0;
   },
 
   canUnitAttack: (unit: Unit) => {

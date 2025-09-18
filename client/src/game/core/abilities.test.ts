@@ -245,6 +245,7 @@ describe('Ability System', () => {
           abilityCooldowns: {},
           movementUsed: 0,
           remainingMovement: 3,
+          direction: 'down',
         }
         
         expect(getUnitAbilities(mockIntern)).toHaveLength(2)

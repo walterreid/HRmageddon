@@ -12,6 +12,7 @@ export class DataManager {
   private static instance: DataManager
   private data: LoadedData
   private isLoaded: boolean = false
+  private loadingPromise: Promise<void> | null = null
 
   private constructor() {
     this.data = {
@@ -31,24 +32,32 @@ export class DataManager {
   }
 
   public async loadAll(): Promise<void> {
-    console.log('DataManager: Starting to load all game data...')
-    
-    try {
-      // Load all data files in parallel
-      await Promise.all([
-        this.loadEmployees(),
-        this.loadAbilities(),
-        this.loadAttackPatterns(),
-        this.loadStatusEffects(),
-        this.loadGameConfig()
-      ])
-      
-      this.isLoaded = true
-      console.log('DataManager: All game data loaded successfully!')
-    } catch (error) {
-      console.error('DataManager: Failed to load all game data:', error)
-      throw error
+    if (this.loadingPromise) {
+      return this.loadingPromise
     }
+    console.log('DataManager: Starting to load all game data...')
+
+    this.loadingPromise = (async () => {
+      try {
+        // Load all data files in parallel
+        await Promise.all([
+          this.loadEmployees(),
+          this.loadAbilities(),
+          this.loadAttackPatterns(),
+          this.loadStatusEffects(),
+          this.loadGameConfig()
+        ])
+        
+        this.isLoaded = true
+        console.log('DataManager: All game data loaded successfully!')
+      } catch (error) {
+        console.error('DataManager: Failed to load all game data:', error)
+        this.loadingPromise = null // Reset on failure
+        throw error
+      }
+    })()
+
+    return this.loadingPromise
   }
 
   private async loadEmployees(): Promise<void> {
@@ -233,6 +242,17 @@ export class DataManager {
     return this.isLoaded
   }
 
+  public async ensureLoaded(): Promise<void> {
+    if (this.isLoaded) {
+      return Promise.resolve()
+    }
+    if (!this.loadingPromise) {
+      // This will also handle the case where loading failed and was reset
+      return this.loadAll()
+    }
+    return this.loadingPromise
+  }
+
   // Utility method to get employee by ID (for backward compatibility)
   public getEmployeeById(id: number): Employee | undefined {
     if (!this.isLoaded) {
@@ -244,8 +264,8 @@ export class DataManager {
 
   // Convert Employee data to Unit data for game logic
   public createUnitFromEmployee(employee: Employee, id: string, playerId: string, position: { x: number; y: number }): Unit {
-    // Get abilities based on unit type mapping
-    const abilities = this.getAbilitiesForUnitType(this.mapEmployeeKeyToUnitType(employee.key))
+    // Get abilities directly from employee's ability_keys array
+    const abilities = employee.ability_keys || []
     
     return {
       id,
@@ -267,24 +287,10 @@ export class DataManager {
       abilityCooldowns: {},
       movementUsed: 0,
       remainingMovement: employee.stats.speed,
+      direction: 'down', // Default direction
     }
   }
 
-  // Get abilities for a specific unit type based on the UNIT_ABILITIES mapping
-  private getAbilitiesForUnitType(unitType: UnitType): string[] {
-    const abilityMapping: Record<UnitType, string[]> = {
-      [UnitType.INTERN]: ['fetch_coffee', 'overtime'],
-      [UnitType.SECRETARY]: ['file_it'],
-      [UnitType.SALES_REP]: ['harass'],
-      [UnitType.HR_MANAGER]: ['pink_slip', 'mediation'],
-      [UnitType.IT_SPECIALIST]: ['hack_system', 'tech_support'],
-      [UnitType.ACCOUNTANT]: ['audit', 'creative_accounting'],
-      [UnitType.LEGAL_COUNSEL]: ['legal_threat', 'contract_negotiation'],
-      [UnitType.EXECUTIVE]: ['executive_order', 'corporate_restructuring', 'paperclip_storm'],
-    }
-    
-    return abilityMapping[unitType] || []
-  }
 
   // Map employee keys to UnitType enum
   private mapEmployeeKeyToUnitType(employeeKey: string): UnitType {

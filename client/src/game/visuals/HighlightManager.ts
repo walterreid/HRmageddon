@@ -1,11 +1,12 @@
 import Phaser from 'phaser'
-import { type Unit, type Coordinate, AbilityTargetingType, type Ability } from 'shared'
+import { type Unit, type Coordinate, AbilityTargetingType, type Ability, type AttackPattern } from 'shared'
 import { useGameStore } from '../../stores/gameStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useUnitStore } from '../../stores/unitStore'
 import { useBoardStore } from '../../stores/boardStore'
 import { getAbilityById, getValidTargets } from '../core/abilities'
 import { getTilesInCone } from '../core/targeting'
+import { dataManager } from '../data/DataManager'
 
 // Visual configuration for highlights
 const HIGHLIGHT_CONFIG = {
@@ -22,9 +23,9 @@ const HIGHLIGHT_CONFIG = {
   },
   HIGHLIGHT: {
     MOVEMENT_ALPHA: 0.4,
-    ATTACK_ALPHA: 0.3,
-    ATTACK_RANGE_ALPHA: 0.2,
-    ABILITY_ALPHA: 0.3,
+    ATTACK_ALPHA: 0.4,
+    ATTACK_RANGE_ALPHA: 0.4,
+    ABILITY_ALPHA: 0.4,
     AOE_ALPHA: 0.4,
     BORDER_WIDTH: 2,
     TILE_BORDER_ALPHA: 0.5,
@@ -70,53 +71,11 @@ export class HighlightManager {
       
       // ALWAYS clear first
       this.highlightGraphics.clear()
-      
-      // Check ability state FIRST
-      const uiStore = useUIStore.getState()
-      if (uiStore.selectedAbility && uiStore.targetingMode) {
-        console.log('Ability mode active, showing ability highlights only')
-        // Only render highlights with type 'ability'
-        highlighted.forEach((type, coordKey) => {
-          if (type === 'ability') {
-            const [x, y] = coordKey.split(',').map(Number)
-            const { x: px, y: py } = this.tileToWorld(x, y)
-            
-            // Use DISTINCT purple color for abilities
-            this.drawHighlight(px, py, this.tileSizePx, 'ability')
-          }
-        })
-        return // Don't show any other highlights
-      }
-      
-      console.log('updateHighlights:', {
-        hasAbility: !!uiStore.selectedAbility,
-        targetingMode: uiStore.targetingMode,
-        highlightCount: highlighted.size,
-        highlightTypes: Array.from(highlighted.values())
-      })
-      
-      // Normal mode - show movement/attack highlights
-      console.log('Normal mode active, showing movement/attack highlights')
-      const highlightMap = new Map<string, string[]>()
-      
-      highlighted.forEach((type, key) => {
-        // IGNORE ability highlights in normal mode
-        if (type !== 'ability') {
-          if (!highlightMap.has(key)) {
-            highlightMap.set(key, [])
-          }
-          highlightMap.get(key)!.push(type)
-        }
-      })
-      
-      // Draw movement/attack highlights
-      highlightMap.forEach((types, coordKey) => {
+
+      highlighted.forEach((type, coordKey) => {
         const [x, y] = coordKey.split(',').map(Number)
         const { x: px, y: py } = this.tileToWorld(x, y)
-        
-        types.forEach(type => {
-          this.drawHighlight(px, py, this.tileSizePx, type)
-        })
+        this.drawHighlight(px, py, this.tileSizePx, type)
       })
 
       // Always draw selected unit highlight last
@@ -177,6 +136,14 @@ export class HighlightManager {
           color = HIGHLIGHT_CONFIG.COLORS.INVALID
           alpha = 0.5
           break
+        case 'range':
+          color = 0x60a5fa // Light blue for range area
+          alpha = 0.2
+          break
+        case 'target':
+          color = 0xef4444 // Red for valid targets
+          alpha = 0.6
+          break
         default:
           color = 0x16a34a // Default green
           alpha = 0.3
@@ -210,7 +177,7 @@ export class HighlightManager {
       return
     }
 
-    const ability = getAbilityById(selectedAbility)
+    const ability = getAbilityById(selectedAbility, selectedUnit)
     if (!ability) {
       console.log('Ability not found:', selectedAbility)
       return
@@ -227,6 +194,9 @@ export class HighlightManager {
 
     // Show range highlight first
     this.showAbilityRange(selectedUnit, ability)
+    
+    // Show attack pattern if available
+    this.showAttackPattern(selectedUnit, ability)
     
     // Handle different targeting types
     switch (ability.targetingType) {
@@ -317,13 +287,14 @@ export class HighlightManager {
 
   private showStandardTargeting() {
     // Highlight valid targets with standard targeting
+    const selectedUnit = useUnitStore.getState().selectedUnit
     this.validTargets.forEach(target => {
       if ('x' in target) {
         // Target is a coordinate
         const { x: px, y: py } = this.tileToWorld(target.x, target.y)
         
         // Determine if this is a positive or negative ability
-        const ability = getAbilityById(useUIStore.getState().selectedAbility || '')
+        const ability = getAbilityById(useUIStore.getState().selectedAbility || '', selectedUnit)
         const isNegativeAbility = ability?.targetType === 'enemy'
         
         // Use appropriate colors for target highlighting
@@ -349,7 +320,7 @@ export class HighlightManager {
         const { x: px, y: py } = this.tileToWorld(target.position.x, target.position.y)
         
         // Determine if this is a positive or negative ability
-        const ability = getAbilityById(useUIStore.getState().selectedAbility || '')
+        const ability = getAbilityById(useUIStore.getState().selectedAbility || '', selectedUnit)
         const isNegativeAbility = ability?.targetType === 'enemy'
         
         // Use appropriate colors for target highlighting
@@ -424,7 +395,7 @@ export class HighlightManager {
     }
 
     this.abilityTargetGraphics.clear() // Clear previous preview
-    const ability = getAbilityById(abilityId)
+    const ability = getAbilityById(abilityId, caster)
     if (!ability) return
 
     const { x: tileX, y: tileY } = this.worldToTile(pointer.x, pointer.y)
@@ -455,6 +426,81 @@ export class HighlightManager {
     // Fill circle area
     this.abilityTargetGraphics.fillStyle(HIGHLIGHT_CONFIG.COLORS.ABILITY_AOE, HIGHLIGHT_CONFIG.HIGHLIGHT.AOE_ALPHA)
     this.abilityTargetGraphics.fill()
+  }
+
+  private showAttackPattern(caster: Unit, ability: Ability) {
+    // Get the attack pattern from DataManager
+    const attackPattern = dataManager.getAttackPattern(ability.range_pattern_key || 'single_target_melee')
+    if (!attackPattern) {
+      console.log('No attack pattern found for ability:', ability.id)
+      return
+    }
+
+    console.log('Drawing attack pattern:', attackPattern.key, 'for ability:', ability.name)
+    this.drawAttackPattern(attackPattern, caster)
+  }
+
+  private drawAttackPattern(pattern: AttackPattern, caster: Unit) {
+    if (!this.abilityTargetGraphics) {
+      console.error('abilityTargetGraphics not initialized!')
+      return
+    }
+
+    const boardState = useBoardStore.getState()
+    
+    // Get the center of the pattern (where the caster is)
+    const patternCenterX = Math.floor(pattern.pattern[0].length / 2)
+    const patternCenterY = Math.floor(pattern.pattern.length / 2)
+    
+    console.log('Pattern center:', { patternCenterX, patternCenterY })
+    console.log('Pattern dimensions:', { width: pattern.pattern[0].length, height: pattern.pattern.length })
+    
+    // Iterate through the pattern array
+    for (let row = 0; row < pattern.pattern.length; row++) {
+      for (let col = 0; col < pattern.pattern[row].length; col++) {
+        const patternValue = pattern.pattern[row][col]
+        
+        // Only draw tiles marked as 1 (hit tiles)
+        if (patternValue === 1) {
+          // Calculate the relative position from the caster
+          const relativeX = col - patternCenterX
+          const relativeY = row - patternCenterY
+          
+          // Calculate the actual tile position
+          const targetX = caster.position.x + relativeX
+          const targetY = caster.position.y + relativeY
+          
+          // Check if this position is on the board
+          if (targetX >= 0 && targetX < boardState.board[0].length && 
+              targetY >= 0 && targetY < boardState.board.length) {
+            
+            // Check if this tile contains a valid target
+            const hasValidTarget = this.validTargets.some(target => {
+              if ('x' in target) {
+                return target.x === targetX && target.y === targetY
+              } else {
+                return target.position.x === targetX && target.position.y === targetY
+              }
+            })
+            
+            // Only draw the pattern overlay if there's a valid target
+            if (hasValidTarget) {
+              const { x: px, y: py } = this.tileToWorld(targetX, targetY)
+              
+              console.log(`Drawing pattern tile at (${targetX}, ${targetY}) -> screen (${px}, ${py})`)
+              
+              // Draw pattern overlay with distinct color
+              this.abilityTargetGraphics.fillStyle(0xff6b6b, 0.4) // Semi-transparent red
+              this.abilityTargetGraphics.fillRect(px, py, this.tileSizePx, this.tileSizePx)
+              
+              // Add pattern border
+              this.abilityTargetGraphics.lineStyle(2, 0xff6b6b, 0.8)
+              this.abilityTargetGraphics.strokeRect(px, py, this.tileSizePx, this.tileSizePx)
+            }
+          }
+        }
+      }
+    }
   }
 
   showAttackHighlights() {

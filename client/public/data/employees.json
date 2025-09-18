@@ -22,15 +22,7 @@
             "magnitude": 0.5
           }
         },
-        "special_ability": {
-          "key": "harass",
-          "name": "Harass",
-          "type": "debuff",
-          "target": "enemy",
-          "effect": "harassed",
-          "magnitude": 1.0,
-          "duration": 2
-        }
+        "ability_keys": ["harass"]
       },
       {
         "id": 2,
@@ -51,15 +43,7 @@
             "type": "none"
           }
         },
-        "special_ability": {
-          "key": "urgent_memo",
-          "name": "Urgent Memo",
-          "type": "buff",
-          "target": "ally",
-          "effect": "increase_speed",
-          "magnitude": 0.2,
-          "duration": 3
-        }
+        "ability_keys": ["urgent_memo"]
       },
       {
         "id": 3,
@@ -83,15 +67,7 @@
             "damage_per_turn": 10
           }
         },
-        "special_ability": {
-          "key": "pink_slip",
-          "name": "Pink Slip",
-          "type": "execution",
-          "target": "enemy",
-          "effect": "damage",
-          "magnitude": 999,
-          "duration": 1
-        }
+        "ability_keys": ["pink_slip"]
       },
       {
         "id": 4,
@@ -114,15 +90,7 @@
             "duration": 1
           }
         },
-        "special_ability": {
-          "key": "hack_system",
-          "name": "Hack System",
-          "type": "debuff",
-          "target": "enemy",
-          "effect": "confused",
-          "magnitude": 1.0,
-          "duration": 2
-        }
+        "ability_keys": ["hack_system"]
       }
     ]
   }

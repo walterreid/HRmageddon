@@ -53,6 +53,7 @@ export interface Unit {
     abilityCooldowns: Record<string, number>;
     movementUsed: number;
     remainingMovement: number;
+    direction: 'up' | 'down' | 'left' | 'right';
 }
 export declare enum UnitType {
     INTERN = "intern",
@@ -172,6 +173,7 @@ export interface Ability {
     aoeRadius?: number;
     coneAngle?: number;
     requiresDirection?: boolean;
+    range_pattern_key?: string;
     effect: (caster: Unit, target?: Unit | Coordinate) => AbilityResult;
     visualEffect?: string;
     soundEffect?: string;
@@ -229,15 +231,7 @@ export interface Employee {
             damage_per_turn?: number;
         };
     };
-    special_ability?: {
-        key?: string;
-        name: string;
-        type: string;
-        target: string;
-        effect: string;
-        magnitude: number;
-        duration: number;
-    };
+    ability_keys?: string[];
 }
 export interface DataAbility {
     key: string;

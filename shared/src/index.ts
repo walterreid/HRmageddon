@@ -58,6 +58,8 @@ export interface Unit {
   // New movement tracking properties
   movementUsed: number // How much movement has been used this turn
   remainingMovement: number // How much movement is left this turn
+  // New direction property for targeting
+  direction: 'up' | 'down' | 'left' | 'right'
 }
 
 export enum UnitType {
@@ -201,6 +203,7 @@ export interface Ability {
   aoeRadius?: number
   coneAngle?: number // for cone abilities in degrees
   requiresDirection?: boolean
+  range_pattern_key?: string // Reference to attack pattern
   effect: (caster: Unit, target?: Unit | Coordinate) => AbilityResult
   visualEffect?: string
   soundEffect?: string
@@ -265,15 +268,7 @@ export interface Employee {
       damage_per_turn?: number
     }
   }
-  special_ability?: {
-    key?: string
-    name: string
-    type: string
-    target: string
-    effect: string
-    magnitude: number
-    duration: number
-  }
+  ability_keys?: string[]
 }
 
 export interface DataAbility {

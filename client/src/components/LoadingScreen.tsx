@@ -22,8 +22,8 @@ export function LoadingScreen({ onLoadingComplete }: LoadingScreenProps) {
         // This eliminates the race condition between LoadingScreen and GameScene
         await preloadStartingPositions();
         
-        // Load all game data from JSON files
-        await dataManager.loadAll();
+        // Use the new, robust data loading method
+        await dataManager.ensureLoaded();
         
         console.log('LoadingScreen: All data loaded successfully');
         

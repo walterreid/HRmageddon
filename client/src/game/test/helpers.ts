@@ -21,6 +21,7 @@ export function createMockUnit(overrides: Partial<Unit> = {}): Unit {
     cost: 100,
     movementUsed: 0,
     remainingMovement: 2,
+    direction: 'down',
     ...overrides
   }
 }

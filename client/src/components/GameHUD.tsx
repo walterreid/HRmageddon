@@ -297,39 +297,6 @@ export function GameHUD() {
     }
   }, [])
 
-  // Sync action mode with GameScene when it becomes available
-  useEffect(() => {
-    const checkGameScene = () => {
-      const gameScene = (window as ExtendedWindow).gameScene
-      if (gameScene && gameScene.getActionMode) {
-        const sceneActionMode = gameScene.getActionMode()
-        // Validate the action mode from the scene
-        if (sceneActionMode === 'move' || sceneActionMode === 'attack' || sceneActionMode === 'ability' || sceneActionMode === 'none') {
-          if (sceneActionMode !== actionMode) {
-            const uiStore = useUIStore.getState()
-            uiStore.setActionMode(sceneActionMode)
-            if (sceneActionMode === 'none') {
-              uiStore.setSelectedAbility(undefined)
-            }
-          }
-        } else {
-          console.warn('Invalid action mode from GameScene:', sceneActionMode, '- resetting to none')
-          actionHandlers.cancelAction()
-          if (gameScene?.clearActionMode) {
-            gameScene.clearActionMode()
-          }
-        }
-      }
-    }
-
-    // Check immediately
-    checkGameScene()
-    
-    // Check periodically until GameScene is available
-    const interval = setInterval(checkGameScene, HUD_CONFIG.FEEDBACK.DURATION / 20) // Check every 100ms
-    
-    return () => clearInterval(interval)
-  }, [actionMode])
 
   // Mobile: Open bottom sheet when unit is selected
   useEffect(() => {
